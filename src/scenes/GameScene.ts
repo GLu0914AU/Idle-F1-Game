@@ -76,6 +76,7 @@ export class GameScene extends Phaser.Scene {
 
   private teamText!: Phaser.GameObjects.Text;
   private moneyText!: Phaser.GameObjects.Text;
+  private wageText!: Phaser.GameObjects.Text;
   private gemText!: Phaser.GameObjects.Text;
   private rpText!: Phaser.GameObjects.Text;
   private cloutText!: Phaser.GameObjects.Text;
@@ -184,6 +185,7 @@ export class GameScene extends Phaser.Scene {
     addSlant(this, W - 190, 6, 200, 36, 0x1a2342, 18);
     addSlant(this, W - 190, 6, 6, 36, COLORS.gold, 6);
     this.moneyText = addText(this, W - 22, 10, '', 22, '#ffc933').setOrigin(1, 0);
+    this.wageText = addText(this, W - 178, 9, '', 11, '#ff8a80').setLineSpacing(0);
     const g = this.add.graphics();
     // Gem (cyan diamond) and research point (purple hexagon) icons.
     const gx = W - 196;
@@ -582,6 +584,8 @@ export class GameScene extends Phaser.Scene {
     const s = this.state;
     const rating = carRating(this.eff());
     this.moneyText.setText(`$ ${formatNumber(s.money)}`);
+    const wages = totalPayroll(s);
+    this.wageText.setText(wages > 0 ? `WAGES\n-$${formatNumber(wages)}/race` : '');
     this.gemText.setText(String(s.gems));
     this.rpText.setText(`${s.researchPoints} RP`);
     this.cloutText.setText(String(s.clout));
