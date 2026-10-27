@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   MODE_COOLDOWN,
+  PIT_ISSUES,
+  pitIssueChance,
   isPitting,
   newStrategy,
   paceFactor,
@@ -13,6 +15,15 @@ import {
 } from './strategy';
 
 const L = { tapPower: 0, pitCrew: 0, tyres: 0 };
+
+describe('pit issues', () => {
+  it('stops are long, and a better crew makes problems rarer', () => {
+    expect(pitDuration(0)).toBeGreaterThanOrEqual(30);
+    expect(pitIssueChance(20)).toBeLessThan(pitIssueChance(0));
+    expect(pitIssueChance(1000)).toBeGreaterThan(0);
+    expect(PIT_ISSUES.every((i) => i.extra > 0)).toBe(true);
+  });
+});
 
 describe('strategy', () => {
   it('tyres wear over time and slow the car', () => {

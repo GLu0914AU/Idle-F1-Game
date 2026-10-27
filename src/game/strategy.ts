@@ -80,8 +80,20 @@ export function newStrategy(prev?: Pick<Strategy, 'mode' | 'compound' | 'nextCom
 export const isPitting = (s: Strategy) => s.pitRemaining > 0;
 
 export function pitDuration(pitCrew: number): number {
-  return 18 / (1 + 0.1 * pitCrew);
+  return 30 / (1 + 0.1 * pitCrew);
 }
+
+// Things that can go wrong in a stop. Each adds game-seconds on top of the normal stop.
+export const PIT_ISSUES = [
+  { name: 'STUCK WHEEL NUT', extra: 10 },
+  { name: 'FUEL RIG JAM', extra: 14 },
+  { name: 'WRONG TYRES FITTED', extra: 18 },
+  { name: 'JACK FAILURE', extra: 22 },
+] as const;
+export type PitIssue = (typeof PIT_ISSUES)[number];
+
+// Chance of a problem in any one stop; a better pit crew makes them rarer.
+export const pitIssueChance = (pitCrew: number) => Math.max(0.05, 0.25 - 0.01 * pitCrew);
 
 // A tap charges boost on track, and speeds up the crew while in the pits.
 export function tap(s: Strategy, tapPower: number): void {

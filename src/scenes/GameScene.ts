@@ -405,7 +405,9 @@ export class GameScene extends Phaser.Scene {
       });
       const pit = this.pitBtns[i];
       if (isPitting(s)) {
-        pit.setLabel(`IN PITS: TAP! ${(s.pitRemaining / RACE_SPEED).toFixed(1)}s`);
+        const issue = this.race.cars.find((c) => c.id === `player-${i}`)?.pit?.issue;
+        const t = (s.pitRemaining / RACE_SPEED).toFixed(1);
+        pit.setLabel(issue ? `${issue}! TAP! ${t}s` : `IN PITS: TAP! ${t}s`);
       } else if (s.pitRequested) {
         pit.setLabel(`BOX THIS LAP: ${s.nextCompound.toUpperCase()} (cancel)`);
       } else {

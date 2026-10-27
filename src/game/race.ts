@@ -5,6 +5,8 @@ import {
   newStrategy,
   paceFactor,
   pitDuration,
+  PIT_ISSUES,
+  pitIssueChance,
   stepStrategy,
 } from './strategy';
 import { PLAYER_COLOR, PLAYER_DRIVERS, RIVAL_TEAMS, rivalRating } from './teams';
@@ -29,7 +31,7 @@ export interface Car {
   // Wear level at which this NPC calls itself in.
   pitWear?: number;
   // Set while the car is in the pit lane: it travels the lane from the entrance to the exit as the stop completes.
-  pit?: { start: number; remaining: number; total: number };
+  pit?: { start: number; remaining: number; total: number; issue?: string };
   lastPitId?: number;
 }
 
@@ -199,8 +201,11 @@ export function stepRace(race: Race, dt: number, playerBoost = 1, player?: Playe
     if (s?.pitRequested && car.lastPitId !== s.pitRequestId) {
       const lap = Math.floor(car.progress + PIT_HALF_LENGTH);
       if (lap > Math.floor(before + PIT_HALF_LENGTH) && lap >= 1 && lap < laps) {
-        const total = pitDuration(crew);
-        car.pit = { start: lap - PIT_HALF_LENGTH, remaining: total, total };
+        const base = pitDuration(crew);
+        const roll = race.rng();
+        const issue = roll < pitIssueChance(crew) ? PIT_ISSUES[Math.floor(race.rng() * PIT_ISSUES.length)] : undefined;
+        const total = base + (issue?.extra ?? 0);
+        car.pit = { start: lap - PIT_HALF_LENGTH, remaining: total, total, issue: issue?.name };
         car.progress = car.pit.start;
         car.lastPitId = s.pitRequestId;
         s.pendingFit = true;
