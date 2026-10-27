@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { RaceScene } from './scenes/RaceScene';
+import { GameScene } from './scenes/GameScene';
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -11,5 +11,5 @@ new Phaser.Game({
     width: 540,
     height: 960,
   },
-  scene: [RaceScene],
+  scene: [GameScene],
 });

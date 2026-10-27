@@ -9,6 +9,12 @@ export interface GameState {
   points: Record<string, number>;
   upgrades: Record<string, number>;
   autoUnlocked: boolean;
+  teamNamed: boolean;
+  autoBuy: boolean;
+  autoStrategy: boolean;
+  autoTap: boolean;
+  // Real seconds of 2x speed remaining.
+  boostSeconds: number;
   // Multiplies all income and prizes.
   sponsors: number;
   lastSavedAt: number;
@@ -26,8 +32,22 @@ export function newGame(now = Date.now()): GameState {
     season: 1,
     race: 1,
     points: {},
-    upgrades: { engine: 0, aero: 0, tyres: 0, brakes: 0, reliability: 0, pitCrew: 0 },
+    upgrades: {
+      engine: 0,
+      aero: 0,
+      tyres: 0,
+      brakes: 0,
+      reliability: 0,
+      pitCrew: 0,
+      tapPower: 0,
+      sponsorDeals: 0,
+    },
     autoUnlocked: false,
+    teamNamed: false,
+    autoBuy: false,
+    autoStrategy: false,
+    autoTap: false,
+    boostSeconds: 0,
     sponsors: 1,
     lastSavedAt: now,
   };

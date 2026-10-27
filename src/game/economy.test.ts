@@ -14,8 +14,8 @@ const engine = UPGRADE_DEFS[0];
 
 describe('economy', () => {
   it('cost grows by 1.15 per level', () => {
-    expect(upgradeCost(engine, 0)).toBe(10);
-    expect(upgradeCost(engine, 10)).toBe(Math.ceil(10 * 1.15 ** 10));
+    expect(upgradeCost(engine, 0)).toBe(200);
+    expect(upgradeCost(engine, 10)).toBe(Math.ceil(200 * 1.15 ** 10));
     expect(upgradeCost(engine, 11)).toBeGreaterThan(upgradeCost(engine, 10));
   });
 
@@ -39,9 +39,9 @@ describe('economy', () => {
     const s = { money: 5, upgrades: {} as Record<string, number> };
     expect(buyUpgrade(s, engine)).toBe(false);
     expect(s.money).toBe(5);
-    s.money = 25;
+    s.money = 250;
     expect(buyUpgrade(s, engine)).toBe(true);
-    expect(s.money).toBe(15);
+    expect(s.money).toBe(50);
     expect(s.upgrades.engine).toBe(1);
   });
 

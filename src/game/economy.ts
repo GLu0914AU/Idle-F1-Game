@@ -7,17 +7,28 @@ export interface UpgradeDef {
 }
 
 export const UPGRADE_DEFS: UpgradeDef[] = [
-  { key: 'engine', name: 'Engine', baseCost: 10, ratingPerLevel: 3 },
-  { key: 'aero', name: 'Aero', baseCost: 15, ratingPerLevel: 2.5 },
-  { key: 'tyres', name: 'Tyres', baseCost: 20, ratingPerLevel: 2 },
-  { key: 'brakes', name: 'Brakes', baseCost: 30, ratingPerLevel: 1.5 },
-  { key: 'reliability', name: 'Reliability', baseCost: 40, ratingPerLevel: 1 },
-  { key: 'pitCrew', name: 'Pit Crew', baseCost: 60, ratingPerLevel: 1 },
+  { key: 'engine', name: 'Engine', baseCost: 200, ratingPerLevel: 3 },
+  { key: 'aero', name: 'Aero', baseCost: 300, ratingPerLevel: 2.5 },
+  { key: 'tyres', name: 'Tyres', baseCost: 400, ratingPerLevel: 2 },
+  { key: 'brakes', name: 'Brakes', baseCost: 600, ratingPerLevel: 1.5 },
+  { key: 'reliability', name: 'Reliability', baseCost: 800, ratingPerLevel: 1 },
+  { key: 'pitCrew', name: 'Pit Crew', baseCost: 1200, ratingPerLevel: 1 },
 ];
 
 export const COST_GROWTH = 1.15;
 export const BASE_RATING = 10;
 const PRIZE_BASE = 100;
+
+// R&D upgrades don't change car rating; they change how you play and earn.
+export const RND_DEFS: UpgradeDef[] = [
+  { key: 'tapPower', name: 'Tap Power', baseCost: 1000, ratingPerLevel: 0 },
+  { key: 'sponsorDeals', name: 'Sponsor Deals', baseCost: 4000, ratingPerLevel: 0 },
+];
+
+// Permanent sponsors multiplier plus 10% per Sponsor Deals level.
+export function sponsorMultiplier(state: { sponsors: number; upgrades: Record<string, number> }): number {
+  return state.sponsors * (1 + 0.1 * (state.upgrades.sponsorDeals ?? 0));
+}
 
 export function upgradeCost(def: UpgradeDef, level: number): number {
   return Math.ceil(def.baseCost * COST_GROWTH ** level);
