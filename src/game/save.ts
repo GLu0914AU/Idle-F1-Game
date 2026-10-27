@@ -7,6 +7,8 @@ export interface GameState {
   race: number;
   // Constructors' points this season, by team id.
   points: Record<string, number>;
+  // Drivers' points this season, by car id.
+  driverPoints: Record<string, number>;
   upgrades: Record<string, number>;
   autoUnlocked: boolean;
   teamNamed: boolean;
@@ -40,6 +42,7 @@ export function newGame(now = Date.now()): GameState {
     season: 1,
     race: 1,
     points: {},
+    driverPoints: {},
     upgrades: {
       engine: 0,
       aero: 0,
@@ -80,6 +83,7 @@ export function loadGame(store: Store = localStorage, now = Date.now()): GameSta
       ...data,
       upgrades: { ...fresh.upgrades, ...(data.upgrades ?? {}) },
       points: { ...(data.points ?? {}) },
+      driverPoints: { ...(data.driverPoints ?? {}) },
       research: { ...(data.research ?? {}) },
       sponsorList: [...(data.sponsorList ?? [])],
       version: SAVE_VERSION,

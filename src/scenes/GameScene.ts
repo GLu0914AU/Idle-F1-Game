@@ -16,7 +16,7 @@ import { Race, createRace, standings, stepRace } from '../game/race';
 import { canPrestige, effectiveUpgrades, prestige, researchPointsFor } from '../game/prestige';
 import { sponsorIncome } from '../game/sponsors';
 import { GameState, loadGame, saveGame } from '../game/save';
-import { RACES_PER_SEASON, advanceSeason, awardPoints } from '../game/season';
+import { RACES_PER_SEASON, advanceSeason, awardPoints, driversTable } from '../game/season';
 import {
   COMPOUNDS,
   Compound,
@@ -80,6 +80,10 @@ export class GameScene extends Phaser.Scene {
   private barGfx!: Phaser.GameObjects.Graphics;
   private compoundText!: Phaser.GameObjects.Text;
   private towerRows: Phaser.GameObjects.Text[] = [];
+  private towerPoints: Phaser.GameObjects.Text[] = [];
+  private towerBtn!: Button;
+  // The list shows this race's running order, or each driver's points this season.
+  private towerMode: 'race' | 'season' = 'race';
   private tabHighlight!: Phaser.GameObjects.Rectangle;
   private cards: { def: UpgradeDef; level: Phaser.GameObjects.Text; button: Button }[] = [];
   private modeBtns: Button[] = [];
@@ -161,18 +165,22 @@ export class GameScene extends Phaser.Scene {
     this.trackGfx = this.add.graphics();
     this.carGfx = this.add.graphics();
     this.barGfx = this.add.graphics();
-    this.lapText = addText(this, W - 12, VIEW.y + 8, '', 14, '#9aa7d0').setOrigin(1, 0);
-    this.towerRows = Array.from({ length: 20 }, (_, i) => addText(this, 8, VIEW.y + 6 + i * 17, '', 11));
-    addText(this, W - 140, VIEW.y + 30, 'TYRES', 10, '#9aa7d0');
-    addText(this, W - 140, VIEW.y + 66, 'BOOST', 10, '#9aa7d0');
-    this.compoundText = addText(this, W - 12, VIEW.y + 30, '', 10, '#9aa7d0').setOrigin(1, 0);
-
     // The whole track view is a tap target; buttons added later sit on top of it.
     this.add
       .rectangle(0, VIEW.y, W, VIEW.h, 0x000000, 0)
       .setOrigin(0)
       .setInteractive()
       .on('pointerdown', (p: Phaser.Input.Pointer) => this.onTap(p.x, p.y));
+    this.lapText = addText(this, W - 12, VIEW.y + 8, '', 14, '#9aa7d0').setOrigin(1, 0);
+    this.towerRows = Array.from({ length: 20 }, (_, i) => addText(this, 8, VIEW.y + 30 + i * 16, '', 11));
+    this.towerPoints = Array.from({ length: 20 }, (_, i) => addText(this, 150, VIEW.y + 30 + i * 16, '', 11).setOrigin(1, 0));
+    this.towerBtn = addButton(this, 8, VIEW.y + 6, 142, 20, '', () => (this.towerMode = this.towerMode === 'race' ? 'season' : 'race'), {
+      fill: 0x1d2745,
+      size: 10,
+    });
+    addText(this, W - 140, VIEW.y + 30, 'TYRES', 10, '#9aa7d0');
+    addText(this, W - 140, VIEW.y + 66, 'BOOST', 10, '#9aa7d0');
+    this.compoundText = addText(this, W - 12, VIEW.y + 30, '', 10, '#9aa7d0').setOrigin(1, 0);
   }
 
   // View position at a distance along the lap, optionally shifted sideways (used for the pit lane).
@@ -295,13 +303,24 @@ export class GameScene extends Phaser.Scene {
       const angle = Math.atan2(ahead.y - p.y, ahead.x - p.x);
       this.drawCar(p.x, p.y, angle, car.color, car.isPlayer);
     }
-    order.forEach((car, i) => {
-      const row = this.towerRows[i];
-      const compound = car.isPlayer ? this.strategies[car.id === 'player-0' ? 0 : 1].compound : car.tyres?.compound;
-      const tyre = compound ? COMPOUND_LETTERS[compound] : ' ';
-      row.setText(`${String(i + 1).padStart(2)} ${tyre} ${car.isPlayer ? car.driver : car.driver.split(' ').pop()?.slice(0, 10)}`);
-      row.setColor(car.isPlayer ? '#ffd400' : '#cfd6ee');
-    });
+    const shortName = (isPlayer: boolean, name: string) => (isPlayer ? name : name.split(' ').pop()?.slice(0, 10) ?? name);
+    if (this.towerMode === 'race') {
+      order.forEach((car, i) => {
+        const row = this.towerRows[i];
+        const compound = car.isPlayer ? this.strategies[car.id === 'player-0' ? 0 : 1].compound : car.tyres?.compound;
+        const tyre = compound ? COMPOUND_LETTERS[compound] : ' ';
+        row.setText(`${String(i + 1).padStart(2)} ${tyre} ${shortName(car.isPlayer, car.driver)}`);
+        row.setColor(car.isPlayer ? '#ffd400' : '#cfd6ee');
+        this.towerPoints[i].setText('');
+      });
+    } else {
+      driversTable(this.state).forEach((d, i) => {
+        this.towerRows[i].setText(`${String(i + 1).padStart(2)} ${shortName(d.isPlayer, d.name)}`);
+        this.towerRows[i].setColor(d.isPlayer ? '#ffd400' : '#cfd6ee');
+        this.towerPoints[i].setText(String(d.points)).setColor(d.isPlayer ? '#ffd400' : '#cfd6ee');
+      });
+    }
+    this.towerBtn.setLabel(this.towerMode === 'race' ? 'RACE ▸ SEASON' : 'SEASON ▸ RACE');
     const lap = Math.min(RACE_LAPS, Math.floor(order[0].progress) + 1);
     this.lapText.setText(this.race.finished ? 'FINISHED' : `${this.track.name} · Lap ${lap}/${RACE_LAPS}`);
   }
@@ -433,14 +452,19 @@ export class GameScene extends Phaser.Scene {
       this.state.gems += TITLE_GEMS;
       const sponsorCash = sponsorIncome(this.state);
       this.state.money += sponsorCash;
+      const title = outcome.oneTwo
+        ? "DRIVERS' 1-2 + CONSTRUCTORS!\nSkipping 2 seasons"
+        : outcome.constructors
+          ? "DRIVERS' + CONSTRUCTORS!\nSkipping a season"
+          : "DRIVERS' CHAMPION!";
       this.banner.setText(
-        `CHAMPIONS!\nSeason ${outcome.newSeason} unlocked\n+${TITLE_GEMS} gems${sponsorCash > 0 ? `\nSponsors pay $${formatNumber(sponsorCash)}` : ''}`,
+        `${title}\nSeason ${outcome.newSeason} unlocked\n+${TITLE_GEMS} gems${sponsorCash > 0 ? `\nSponsors pay $${formatNumber(sponsorCash)}` : ''}`,
       );
       this.restartDelay = 5000;
     } else if (outcome.type === 'season-lost') {
       const rp = researchPointsFor(this.state.season);
       this.banner.setText(
-        `Season over: not champions.\nReplaying the season${rp > 0 ? `\nOr prestige for ${rp} RP (Prestige tab)` : ''}`,
+        `Season over: no drivers' title.\nReplaying the season${rp > 0 ? `\nOr prestige for ${rp} RP (Prestige tab)` : ''}`,
       );
       this.restartDelay = 5000;
     } else {
