@@ -4,17 +4,15 @@ export interface UpgradeDef {
   baseCost: number;
   // Car rating added per level.
   ratingPerLevel: number;
-  // Extra effect shown on the card, besides rating.
-  effect?: string;
 }
 
 export const UPGRADE_DEFS: UpgradeDef[] = [
   { key: 'engine', name: 'Engine', baseCost: 200, ratingPerLevel: 3 },
   { key: 'aero', name: 'Aero', baseCost: 300, ratingPerLevel: 2.5 },
-  { key: 'tyres', name: 'Tyres', baseCost: 400, ratingPerLevel: 2, effect: 'Less tyre wear' },
+  { key: 'tyres', name: 'Tyres', baseCost: 400, ratingPerLevel: 2 },
   { key: 'brakes', name: 'Brakes', baseCost: 600, ratingPerLevel: 1.5 },
-  { key: 'reliability', name: 'Reliability', baseCost: 800, ratingPerLevel: 1, effect: 'Fewer breakdowns' },
-  { key: 'pitCrew', name: 'Pit Crew', baseCost: 1200, ratingPerLevel: 1, effect: 'Faster, safer stops' },
+  { key: 'reliability', name: 'Reliability', baseCost: 800, ratingPerLevel: 1 },
+  { key: 'pitCrew', name: 'Pit Crew', baseCost: 1200, ratingPerLevel: 1 },
 ];
 
 export const COST_GROWTH = 1.15;

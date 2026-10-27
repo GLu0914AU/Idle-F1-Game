@@ -37,6 +37,7 @@ import { pickTrack } from '../game/tracks';
 import { PanelHost, BOOST_SECONDS, TABS } from '../ui/panels';
 import { askTeamName, askText } from '../ui/teamName';
 import { drawScenery, themeFor } from '../ui/scenery';
+import { upgradeInfo } from '../game/upgradeInfo';
 import { recordRace, recordSeason } from '../game/career';
 import { Button, COLORS, W, addBox, addButton, addSlant, addText, fillPoly } from '../ui/widgets';
 
@@ -90,6 +91,7 @@ export class GameScene extends Phaser.Scene {
   private tabHighlight!: Phaser.GameObjects.Rectangle;
   private stripChips: Phaser.GameObjects.Rectangle[] = [];
   private cards: { def: UpgradeDef; level: Phaser.GameObjects.Text; button: Button }[] = [];
+  private info!: { box: Phaser.GameObjects.Container; title: Phaser.GameObjects.Text; body: Phaser.GameObjects.Text; key: string | null };
   private modeBtns: Button[] = [];
   private tyreBtns: Partial<Record<Compound, Button>>[] = [{}, {}];
   private pitBtns: Button[] = [];
@@ -123,6 +125,7 @@ export class GameScene extends Phaser.Scene {
       onResearch: () => this.applyRating(),
     });
     this.drawTabs();
+    this.buildInfoPopup();
     this.startRace();
 
     const away = offlineEarnings(this.state, Date.now());
@@ -461,9 +464,9 @@ export class GameScene extends Phaser.Scene {
       const y = top + Math.floor(i / 3) * 80;
       addBox(this, x, y, 168, 74);
       addBox(this, x, y, 5, 74, COLORS.red).setStrokeStyle(0);
-      addText(this, x + 14, y + 3, def.name.toUpperCase(), 16);
-      const level = addText(this, x + 14, y + 22, '', 11, '#9aa7d0');
-      if (def.effect) addText(this, x + 14, y + 33, def.effect, 10, '#6ee7a8');
+      addText(this, x + 14, y + 4, def.name.toUpperCase(), 16);
+      const level = addText(this, x + 14, y + 26, '', 12, '#9aa7d0');
+      addButton(this, x + 168 - 30, y + 5, 24, 20, 'i', () => this.openInfo(def.key), { size: 13, fill: 0x1d2745 });
       const button = addButton(this, x + 14, y + 47, 144, 22, '', () => {
         if (buyUpgrade(this.state, def)) {
           this.applyRating();
@@ -472,6 +475,38 @@ export class GameScene extends Phaser.Scene {
       }, { size: 12 });
       return { def, level, button };
     });
+  }
+
+  private buildInfoPopup() {
+    const c = this.add.container(0, 0).setDepth(1000).setVisible(false);
+    const dim = this.add.rectangle(0, 0, W, 960, 0x000000, 0.6).setOrigin(0).setInteractive().on('pointerdown', () => this.closeInfo());
+    c.add(dim);
+    c.add(addBox(this, 30, 250, W - 60, 330, 0x0b1020).setStrokeStyle(2, COLORS.red));
+    const title = addText(this, 48, 266, '', 24, '#ffffff', c);
+    const body = addText(this, 48, 306, '', 14, '#cfd6ee', c).setWordWrapWidth(W - 96).setLineSpacing(6);
+    addButton(this, W / 2 - 60, 524, 120, 40, 'CLOSE', () => this.closeInfo(), { size: 16, parent: c });
+    this.info = { box: c, title, body, key: null };
+  }
+
+  private openInfo(key: string) {
+    this.info.key = key;
+    this.info.box.setVisible(true);
+    this.renderInfo();
+  }
+
+  private closeInfo() {
+    this.info.key = null;
+    this.info.box.setVisible(false);
+  }
+
+  // Refreshed every frame while open, so the numbers follow purchases and auto-buy.
+  private renderInfo() {
+    if (!this.info.key) return;
+    const s = this.state;
+    const data = upgradeInfo(this.info.key, { upgrades: s.upgrades, research: s.research, sponsors: sponsorMultiplier(s) }, this.eff());
+    if (!data) return;
+    this.info.title.setText(data.title.toUpperCase());
+    this.info.body.setText([data.description, '', ...data.stats.map((t) => `• ${t}`)].join('\n'));
   }
 
   // Upgrade levels including free levels from research.
@@ -496,7 +531,7 @@ export class GameScene extends Phaser.Scene {
       const lv = s.upgrades[def.key] ?? 0;
       const free = (s.research[def.key] ?? 0) * FREE_LEVELS_PER_RESEARCH;
       const price = upgradeCost(def, lv);
-      level.setText(`Lv ${lv + free}${free ? ` (+${free} R&D)` : ''} · +${def.ratingPerLevel}/lvl`);
+      level.setText(`Lv ${lv + free}`);
       button.setLabel(`$${formatNumber(price)}`);
       button.setState(s.money >= price);
     }
@@ -705,6 +740,7 @@ export class GameScene extends Phaser.Scene {
     this.renderRace();
     this.renderStrategy();
     this.renderEconomy();
+    this.renderInfo();
     this.panels.render();
     if (this.race.finished) {
       this.restartAt += delta;
