@@ -9,7 +9,7 @@ import { payStaff, payrollReserve, totalPayroll } from './staff';
 import { newStrategy, selectCompound } from './strategy';
 
 describe('auto development', () => {
-  const rich = () => ({ ...newGame(), money: 1e12, race: 1 });
+  const rich = () => ({ ...newGame(), money: 1e12, race: 1, season: 10 });
 
   it('picks an affordable package that fits, and nothing when ticked off, busy or unaffordable', () => {
     const s = rich();

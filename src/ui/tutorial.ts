@@ -33,7 +33,7 @@ const COPY: Record<TutorialStep, { title: string; body: string; y: number }> = {
   },
   goal: {
     title: 'WIN THE DRIVERS\' TITLE',
-    body: 'Finish top of the Drivers\' standings to advance a season. Use the Team tab for drivers, engineers and development, and Sponsors for income.',
+    body: 'Finish top of the Drivers\' standings to advance a season. Later seasons unlock drivers, engineers, sponsors and more.',
     y: 660,
   },
   finish: { title: "YOU'RE READY", body: '', y: 330 },
@@ -133,7 +133,7 @@ export class Tutorial {
       const rewarded = this.state().tutorialRewarded;
       const body = rewarded
         ? 'That is everything you need. Go and win a title.'
-        : `That is everything you need. Here is a starter gift: ${gems} gems and ${clout} clout. Clout opens driver and engineer meetings on the Team tab.`;
+        : `That is everything you need. Here is a starter gift: ${gems} gems and ${clout} clout. Clout opens driver and engineer meetings once they unlock.`;
       addText(this.scene, 36, y + 46, body, 14, '#cfd6ee', c).setWordWrapWidth(W - 72).setLineSpacing(4);
       addButton(this.scene, 36, y + CAPTION_H - 56, W - 72, 44, rewarded ? 'LET\'S RACE' : 'CLAIM GIFT', () => {
         claimTutorialReward(this.state());

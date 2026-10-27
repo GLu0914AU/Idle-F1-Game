@@ -40,6 +40,7 @@ import {
   requestStaffMeeting,
 } from '../game/staff';
 import { DEV_PACKAGES, DevPackage, DevOutcome, developmentCost, developmentOdds, fitsSeason, packageDef, startDevelopment, teamQuality } from '../game/development';
+import { UNLOCK_SEASONS, isUnlocked, lockLabel } from '../game/unlocks';
 import { RACES_PER_SEASON } from '../game/season';
 import { FACILITY_DEFS, FACILITY_KEYS, FacilityKey, buyFacility, facilityCost, facilityEffects, facilityLevel } from '../game/facilities';
 import {
@@ -498,8 +499,9 @@ export class PanelHost {
     const cost = meetingCost(s.sponsorList.length);
     const full = s.sponsorList.length >= MAX_SPONSORS;
     p.info.setText(`Gems: ${s.gems} · Sponsors ${s.sponsorList.length}/${MAX_SPONSORS} pay you at the start of each season and stay through prestige. Pitch too high and they walk away.`);
-    p.meet.setLabel(s.meeting ? 'MEETING IN PROGRESS' : `MEET A SPONSOR: ${cost} GEMS`);
-    p.meet.setState(!s.meeting && s.gems >= cost, COLORS.green);
+    const sponsorsOn = isUnlocked(s, 'sponsors');
+    p.meet.setLabel(!sponsorsOn ? lockLabel('sponsors') : s.meeting ? 'MEETING IN PROGRESS' : `MEET A SPONSOR: ${cost} GEMS`);
+    p.meet.setState(sponsorsOn && !s.meeting && s.gems >= cost, COLORS.green);
 
     const m = s.meeting;
     if (m !== this.pitchFor) {
@@ -517,7 +519,7 @@ export class PanelHost {
       const low = full ? lowestSponsor(s) : null;
       p.pitchBtn.setLabel(low ? `PITCH $${formatNumber(this.pitchAmount)}\nDrops ${low.name}` : `PITCH $${formatNumber(this.pitchAmount)}`);
     } else {
-      p.idle.setText(this.sponsorMessage || 'Spend gems to book a meeting with a sponsor. Each one has a hidden budget: pitch under it and they sign, over it and talks collapse. Each sponsor you sign makes the next meeting cost more.');
+      p.idle.setText(!sponsorsOn ? `Sponsors pay you every season. Reach Season ${UNLOCK_SEASONS.sponsors} to meet your first one.` : this.sponsorMessage || 'Spend gems to book a meeting with a sponsor. Each one has a hidden budget: pitch under it and they sign, over it and talks collapse. Each sponsor you sign makes the next meeting cost more.');
       p.idle.setColor(this.sponsorMessage ? (this.sponsorMessageGood ? '#14b87a' : '#e08a1f') : '#9aa7d0');
     }
 
@@ -1291,17 +1293,26 @@ export class PanelHost {
       row.detail.setText(describeDriver(s.drivers[i], s));
       row.chip.setFillStyle(s.teamColor);
     });
-    t.recruitBtn.setLabel(`RECRUIT A DRIVER (${s.clout} CLOUT)`);
+    t.recruitBtn.setLabel(isUnlocked(s, 'driver') ? `RECRUIT A DRIVER (${s.clout} CLOUT)` : lockLabel('driver'));
+    t.recruitBtn.setState(isUnlocked(s, 'driver'), COLORS.green);
     if (this.recruitOpen) this.renderRecruit(s);
     t.engineerRow.name.setText(s.engineer ? s.engineer.name : 'No race engineer');
     t.engineerRow.detail.setText(describeEngineer(s.engineer, s));
     t.engineerRow.chip.setFillStyle(s.engineer ? s.teamColor : COLORS.border);
-    t.engineerBtn.setLabel(`RECRUIT A RACE ENGINEER (${s.clout} CLOUT)`);
+    t.engineerBtn.setLabel(isUnlocked(s, 'engineer') ? `RECRUIT A RACE ENGINEER (${s.clout} CLOUT)` : lockLabel('engineer'));
+    t.engineerBtn.setState(isUnlocked(s, 'engineer'), COLORS.green);
     if (this.engineerOpen) this.renderEngineerRecruit(s);
-    t.developmentBtn.setLabel(s.development.active ? `DEV (${s.development.active.racesLeft} LEFT)` : 'DEVELOPMENT');
+    const devOn = isUnlocked(s, 'development');
+    t.developmentBtn.setLabel(!devOn ? `LOCKED: S${UNLOCK_SEASONS.development}` : s.development.active ? `DEV (${s.development.active.racesLeft} LEFT)` : 'DEVELOPMENT');
+    t.developmentBtn.setState(devOn, COLORS.green);
     if (this.developmentOpen) this.renderDevelopment(s);
-    t.staffBtn.setLabel(`STAFF (${STAFF_ROLES.filter((r) => s.staff[r]).length}/${STAFF_ROLES.length})`);
+    const staffOn = isUnlocked(s, 'staff');
+    t.staffBtn.setLabel(staffOn ? `STAFF (${STAFF_ROLES.filter((r) => s.staff[r]).length}/${STAFF_ROLES.length})` : `LOCKED: S${UNLOCK_SEASONS.staff}`);
+    t.staffBtn.setState(staffOn, COLORS.green);
     if (this.staffOpen) this.renderStaff(s);
+    const facOn = isUnlocked(s, 'facilities');
+    t.facilitiesBtn.setLabel(facOn ? 'FACILITIES' : `LOCKED: S${UNLOCK_SEASONS.facilities}`);
+    t.facilitiesBtn.setState(facOn, COLORS.green);
     if (this.facilitiesOpen) this.renderFacilities(s);
     [s.stats.racesWon, s.stats.wdc, s.stats.wcc].forEach((v, i) => t.stats[i].setText(String(v)));
     const fans = fansFor(s.stats);
@@ -1310,8 +1321,8 @@ export class PanelHost {
     t.fanInfo.setText(
       `Every race win brings ${FANS_PER_WIN} fans. Run a Fan Event once per prestige: each currency has its own chance to drop, and more fans means better odds and bigger drops.\nChances: money ${pct('money')} · gems ${pct('gems')} · research ${pct('researchPoints')} · clout ${pct('clout')}`,
     );
-    t.fanButton.setLabel(s.fanEventUsed ? 'FAN EVENT USED (PRESTIGE TO RESET)' : fans > 0 ? 'RUN FAN EVENT' : 'WIN A RACE TO GET FANS');
-    t.fanButton.setState(canRunFanEvent(s));
+    t.fanButton.setLabel(!isUnlocked(s, 'fanEvent') ? lockLabel('fanEvent') : s.fanEventUsed ? 'FAN EVENT USED (PRESTIGE TO RESET)' : fans > 0 ? 'RUN FAN EVENT' : 'WIN A RACE TO GET FANS');
+    t.fanButton.setState(isUnlocked(s, 'fanEvent') && canRunFanEvent(s));
     t.fanResult.setText(s.fanEventUsed ? this.fanMessage : '');
   }
 
