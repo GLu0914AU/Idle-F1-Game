@@ -19,6 +19,7 @@ import { TITLE_GEMS, settleRace } from '../game/settle';
 import { describeWeather, idealClass, isDry, rollWeather } from '../game/weather';
 import { GameState, loadGame, saveGame } from '../game/save';
 import { RACES_PER_SEASON, driversTable } from '../game/season';
+import { GAME_H, GAME_W, RES } from '../resolution';
 import {
   COMPOUNDS,
   Compound,
@@ -108,6 +109,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    this.cameras.main.setZoom(RES).centerOn(GAME_W / 2, GAME_H / 2);
     this.state = loadGame();
     this.drawHud();
     this.drawTrack();

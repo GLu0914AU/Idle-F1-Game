@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { RES } from '../resolution';
 
 export const W = 540;
 export const COLORS = {
@@ -22,7 +23,7 @@ export function addText(
   parent?: Phaser.GameObjects.Container,
 ) {
   const fontFamily = size >= 14 ? 'Impact, "Arial Narrow", system-ui, sans-serif' : 'system-ui, sans-serif';
-  const t = scene.add.text(x, y, s, { fontFamily, fontSize: `${size}px`, color });
+  const t = scene.add.text(x, y, s, { fontFamily, fontSize: `${size}px`, color, resolution: RES });
   parent?.add(t);
   return t;
 }

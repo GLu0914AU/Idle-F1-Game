@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GameScene } from './scenes/GameScene';
+import { GAME_H, GAME_W, RES } from './resolution';
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -8,8 +9,8 @@ new Phaser.Game({
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: 540,
-    height: 960,
+    width: GAME_W * RES,
+    height: GAME_H * RES,
   },
   scene: [GameScene],
 });
