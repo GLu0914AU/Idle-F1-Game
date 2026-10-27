@@ -1,4 +1,5 @@
 import { GameState } from './save';
+import { fansFor } from './career';
 
 export interface Sponsor {
   name: string;
@@ -53,7 +54,11 @@ export const MAX_SPONSORS = 15;
 // Each sponsor you have signed makes the next meeting cost more gems.
 export const meetingCost = (signed: number) => MEETING_BASE_GEMS + MEETING_GEM_STEP * signed;
 
-export const sponsorIncome = (state: Pick<GameState, 'sponsorList'>) => state.sponsorList.reduce((sum, s) => sum + s.amount, 0);
+// Sponsors pay more as the fanbase grows: x1 with no fans, x2 at 10K fans, x4 at 90K.
+export const fanMultiplier = (state: Pick<GameState, 'stats'>) => 1 + Math.sqrt(fansFor(state.stats)) / 100;
+
+export const sponsorIncome = (state: Pick<GameState, 'sponsorList' | 'stats'>) =>
+  Math.round(state.sponsorList.reduce((sum, s) => sum + s.amount, 0) * fanMultiplier(state));
 
 // Starting point for the pitch: the middle of the estimate.
 export const openingPitch = (m: Meeting) => Math.round(Math.sqrt(m.lo * m.hi));

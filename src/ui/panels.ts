@@ -6,7 +6,7 @@ const CURRENCY_SHORT: Record<Currency, string> = { gems: 'Gems', rp: 'RP', clout
 const AD_NAMES: Record<AdKind, string> = { money: 'Free cash', gems: 'Free gems', rp: 'Free RP', clout: 'Free clout' };
 import { GameState } from '../game/save';
 import { MIN_PRESTIGE_SEASON, RESEARCH_DEFS, ResearchDef, buyResearch, researchCost, researchPointsFor } from '../game/prestige';
-import { MAX_SPONSORS, lowestSponsor, openingPitch, meetingCost, pitch, requestMeeting, sponsorIncome, walkAway } from '../game/sponsors';
+import { MAX_SPONSORS, fanMultiplier, lowestSponsor, openingPitch, meetingCost, pitch, requestMeeting, sponsorIncome, walkAway } from '../game/sponsors';
 import {
   DRIVER_MEETING_CLOUT,
   DriverStats,
@@ -496,7 +496,8 @@ export class PanelHost {
       p.idle.setColor(this.sponsorMessage ? (this.sponsorMessageGood ? '#14b87a' : '#e08a1f') : '#9aa7d0');
     }
 
-    p.total.setText(s.sponsorList.length ? `$${formatNumber(sponsorIncome(s))} / season` : '');
+    const boost = fanMultiplier(s);
+    p.total.setText(s.sponsorList.length ? `$${formatNumber(sponsorIncome(s))} / season${boost > 1.005 ? ` (fans x${boost.toFixed(2)})` : ''}` : '');
     const shown = [...s.sponsorList].reverse();
     p.rows.forEach((row, i) => {
       const sp = shown[i];

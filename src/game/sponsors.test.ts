@@ -4,6 +4,7 @@ import { loadGame, newGame, saveGame } from './save';
 import { mulberry32 } from './race';
 import {
   MAX_SPONSORS,
+  fanMultiplier,
   MEETING_BASE_GEMS,
   MEETING_GEM_STEP,
   marketValue,
@@ -74,6 +75,9 @@ describe('sponsors', () => {
     expect(s.sponsorList).toEqual([{ name: m.name, amount: m.secret }]);
     expect(s.meeting).toBeNull();
     expect(sponsorIncome(s)).toBe(m.secret);
+    s.stats.racesWon = 100;
+    expect(fanMultiplier(s)).toBeCloseTo(2);
+    expect(sponsorIncome(s)).toBe(m.secret * 2);
   });
 
   it('pitching over the secret ends talks with nothing signed', () => {
