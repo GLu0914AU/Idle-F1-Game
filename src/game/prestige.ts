@@ -1,4 +1,6 @@
 import { UPGRADE_DEFS } from './economy';
+import type { Development } from './development';
+import { newDevelopment } from './development';
 import { GameState } from './save';
 
 // Prestige is offered once the player has reached this season; earlier runs yield no research points.
@@ -72,8 +74,10 @@ export function pickAutoResearch(state: Pick<GameState, 'researchPoints' | 'rese
 const CAR_KEYS = new Set(UPGRADE_DEFS.map((d) => d.key));
 
 // Money-bought car levels plus levels from research. Use this for everything the levels affect.
-export function effectiveUpgrades(state: Pick<GameState, 'upgrades' | 'research'>): Record<string, number> {
+export function effectiveUpgrades(state: Pick<GameState, 'upgrades' | 'research'> & { development?: Pick<Development, 'bonus'> }): Record<string, number> {
   const out = { ...state.upgrades };
+  // The season's development bonus rides along as a share of the car's rating (see carRating).
+  out.devBonus = state.development?.bonus ?? 0;
   for (const d of RESEARCH_DEFS) {
     if (!d.stat) continue;
     // R&D stats come from research alone, even if an old save holds money-bought levels.
@@ -100,5 +104,6 @@ export function prestige(state: GameState): number {
   state.sponsorList = [];
   state.money = startingMoney(state);
   state.fanEventUsed = false;
+  state.development = newDevelopment();
   return earned;
 }

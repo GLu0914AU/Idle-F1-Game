@@ -64,6 +64,8 @@ export interface RaceConfig {
   baseLapTime?: number;
   // The forecast; the race is dry if omitted.
   weather?: Weather;
+  // How much each rival team has improved this season, as a share of its rating, by team id.
+  rivalDrift?: Record<string, number>;
 }
 
 export interface Race {
@@ -150,7 +152,7 @@ export function createRace(config: RaceConfig): Race {
         color: team.color,
         isPlayer: false,
         // Second driver is slightly slower to spread the field.
-        rating: rivalRating(team.rating, config.season) * (i === 0 ? 1 : 0.97),
+        rating: rivalRating(team.rating, config.season) * (1 + (config.rivalDrift?.[team.id] ?? 0)) * (i === 0 ? 1 : 0.97),
       });
       const car = cars[cars.length - 1];
       car.tyres = newStrategy();

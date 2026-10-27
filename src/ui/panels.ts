@@ -23,6 +23,8 @@ import {
   requestEngineerMeeting,
 } from '../game/engineers';
 import { PLAYER_COLOR } from '../game/teams';
+import { DEV_PACKAGES, DevPackage, DevOutcome, developmentCost, developmentOdds, fitsSeason, packageDef, startDevelopment, teamQuality } from '../game/development';
+import { RACES_PER_SEASON } from '../game/season';
 import { FANS_PER_WIN, FanCurrency, canRunFanEvent, fanChance, fansFor, runFanEvent } from '../game/career';
 import { Button, COLORS, W, addBox, addButton, addText } from './widgets';
 
@@ -47,6 +49,9 @@ const engineerLines = (e: EngineerStats) => [
 
 const describeDriver = (d: Driver) =>
   `Skill +${d.skill}% · Tyres ${d.tyreMgmt} · Consistency ${d.consistency} · Race craft ${d.raceCraft} · ${d.salary > 0 ? `$${formatNumber(d.salary)}/race` : 'no wage'}`;
+
+const DEV_OUTCOME_LABEL: Record<DevOutcome, string> = { big: 'a breakthrough!', solid: 'a solid gain', flop: 'a flop' };
+const oddsHint = (p: number) => (p < 0.1 ? 'rare' : p < 0.2 ? 'unlikely' : p < 0.35 ? 'possible' : p < 0.55 ? 'likely' : 'very likely');
 
 const describeEngineer = (e: Engineer | null) =>
   e ? `Pit ${e.pit}% · Tyres ${e.tyre}% · Mode ${e.mode}% · $${formatNumber(e.salary)}/race` : 'No engineer: you call strategy by hand';
@@ -134,12 +139,20 @@ export class PanelHost {
     idle: Phaser.GameObjects.Text;
     current: Phaser.GameObjects.Text;
   };
+  private developmentOpen = false;
+  private developmentUi!: {
+    box: Phaser.GameObjects.Container;
+    info: Phaser.GameObjects.Text;
+    status: Phaser.GameObjects.Text;
+    rows: { def: DevPackage; odds: Phaser.GameObjects.Text; button: Button }[];
+  };
   private team!: {
     swatches: { sw: Phaser.GameObjects.Rectangle; color: number }[];
     driverRows: { name: Phaser.GameObjects.Text; chip: Phaser.GameObjects.Rectangle; detail: Phaser.GameObjects.Text }[];
     recruitBtn: Button;
     engineerRow: { name: Phaser.GameObjects.Text; chip: Phaser.GameObjects.Rectangle; detail: Phaser.GameObjects.Text };
     engineerBtn: Button;
+    developmentBtn: Button;
     stats: Phaser.GameObjects.Text[];
     fans: Phaser.GameObjects.Text;
     fanInfo: Phaser.GameObjects.Text;
@@ -178,9 +191,11 @@ export class PanelHost {
     if (changed) {
       this.recruitOpen = false;
       this.engineerOpen = false;
+      this.developmentOpen = false;
     }
     this.recruit?.box.setVisible(this.recruitOpen && tab === 'Team');
     this.engineerRecruit?.box.setVisible(this.engineerOpen && tab === 'Team');
+    this.developmentUi?.box.setVisible(this.developmentOpen && tab === 'Team');
     for (const [name, c] of this.panels) {
       c.setVisible(name === tab);
       if (name === tab && changed) {
@@ -366,25 +381,29 @@ export class PanelHost {
     const engineerRow = rowBox(442, '');
     const engineerBtn = addButton(this.scene, 30, 496, W - 60, 32, 'RECRUIT A RACE ENGINEER', () => this.openEngineer(true), { parent: c, size: 15, fill: COLORS.green });
 
-    section(538, 'Career');
+    section(538, 'Car development');
+    const developmentBtn = addButton(this.scene, 30, 558, W - 60, 32, 'CAR DEVELOPMENT', () => this.openDevelopment(true), { parent: c, size: 15, fill: COLORS.green });
+
+    section(600, 'Career');
     const stats = STAT_LABELS.map((label, i) => {
       const x = 30 + i * 156;
-      addBox(this.scene, x, 558, 144, 56, COLORS.panel, c);
-      const value = addText(this.scene, x + 72, 562, '', 26, '#ffc933', c).setOrigin(0.5, 0);
-      addText(this.scene, x + 72, 594, label, 12, '#9aa7d0', c).setOrigin(0.5, 0);
+      addBox(this.scene, x, 620, 144, 56, COLORS.panel, c);
+      const value = addText(this.scene, x + 72, 624, '', 26, '#ffc933', c).setOrigin(0.5, 0);
+      addText(this.scene, x + 72, 656, label, 12, '#9aa7d0', c).setOrigin(0.5, 0);
       return value;
     });
 
-    section(624, 'Fans');
-    addBox(this.scene, 30, 644, W - 60, 172, COLORS.panel, c);
-    addBox(this.scene, 30, 644, 5, 172, COLORS.red, c).setStrokeStyle(0);
-    const fans = addText(this.scene, 52, 650, '', 28, '#ffffff', c);
-    const fanInfo = addText(this.scene, 52, 686, '', 12, '#9aa7d0', c).setWordWrapWidth(W - 120);
-    const fanButton = addButton(this.scene, 52, 768, W - 104, 40, '', () => this.runFanEvent(), { parent: c, size: 16, fill: COLORS.green });
-    const fanResult = addText(this.scene, W / 2, 822, '', 16, '#ffc933', c).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 80);
-    this.team = { swatches, driverRows, recruitBtn, engineerRow, engineerBtn, stats, fans, fanInfo, fanButton, fanResult };
+    section(684, 'Fans');
+    addBox(this.scene, 30, 704, W - 60, 140, COLORS.panel, c);
+    addBox(this.scene, 30, 704, 5, 140, COLORS.red, c).setStrokeStyle(0);
+    const fans = addText(this.scene, 52, 708, '', 26, '#ffffff', c);
+    const fanInfo = addText(this.scene, 52, 740, '', 11, '#9aa7d0', c).setWordWrapWidth(W - 120);
+    const fanButton = addButton(this.scene, 52, 800, W - 104, 36, '', () => this.runFanEvent(), { parent: c, size: 16, fill: COLORS.green });
+    const fanResult = addText(this.scene, W / 2, 848, '', 14, '#ffc933', c).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 80);
+    this.team = { swatches, driverRows, recruitBtn, engineerRow, engineerBtn, developmentBtn, stats, fans, fanInfo, fanButton, fanResult };
     this.buildRecruit();
     this.buildEngineerRecruit();
+    this.buildDevelopment();
   }
 
   private openRecruit(open: boolean) {
@@ -395,6 +414,66 @@ export class PanelHost {
   private openEngineer(open: boolean) {
     this.engineerOpen = open;
     this.engineerRecruit.box.setVisible(open && this.current === 'Team');
+  }
+
+  private openDevelopment(open: boolean) {
+    this.developmentOpen = open;
+    this.developmentUi.box.setVisible(open && this.current === 'Team');
+  }
+
+  private buildDevelopment() {
+    const c = this.scene.add.container(0, 0).setVisible(false);
+    c.add(addBox(this.scene, 0, 70, W, 810, COLORS.bg).setInteractive());
+    c.add(this.scene.add.rectangle(W / 2, 84, 120, 3, COLORS.red));
+    c.add(addText(this.scene, W / 2, 90, 'CAR DEVELOPMENT', 24).setOrigin(0.5, 0));
+    const info = addText(this.scene, W / 2, 124, '', 13, '#9aa7d0', c).setOrigin(0.5, 0).setWordWrapWidth(W - 60).setAlign('center');
+    addBox(this.scene, 20, 186, W - 40, 62, COLORS.panel, c);
+    const status = addText(this.scene, 32, 194, '', 14, '#ffffff', c).setWordWrapWidth(W - 64).setLineSpacing(4);
+    const rows = DEV_PACKAGES.map((def, i) => {
+      const y = 262 + i * 132;
+      addBox(this.scene, 20, y, W - 40, 120, COLORS.panel, c);
+      addText(this.scene, 32, y + 8, def.name, 19, '#ffffff', c);
+      addText(this.scene, 32, y + 34, `${def.blurb} · ${def.races} races`, 12, '#9aa7d0', c);
+      const odds = addText(this.scene, 32, y + 54, '', 12, '#cfd6ee', c).setWordWrapWidth(W - 64);
+      const button = addButton(this.scene, 32, y + 80, W - 64, 32, '', () => {
+        if (startDevelopment(this.state(), def.key, RACES_PER_SEASON)) this.hooks.save();
+      }, { fill: COLORS.green, size: 15, parent: c });
+      return { def, odds, button };
+    });
+    addText(
+      this.scene,
+      W / 2,
+      664,
+      'Finished packages boost the whole car until the season ends, then reset. Rivals also improve race by race. Better drivers and a better race engineer make breakthroughs likelier and flops rarer.',
+      12,
+      '#9aa7d0',
+      c,
+    ).setOrigin(0.5, 0).setWordWrapWidth(W - 60).setAlign('center');
+    addButton(this.scene, 30, 800, W - 60, 44, 'BACK TO TEAM', () => this.openDevelopment(false), { size: 16, parent: c });
+    this.developmentUi = { box: c, info, status, rows };
+  }
+
+  private renderDevelopment(s: GameState) {
+    const u = this.developmentUi;
+    const dev = s.development;
+    u.info.setText(`Season ${s.season} · Race ${s.race}/${RACES_PER_SEASON} · Season bonus so far: ${dev.bonus >= 0 ? '+' : ''}${(dev.bonus * 100).toFixed(1)}% car rating`);
+    const active = dev.active ? packageDef(dev.active.key) : undefined;
+    const last = dev.last ? packageDef(dev.last.key) : undefined;
+    u.status.setText(
+      active
+        ? `In progress: ${active.name}, ${dev.active!.racesLeft} race${dev.active!.racesLeft === 1 ? '' : 's'} to go`
+        : `No package in progress${last && dev.last ? `\nLast result: ${last.name}, ${DEV_OUTCOME_LABEL[dev.last.outcome]}` : ''}`,
+    );
+    const q = teamQuality(s);
+    for (const { def, odds, button } of u.rows) {
+      const o = developmentOdds(q, def);
+      const g = (v: number) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)}%`;
+      odds.setText(`Breakthrough ${g(def.big)}: ${oddsHint(o.big)} · Solid ${g(def.solid)}: ${oddsHint(o.solid)} · Flop ${def.flop === 0 ? '(nothing)' : g(def.flop)}: ${oddsHint(o.flop)}`);
+      const cost = developmentCost(s, def);
+      const fits = fitsSeason(s, def, RACES_PER_SEASON);
+      button.setLabel(!fits ? 'WON\'T FINISH THIS SEASON' : dev.active ? 'BUSY' : `START: $${formatNumber(cost)}`);
+      button.setState(fits && !dev.active && s.money >= cost, COLORS.green);
+    }
   }
 
   private buildEngineerRecruit() {
@@ -592,6 +671,8 @@ export class PanelHost {
     t.engineerRow.chip.setFillStyle(s.engineer ? s.teamColor : COLORS.border);
     t.engineerBtn.setLabel(`RECRUIT A RACE ENGINEER (${s.clout} CLOUT)`);
     if (this.engineerOpen) this.renderEngineerRecruit(s);
+    t.developmentBtn.setLabel(s.development.active ? `CAR DEVELOPMENT (${s.development.active.racesLeft} RACES LEFT)` : 'CAR DEVELOPMENT');
+    if (this.developmentOpen) this.renderDevelopment(s);
     [s.stats.racesWon, s.stats.wdc, s.stats.wcc].forEach((v, i) => t.stats[i].setText(String(v)));
     const fans = fansFor(s.stats);
     t.fans.setText(`${formatNumber(fans)} FANS`);

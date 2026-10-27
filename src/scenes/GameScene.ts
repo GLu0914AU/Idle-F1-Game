@@ -19,6 +19,7 @@ import { TITLE_GEMS, settleRace } from '../game/settle';
 import { describeWeather, idealClass, isDry, rollWeather } from '../game/weather';
 import { GameState, loadGame, saveGame } from '../game/save';
 import { RACES_PER_SEASON, driversTable } from '../game/season';
+import { packageDef } from '../game/development';
 import { GAME_H, GAME_W, RES } from '../resolution';
 import {
   COMPOUNDS,
@@ -344,6 +345,7 @@ export class GameScene extends Phaser.Scene {
       playerReliability: this.eff().reliability ?? 0,
       playerDriverStats: this.state.drivers,
       weather: rollWeather(Math.random, RACE_LAPS),
+      rivalDrift: this.state.development.rivalDrift,
       seed: Date.now() & 0x7fffffff,
     });
     this.strategies = [newStrategy(this.strategies[0]), newStrategy(this.strategies[1])];
@@ -610,8 +612,14 @@ export class GameScene extends Phaser.Scene {
 
   private finishRace() {
     const order = standings(this.race);
-    const { positions, payout, wagesPaid, quit, outcome, sponsorCash } = settleRace(this.state, order);
+    const { positions, payout, wagesPaid, quit, outcome, sponsorCash, development } = settleRace(this.state, order);
     this.floatText(W - 90, 70, `+$${formatNumber(payout)}`, '#ffc933');
+    if (development) {
+      const def = packageDef(development.key);
+      const gain = `${development.gain >= 0 ? '+' : ''}${(development.gain * 100).toFixed(1)}%`;
+      const verdict = development.outcome === 'big' ? 'BREAKTHROUGH' : development.outcome === 'solid' ? 'solid gain' : 'flop';
+      this.floatText(W / 2, 330, `${def?.name}: ${verdict} ${gain}`, development.outcome === 'flop' ? '#ff8a80' : '#7dffb2');
+    }
     if (wagesPaid > 0) this.floatText(W - 90, 96, `-$${formatNumber(wagesPaid)} wages`, '#ff8a80');
     if (quit.length > 0) {
       this.applyIdentity();

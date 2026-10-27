@@ -1,4 +1,5 @@
 import { CareerStats } from './career';
+import { Development, newDevelopment } from './development';
 import { Candidate, Driver, rookie } from './drivers';
 import type { Engineer, EngineerCandidate } from './engineers';
 import { PLAYER_COLOR, PLAYER_DRIVERS } from './teams';
@@ -48,6 +49,8 @@ export interface GameState {
   // The race engineer runs strategy for both cars, and survives prestige like drivers do.
   engineer: Engineer | null;
   engineerMeeting: EngineerCandidate | null;
+  // Mid-season car development; it resets every season.
+  development: Development;
 }
 
 export const SAVE_VERSION = 1;
@@ -96,6 +99,7 @@ export function newGame(now = Date.now()): GameState {
     driverMeeting: null,
     engineer: null,
     engineerMeeting: null,
+    development: newDevelopment(),
   };
 }
 
@@ -122,6 +126,7 @@ export function loadGame(store: Store = localStorage, now = Date.now()): GameSta
       driverNames: [data.driverNames?.[0] || fresh.driverNames[0], data.driverNames?.[1] || fresh.driverNames[1]],
       stats: { ...fresh.stats, ...(data.stats ?? {}) },
       drivers: [{ ...rookie(), ...(data.drivers?.[0] ?? {}) }, { ...rookie(), ...(data.drivers?.[1] ?? {}) }],
+      development: { ...fresh.development, ...(data.development ?? {}), rivalDrift: { ...(data.development?.rivalDrift ?? {}) } },
       version: SAVE_VERSION,
     };
   } catch {

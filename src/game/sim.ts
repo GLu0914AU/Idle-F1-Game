@@ -1,5 +1,6 @@
 import { pickAutoBuy } from './auto';
 import { canRunFanEvent, runFanEvent } from './career';
+import { DEV_PACKAGES, developmentCost, startDevelopment } from './development';
 import { DRIVER_MEETING_CLOUT, driverRating, endDriverMeeting, offerContract, requestDriverMeeting } from './drivers';
 import {
   ENGINEER_MEETING_CLOUT,
@@ -40,11 +41,13 @@ export interface Profile {
   recruit: boolean;
   sponsors: boolean;
   fanEvent: boolean;
+  // Commissions development packages between races.
+  develop: boolean;
 }
 
-export const ACTIVE: Profile = { name: 'active', autoBuy: true, autoResearch: true, autoTap: true, manual: true, recruit: true, sponsors: true, fanEvent: true };
+export const ACTIVE: Profile = { name: 'active', autoBuy: true, autoResearch: true, autoTap: true, manual: true, recruit: true, sponsors: true, fanEvent: true, develop: true };
 // Buys things but never taps, never calls a stop and ignores sponsors, drivers and engineers.
-export const LAZY: Profile = { name: 'lazy', autoBuy: true, autoResearch: true, autoTap: false, manual: false, recruit: false, sponsors: false, fanEvent: false };
+export const LAZY: Profile = { name: 'lazy', autoBuy: true, autoResearch: true, autoTap: false, manual: false, recruit: false, sponsors: false, fanEvent: false, develop: false };
 // A attentive human with no engineer: nearly always makes the right call.
 const HUMAN_CALLER = { pit: 95, tyre: 95, mode: 90 };
 
@@ -84,6 +87,9 @@ export interface RunResult {
   dnfs: number;
   pits: number;
   pitIssues: number;
+  // Money spent on development, and how its packages turned out.
+  devSpent: number;
+  devResults: { flop: number; solid: number; big: number };
   // Real seconds at which each season was first reached.
   reached: Record<number, number>;
   // The player's car rating when each season was first reached.
@@ -134,6 +140,7 @@ export function simulate(opts: SimOptions): SimResult {
       playerReliability: eff().reliability ?? 0,
       playerDriverStats: state.drivers,
       weather: rollWeather(rng, RACE_LAPS),
+      rivalDrift: state.development.rivalDrift,
       seed: Math.floor(rng() * 0x7fffffff),
     });
     strategies = [newStrategy(strategies[0]), newStrategy(strategies[1])];
@@ -152,7 +159,7 @@ export function simulate(opts: SimOptions): SimResult {
   const blank = (run: number, previousBest: number): RunResult => ({
     run, maxSeason: 1, previousBest, realSeconds: 0, races: 0, seasonLosses: 0, titles: 0, rpEarned: 0, rating: 0,
     income: 0, prizes: 0, sponsorCash: 0, wages: 0, quits: 0, rainy: 0, rainPositions: [], dryPositions: [],
-    breakdowns: 0, dnfs: 0, pits: 0, pitIssues: 0, reached: { 1: 0 }, ratingAt: { 1: 10 }, stuck: false, season1: [], research: {},
+    breakdowns: 0, dnfs: 0, pits: 0, pitIssues: 0, devSpent: 0, devResults: { flop: 0, solid: 0, big: 0 }, reached: { 1: 0 }, ratingAt: { 1: 10 }, stuck: false, season1: [], research: {},
   });
   let cur = blank(0, 0);
 
@@ -234,7 +241,8 @@ export function simulate(opts: SimOptions): SimResult {
       const order = standings(race);
       const seasonBefore = state.season;
       const moneyBefore = state.money;
-      const s = settleRace(state, order);
+      const s = settleRace(state, order, rng);
+      if (s.development) cur.devResults[s.development.outcome] += 1;
       if (seasonBefore === 1) cur.season1.push({ best: Math.min(...s.positions), worst: Math.max(...s.positions), seconds: cur.realSeconds, rating: carRating(eff()), money: moneyBefore });
       cur.races += 1;
       cur.prizes += s.payout;
@@ -267,6 +275,15 @@ export function simulate(opts: SimOptions): SimResult {
       }
 
       // Between races the player works the Sponsors and Team tabs.
+      if (p.develop) {
+        // Commissions the most ambitious package they can afford that finishes in time.
+        for (const def of [...DEV_PACKAGES].reverse()) {
+          if (startDevelopment(state, def.key, RACES_PER_SEASON)) {
+            cur.devSpent += developmentCost(state, def);
+            break;
+          }
+        }
+      }
       if (p.sponsors) {
         while (!state.meeting && state.gems >= meetingCost(state.sponsorList.length)) {
           const m = requestMeeting(state, rng);

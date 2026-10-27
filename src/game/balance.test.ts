@@ -47,6 +47,8 @@ function report(profile: Profile) {
     `breakdowns ${fmt((100 * flat.reduce((a, r) => a + r.breakdowns, 0)) / player)}% of car-races, DNF ${fmt((100 * flat.reduce((a, r) => a + r.dnfs, 0)) / player)}% | ` +
       `pit issues ${fmt((100 * flat.reduce((a, r) => a + r.pitIssues, 0)) / Math.max(1, flat.reduce((a, r) => a + r.pits, 0)))}% of ${flat.reduce((a, r) => a + r.pits, 0)} stops`,
   );
+  const dev = (k: 'flop' | 'solid' | 'big') => flat.reduce((a, r) => a + r.devResults[k], 0);
+  lines.push(`development: ${dev('big')} breakthroughs, ${dev('solid')} solid, ${dev('flop')} flops | spent ${fmt((100 * flat.reduce((a, r) => a + r.devSpent, 0)) / prizes)}% of earnings`);
   const stuck = flat.filter((r) => r.stuck).length;
   if (stuck) lines.push(`STUCK runs: ${stuck}`);
   process.stdout.write(lines.join('\n') + '\n');

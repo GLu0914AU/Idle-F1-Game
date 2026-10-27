@@ -47,7 +47,8 @@ export function upgradeCost(def: UpgradeDef, level: number): number {
 }
 
 export function carRating(upgrades: Record<string, number>): number {
-  return UPGRADE_DEFS.reduce((sum, d) => sum + (upgrades[d.key] ?? 0) * d.ratingPerLevel, BASE_RATING);
+  const base = UPGRADE_DEFS.reduce((sum, d) => sum + (upgrades[d.key] ?? 0) * d.ratingPerLevel, BASE_RATING);
+  return base * (1 + (upgrades.devBonus ?? 0));
 }
 
 // Money per second, flowing continuously (the per-lap trickle).
