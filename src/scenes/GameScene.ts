@@ -36,6 +36,7 @@ import { Point, Track, pointAt } from '../game/track';
 import { pickTrack } from '../game/tracks';
 import { PanelHost, BOOST_SECONDS, TABS } from '../ui/panels';
 import { askTeamName, askText } from '../ui/teamName';
+import { drawScenery, themeFor } from '../ui/scenery';
 import { recordRace, recordSeason } from '../game/career';
 import { Button, COLORS, W, addBox, addButton, addSlant, addText, fillPoly } from '../ui/widgets';
 
@@ -77,6 +78,7 @@ export class GameScene extends Phaser.Scene {
   private lapText!: Phaser.GameObjects.Text;
   private banner!: Phaser.GameObjects.Text;
   private trackGfx!: Phaser.GameObjects.Graphics;
+  private sceneryGfx!: Phaser.GameObjects.Graphics;
   private carGfx!: Phaser.GameObjects.Graphics;
   private barGfx!: Phaser.GameObjects.Graphics;
   private compoundText!: Phaser.GameObjects.Text;
@@ -200,6 +202,7 @@ export class GameScene extends Phaser.Scene {
 
   private drawTrack() {
     addBox(this, 0, VIEW.y, W, VIEW.h, 0x0c1f15).setStrokeStyle(0);
+    this.sceneryGfx = this.add.graphics();
     this.trackGfx = this.add.graphics();
     this.carGfx = this.add.graphics();
     this.barGfx = this.add.graphics();
@@ -237,9 +240,22 @@ export class GameScene extends Phaser.Scene {
       const v = this.toView(p);
       return new Phaser.Math.Vector2(v.x, v.y);
     });
+    // Pit lane: branches off at the entrance, runs beside the straight, and rejoins at the exit.
+    const len = this.track.length;
+    const lane: Phaser.Math.Vector2[] = [];
+    for (let i = 0; i <= 40; i++) {
+      const t = i / 40;
+      const p = this.trackPos(len * (-PIT_HALF_LENGTH + 2 * PIT_HALF_LENGTH * t), pitOffset(t));
+      lane.push(new Phaser.Math.Vector2(p.x, p.y));
+    }
+
+    this.sceneryGfx.clear();
+    drawScenery(this.sceneryGfx, { name: this.track.name, road: pts, lane, rect: { x: 0, y: VIEW.y, w: W, h: VIEW.h } });
+    const theme = themeFor(this.track.name);
+
     this.trackGfx.clear();
-    // Gravel runoff, then red/white kerbs, then asphalt with a racing line.
-    this.trackGfx.lineStyle(34, 0x1a3324).strokePoints(pts, true, true);
+    // Shadowed edge, gravel runoff, red/white kerbs, then asphalt with a racing line.
+    this.trackGfx.lineStyle(34, theme.edge, 0.55).strokePoints(pts, true, true);
     this.trackGfx.lineStyle(26, 0x3d3a2c).strokePoints(pts, true, true);
     const seg = 160;
     for (let i = 0; i < seg; i++) {
@@ -249,15 +265,6 @@ export class GameScene extends Phaser.Scene {
     }
     this.trackGfx.lineStyle(13, 0x30343f).strokePoints(pts, true, true);
     this.trackGfx.lineStyle(1, 0x5a6075, 0.6).strokePoints(pts, true, true);
-
-    // Pit lane: branches off at the entrance, runs beside the straight, and rejoins at the exit.
-    const len = this.track.length;
-    const lane: Phaser.Math.Vector2[] = [];
-    for (let i = 0; i <= 40; i++) {
-      const t = i / 40;
-      const p = this.trackPos(len * (-PIT_HALF_LENGTH + 2 * PIT_HALF_LENGTH * t), pitOffset(t));
-      lane.push(new Phaser.Math.Vector2(p.x, p.y));
-    }
     this.trackGfx.lineStyle(9, 0x262b3a).strokePoints(lane, false, false);
     this.trackGfx.lineStyle(1, 0xf2c94c, 0.9).strokePoints(lane, false, false);
 
