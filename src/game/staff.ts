@@ -1,4 +1,4 @@
-import { openingOffer, rollAsk } from './drivers';
+import { openingOffer, payroll, rollAsk } from './drivers';
 import type { GameState } from './save';
 
 // Specialist staff beyond the race engineer. Each role is hired with clout and the same hidden-minimum-wage haggling, is paid after every
@@ -135,6 +135,12 @@ export function payStaff(state: StaffState): { paid: number; quit: string[] } {
     }
   }
   return { paid, quit };
+}
+
+// Everything the team pays out after a race: both drivers, the race engineer and the specialist staff.
+export function totalPayroll(state: Pick<GameState, 'drivers' | 'engineer' | 'staff'>): number {
+  const staff = STAFF_ROLES.reduce((sum, role) => sum + (state.staff?.[role]?.salary ?? 0), 0);
+  return payroll(state) + (state.engineer?.salary ?? 0) + staff;
 }
 
 export interface StaffEffects {

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { pickAutoBuy } from '../game/auto';
 import { ENGINEER_REVIEW_SECONDS, reviewStrategy } from '../game/engineers';
-import { staffEffects } from '../game/staff';
+import { staffEffects, totalPayroll } from '../game/staff';
 import {
   UPGRADE_DEFS,
   UpgradeDef,
@@ -740,7 +740,7 @@ export class GameScene extends Phaser.Scene {
       this.autoBuyTimer += dt;
       if (this.autoBuyTimer >= 0.5) {
         this.autoBuyTimer = 0;
-        const def = pickAutoBuy(s.money, s.upgrades);
+        const def = pickAutoBuy(s.money, s.upgrades, totalPayroll(s));
         if (def && buyUpgrade(s, def)) this.applyRating();
       }
     }
