@@ -31,7 +31,7 @@ export interface Strategy {
   mode: Mode;
   compound: Compound;
   nextCompound: Compound;
-  // True once the player has picked the next compound; Auto leaves it alone until that stop has been made.
+  // True once the player has picked a compound; Auto leaves it alone for every stop until the player changes it.
   compoundChosen: boolean;
   // 0 fresh, 1 fully worn.
   wear: number;

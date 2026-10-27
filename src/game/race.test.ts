@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PIT_HALF_LENGTH, newStrategy, togglePitRequest } from './strategy';
+import { PIT_HALF_LENGTH, newStrategy, selectCompound, togglePitRequest } from './strategy';
 import { createRace, lapTime, paceMultiplier, standings, stepRace } from './race';
 import { pointAt } from './track';
 import { CALENDAR } from './tracks';
@@ -157,13 +157,13 @@ describe('race', () => {
   it('the compound chosen is fitted at the next stop', () => {
     const race = createRace(config({ laps: 6 }));
     const a = newStrategy();
-    a.nextCompound = 'soft';
+    selectCompound(a, 'soft');
     a.wear = 0.8;
     togglePitRequest(a);
     const team = { strategies: [a, newStrategy()] as [typeof a, ReturnType<typeof newStrategy>], pitCrew: 0 };
     while (!race.finished) stepRace(race, 0.5, 1, team);
     expect(a.compound).toBe('soft');
-    expect(a.compoundChosen).toBe(false);
+    expect(a.compoundChosen).toBe(true);
   });
 
   it('a push-mode car outpaces a conserve-mode car', () => {

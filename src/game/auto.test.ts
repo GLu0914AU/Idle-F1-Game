@@ -4,12 +4,18 @@ import { upgradeCost, UPGRADE_DEFS } from './economy';
 import { newStrategy, selectCompound } from './strategy';
 
 describe('auto', () => {
-  it("never overrides the player's chosen compound, which persists until fitted", () => {
+  it("never overrides the player's chosen compound, at any later stop", () => {
     const s = newStrategy();
     selectCompound(s, 'soft');
     autoSelectCompound(s, 1, 5); // Auto alone would choose hard here
     expect(s.nextCompound).toBe('soft');
-    expect(newStrategy(s).nextCompound).toBe('soft');
+    s.compound = 'soft'; // the stop was made
+    autoSelectCompound(s, 1, 5);
+    expect(s.nextCompound).toBe('soft');
+    selectCompound(s, 'medium');
+    autoSelectCompound(s, 1, 5);
+    expect(s.nextCompound).toBe('medium');
+    expect(newStrategy(s).nextCompound).toBe('medium');
     expect(newStrategy(s).compoundChosen).toBe(true);
   });
 
