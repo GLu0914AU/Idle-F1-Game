@@ -14,6 +14,7 @@ import {
 import { showRewardedAd } from '../game/monetization';
 import { Race, createRace, standings, stepRace } from '../game/race';
 import { canPrestige, effectiveUpgrades, prestige, researchPointsFor } from '../game/prestige';
+import { sponsorIncome } from '../game/sponsors';
 import { GameState, loadGame, saveGame } from '../game/save';
 import { RACES_PER_SEASON, advanceSeason, awardPoints } from '../game/season';
 import {
@@ -104,6 +105,7 @@ export class GameScene extends Phaser.Scene {
     this.panels = new PanelHost(this, () => this.state, {
       rename: () => void this.rename(true),
       prestige: () => this.doPrestige(),
+      save: () => saveGame(this.state),
       onResearch: () => this.applyRating(),
     });
     this.drawTabs();
@@ -386,7 +388,11 @@ export class GameScene extends Phaser.Scene {
     const outcome = advanceSeason(this.state);
     if (outcome.type === 'season-won') {
       this.state.gems += TITLE_GEMS;
-      this.banner.setText(`CHAMPIONS!\nSeason ${outcome.newSeason} unlocked\n+${TITLE_GEMS} gems`);
+      const sponsorCash = sponsorIncome(this.state);
+      this.state.money += sponsorCash;
+      this.banner.setText(
+        `CHAMPIONS!\nSeason ${outcome.newSeason} unlocked\n+${TITLE_GEMS} gems${sponsorCash > 0 ? `\nSponsors pay $${formatNumber(sponsorCash)}` : ''}`,
+      );
       this.restartDelay = 5000;
     } else if (outcome.type === 'season-lost') {
       const rp = researchPointsFor(this.state.season);

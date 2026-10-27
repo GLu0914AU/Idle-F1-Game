@@ -82,6 +82,7 @@ export function prestige(state: GameState): number {
   state.race = 1;
   state.points = {};
   state.upgrades = Object.fromEntries(UPGRADE_DEFS.map((d) => [d.key, 0]));
+  state.sponsorList = [];
   state.money = startingMoney(state);
   return earned;
 }

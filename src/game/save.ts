@@ -23,6 +23,9 @@ export interface GameState {
   research: Record<string, number>;
   prestiges: number;
   bestSeason: number;
+  // Signed sponsors and the open negotiation, if any.
+  sponsorList: { name: string; amount: number }[];
+  meeting: { name: string; secret: number; lo: number; hi: number } | null;
 }
 
 export const SAVE_VERSION = 1;
@@ -57,6 +60,8 @@ export function newGame(now = Date.now()): GameState {
     research: {},
     prestiges: 0,
     bestSeason: 1,
+    sponsorList: [],
+    meeting: null,
   };
 }
 
@@ -76,6 +81,7 @@ export function loadGame(store: Store = localStorage, now = Date.now()): GameSta
       upgrades: { ...fresh.upgrades, ...(data.upgrades ?? {}) },
       points: { ...(data.points ?? {}) },
       research: { ...(data.research ?? {}) },
+      sponsorList: [...(data.sponsorList ?? [])],
       version: SAVE_VERSION,
     };
   } catch {

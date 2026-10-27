@@ -2,11 +2,12 @@ import Phaser from 'phaser';
 import { AUTO_PRICE_LABEL, purchaseAutoUnlock, showRewardedAd } from '../game/monetization';
 import { GameState } from '../game/save';
 import { MIN_PRESTIGE_SEASON, RESEARCH_DEFS, ResearchDef, buyResearch, researchCost, researchPointsFor } from '../game/prestige';
-import { RACES_PER_SEASON, constructorsTable } from '../game/season';
+import { openingPitch, meetingCost, pitch, requestMeeting, sponsorIncome, walkAway } from '../game/sponsors';
+import { formatNumber } from '../game/economy';
 import { PLAYER_DRIVERS } from '../game/teams';
 import { Button, COLORS, W, addBox, addButton, addText } from './widgets';
 
-export const TABS = ['Race', 'Team', 'Standings', 'Prestige', 'Shop'] as const;
+export const TABS = ['Race', 'Team', 'Sponsors', 'Prestige', 'Shop'] as const;
 type TabName = (typeof TABS)[number];
 type AutoKey = 'autoBuy' | 'autoStrategy' | 'autoTap';
 
@@ -17,6 +18,8 @@ export const GEM_BOOST_SECONDS = 300;
 export interface PanelHooks {
   rename(): void;
   prestige(): void;
+  // Persist right away so a reload can't undo a spend or an outcome.
+  save(): void;
   // Research changes the car's rating, so the live race needs refreshing.
   onResearch(): void;
 }
@@ -25,8 +28,24 @@ export interface PanelHooks {
 export class PanelHost {
   private panels = new Map<TabName, Phaser.GameObjects.Container>();
   private current: TabName = 'Race';
-  private standingRows: { row: Phaser.GameObjects.Text; pts: Phaser.GameObjects.Text }[] = [];
-  private standingNote!: Phaser.GameObjects.Text;
+  private sponsorMessage = '';
+  private sponsorMessageGood = false;
+  private pitchAmount = 0;
+  private pitchFor: GameState['meeting'] = null;
+  private sponsors!: {
+    info: Phaser.GameObjects.Text;
+    meet: Button;
+    name: Phaser.GameObjects.Text;
+    estimate: Phaser.GameObjects.Text;
+    amount: Phaser.GameObjects.Text;
+    caption: Phaser.GameObjects.Text;
+    stepBtns: Button[];
+    pitchBtn: Button;
+    walkBtn: Button;
+    idle: Phaser.GameObjects.Text;
+    total: Phaser.GameObjects.Text;
+    rows: { name: Phaser.GameObjects.Text; amount: Phaser.GameObjects.Text }[];
+  };
   private teamName!: Phaser.GameObjects.Text;
   private teamInfo!: Phaser.GameObjects.Text;
   private prestige!: {
@@ -47,7 +66,7 @@ export class PanelHost {
     private state: () => GameState,
     private hooks: PanelHooks,
   ) {
-    this.buildStandings();
+    this.buildSponsors();
     this.buildTeam();
     this.buildPrestige();
     this.buildShop();
@@ -68,17 +87,135 @@ export class PanelHost {
     return c;
   }
 
-  private buildStandings() {
-    const c = this.panel('Standings', "Constructors' Championship");
-    for (let i = 0; i < 10; i++) {
-      const row = addText(this.scene, 30, 150 + i * 44, '', 18, '#cfd6ee', c);
-      const pts = addText(this.scene, W - 30, 150 + i * 44, '', 18, '#cfd6ee', c).setOrigin(1, 0);
-      this.standingRows.push({ row, pts });
-    }
-    this.standingNote = addText(this.scene, W / 2, 620, '', 16, '#9aa7d0', c)
+  private buildSponsors() {
+    const c = this.panel('Sponsors', 'Sponsors');
+    const info = addText(this.scene, W / 2, 124, '', 14, '#9aa7d0', c)
       .setOrigin(0.5, 0)
       .setWordWrapWidth(W - 60)
       .setAlign('center');
+    const meet = addButton(
+      this.scene,
+      30,
+      170,
+      W - 60,
+      44,
+      '',
+      () => {
+        if (requestMeeting(this.state())) {
+          this.sponsorMessage = '';
+          this.hooks.save();
+        }
+      },
+      { fill: COLORS.green, size: 16, parent: c },
+    );
+
+    // Negotiation card: only the visible part depends on whether a meeting is open.
+    addBox(this.scene, 20, 226, W - 40, 250, COLORS.panel, c);
+    const name = addText(this.scene, W / 2, 238, '', 22, '#ffd400', c).setOrigin(0.5, 0);
+    const estimate = addText(this.scene, W / 2, 274, '', 14, '#9aa7d0', c).setOrigin(0.5, 0);
+    const amount = addText(this.scene, W / 2, 306, '', 30, '#ffffff', c).setOrigin(0.5, 0);
+    const caption = addText(this.scene, W / 2, 346, 'per season, paid at the start of each season', 12, '#9aa7d0', c).setOrigin(0.5, 0);
+    const steps: [string, number][] = [['-25%', 0.75], ['-5%', 0.95], ['+5%', 1.05], ['+25%', 1.25]];
+    const stepBtns = steps.map(([label, mult], i) =>
+      addButton(
+        this.scene,
+        34 + i * 118,
+        374,
+        108,
+        38,
+        label,
+        () => {
+          this.pitchAmount = Math.max(1, Math.round(this.pitchAmount * mult));
+        },
+        { size: 16, parent: c },
+      ),
+    );
+    const pitchBtn = addButton(
+      this.scene,
+      34,
+      422,
+      280,
+      42,
+      'PITCH THIS AMOUNT',
+      () => {
+        const s = this.state();
+        const m = s.meeting;
+        if (!m) return;
+        const result = pitch(s, this.pitchAmount);
+        this.sponsorMessage =
+          result.outcome === 'signed'
+            ? `Deal! ${result.sponsor.name} will pay $${formatNumber(result.sponsor.amount)} every season.`
+            : `${m.name} walked out. Negotiations fell apart.`;
+        this.sponsorMessageGood = result.outcome === 'signed';
+        this.hooks.save();
+      },
+      { fill: COLORS.green, size: 16, parent: c },
+    );
+    const walkBtn = addButton(
+      this.scene,
+      326,
+      422,
+      180,
+      42,
+      'WALK AWAY',
+      () => {
+        const s = this.state();
+        if (!s.meeting) return;
+        this.sponsorMessage = `You ended talks with ${s.meeting.name}.`;
+        this.sponsorMessageGood = false;
+        walkAway(s);
+        this.hooks.save();
+      },
+      { size: 16, parent: c },
+    );
+    const idle = addText(this.scene, W / 2, 300, '', 15, '#9aa7d0', c)
+      .setOrigin(0.5, 0)
+      .setWordWrapWidth(W - 90)
+      .setAlign('center');
+
+    addText(this.scene, 30, 490, 'Signed sponsors', 16, '#ffffff', c);
+    const total = addText(this.scene, W - 30, 492, '', 14, '#14b87a', c).setOrigin(1, 0);
+    const rows = Array.from({ length: 10 }, (_, i) => ({
+      name: addText(this.scene, 36, 522 + i * 26, '', 15, '#cfd6ee', c),
+      amount: addText(this.scene, W - 36, 522 + i * 26, '', 15, '#cfd6ee', c).setOrigin(1, 0),
+    }));
+    this.sponsors = { info, meet, name, estimate, amount, caption, stepBtns, pitchBtn, walkBtn, idle, total, rows };
+  }
+
+  private renderSponsors(s: GameState) {
+    const p = this.sponsors;
+    const cost = meetingCost(s.sponsorList.length);
+    p.info.setText(`Gems: ${s.gems} · Sponsors pay you at the start of each new season. Pitch too high and they walk away.`);
+    p.meet.setLabel(s.meeting ? 'MEETING IN PROGRESS' : `MEET A SPONSOR: ${cost} GEMS`);
+    p.meet.setState(!s.meeting && s.gems >= cost, COLORS.green);
+
+    const m = s.meeting;
+    if (m !== this.pitchFor) {
+      this.pitchFor = m;
+      if (m) this.pitchAmount = openingPitch(m);
+    }
+    for (const b of [p.name, p.estimate, p.amount, p.caption, ...p.stepBtns.flatMap((x) => [x.rect, x.label]), p.pitchBtn.rect, p.pitchBtn.label, p.walkBtn.rect, p.walkBtn.label]) {
+      b.setVisible(!!m);
+    }
+    p.idle.setVisible(!m);
+    if (m) {
+      p.name.setText(m.name);
+      p.estimate.setText(`They seem to have $${formatNumber(m.lo)} to $${formatNumber(m.hi)} to spend`);
+      p.amount.setText(`$${formatNumber(this.pitchAmount)}`);
+      p.pitchBtn.setLabel(`PITCH $${formatNumber(this.pitchAmount)}`);
+    } else {
+      p.idle.setText(this.sponsorMessage || 'Spend gems to book a meeting with a sponsor. Each one has a hidden budget: pitch under it and they sign, over it and talks collapse. Each sponsor you sign makes the next meeting cost more.');
+      p.idle.setColor(this.sponsorMessage ? (this.sponsorMessageGood ? '#14b87a' : '#e08a1f') : '#9aa7d0');
+    }
+
+    p.total.setText(s.sponsorList.length ? `$${formatNumber(sponsorIncome(s))} / season` : '');
+    const shown = [...s.sponsorList].reverse();
+    p.rows.forEach((row, i) => {
+      const sp = shown[i];
+      const more = i === p.rows.length - 1 && shown.length > p.rows.length;
+      row.name.setText(more ? `+ ${shown.length - i} more` : (sp?.name ?? (i === 0 ? 'None yet' : '')));
+      row.amount.setText(!more && sp ? `$${formatNumber(sp.amount)}` : '');
+    });
   }
 
   private buildTeam() {
@@ -207,17 +344,8 @@ export class PanelHost {
 
   render() {
     const s = this.state();
-    if (this.current === 'Standings') {
-      this.standingNote.setText(
-        `Season ${s.season} · Race ${s.race}/${RACES_PER_SEASON}. Finish 1st after race ${RACES_PER_SEASON} to unlock Season ${s.season + 1}. Rivals grow stronger every season; when you can't beat them, prestige.`,
-      );
-      const table = constructorsTable(s, s.teamName);
-      this.standingRows.forEach(({ row, pts }, i) => {
-        const r = table[i];
-        const color = r?.isPlayer ? '#ffd400' : '#cfd6ee';
-        row.setText(r ? `${String(i + 1).padStart(2)}  ${r.name}` : '').setColor(color);
-        pts.setText(r ? String(r.points) : '').setColor(color);
-      });
+    if (this.current === 'Sponsors') {
+      this.renderSponsors(s);
     } else if (this.current === 'Team') {
       this.teamName.setText(s.teamName);
       this.teamInfo.setText(`Season ${s.season}\nCars: 2\nAuto: ${s.autoUnlocked ? 'unlocked' : 'locked'}`);
