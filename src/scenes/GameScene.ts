@@ -182,10 +182,10 @@ export class GameScene extends Phaser.Scene {
     addSlant(this, 282, 6, 6, 36, 0xffffff, 6);
     this.teamText = addText(this, 20, 10, this.state.teamName.toUpperCase(), 22).setFixedSize(250, 0);
     this.seasonText = addText(this, 20, 46, '', 14, '#9aa7d0');
-    addSlant(this, W - 190, 6, 200, 36, 0x1a2342, 18);
-    addSlant(this, W - 190, 6, 6, 36, COLORS.gold, 6);
+    addSlant(this, W - 240, 6, 250, 36, 0x1a2342, 18);
+    addSlant(this, W - 240, 6, 6, 36, COLORS.gold, 6);
     this.moneyText = addText(this, W - 22, 10, '', 22, '#ffc933').setOrigin(1, 0);
-    this.wageText = addText(this, W - 178, 9, '', 11, '#ff8a80').setLineSpacing(0);
+    this.wageText = addText(this, W - 218, 9, '', 11, '#ff8a80').setLineSpacing(0);
     const g = this.add.graphics();
     // Gem (cyan diamond) and research point (purple hexagon) icons.
     const gx = W - 196;
