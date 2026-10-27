@@ -5,6 +5,8 @@ export interface GameState {
   gems: number;
   season: number;
   race: number;
+  // Constructors' points this season, by team id.
+  points: Record<string, number>;
   upgrades: Record<string, number>;
   autoUnlocked: boolean;
   // Multiplies all income and prizes.
@@ -23,6 +25,7 @@ export function newGame(now = Date.now()): GameState {
     gems: 0,
     season: 1,
     race: 1,
+    points: {},
     upgrades: { engine: 0, aero: 0, tyres: 0, brakes: 0, reliability: 0, pitCrew: 0 },
     autoUnlocked: false,
     sponsors: 1,
@@ -44,6 +47,7 @@ export function loadGame(store: Store = localStorage, now = Date.now()): GameSta
       ...fresh,
       ...data,
       upgrades: { ...fresh.upgrades, ...(data.upgrades ?? {}) },
+      points: { ...(data.points ?? {}) },
       version: SAVE_VERSION,
     };
   } catch {

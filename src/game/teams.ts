@@ -20,6 +20,7 @@ export const RIVAL_TEAMS: Team[] = [
   { id: 'haas', name: 'Haas', color: 0xb6babd, drivers: ['Esteban Ocon', 'Oliver Bearman'], rating: 30 },
 ];
 
+export const PLAYER_TEAM_ID = 'player';
 export const PLAYER_DRIVERS: [string, string] = ['Driver One', 'Driver Two'];
 export const PLAYER_COLOR = 0xffd400;
 

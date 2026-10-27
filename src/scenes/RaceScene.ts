@@ -10,6 +10,7 @@ import {
   upgradeCost,
 } from '../game/economy';
 import { Race, createRace, standings, stepRace } from '../game/race';
+import { RACES_PER_SEASON, advanceSeason, awardPoints, constructorsTable } from '../game/season';
 import { GameState, loadGame, saveGame } from '../game/save';
 import { DEFAULT_TRACK, Point, pointAt } from '../game/track';
 
@@ -29,7 +30,16 @@ export class RaceScene extends Phaser.Scene {
   private towerRows: Phaser.GameObjects.Text[] = [];
   private lapText!: Phaser.GameObjects.Text;
   private restartAt = 0;
+  private restartDelay = 3000;
   private paid = false;
+  private seasonText!: Phaser.GameObjects.Text;
+  private banner!: Phaser.GameObjects.Text;
+  private tab = 0;
+  private tabHighlight!: Phaser.GameObjects.Rectangle;
+  private panel!: Phaser.GameObjects.Container;
+  private panelTitle!: Phaser.GameObjects.Text;
+  private panelNote!: Phaser.GameObjects.Text;
+  private panelRows: { row: Phaser.GameObjects.Text; pts: Phaser.GameObjects.Text }[] = [];
   private incomeText!: Phaser.GameObjects.Text;
   private cards: {
     def: UpgradeDef;
@@ -48,6 +58,13 @@ export class RaceScene extends Phaser.Scene {
     this.drawTrack();
     this.drawStats();
     this.drawUpgrades();
+    this.banner = this.text(W / 2 + 40, VIEW.y + VIEW.h / 2, '', 26)
+      .setOrigin(0.5)
+      .setAlign('center')
+      .setBackgroundColor('#0b1020cc')
+      .setPadding(14)
+      .setVisible(false);
+    this.drawPanel();
     this.drawTabs();
 
     this.time.addEvent({ delay: 5000, loop: true, callback: () => saveGame(this.state) });
@@ -65,7 +82,7 @@ export class RaceScene extends Phaser.Scene {
   private drawHud() {
     this.box(0, 0, W, 70, COLORS.bg);
     this.text(16, 12, this.state.teamName, 22);
-    this.text(16, 40, `Season ${this.state.season} · Race ${this.state.race}/10`, 14, '#9aa7d0');
+    this.seasonText = this.text(16, 40, '', 14, '#9aa7d0');
     this.moneyText = this.text(W - 16, 12, '', 22).setOrigin(1, 0);
     this.text(W - 16, 40, `Gems ${this.state.gems}`, 14, '#9aa7d0').setOrigin(1, 0);
   }
@@ -101,6 +118,7 @@ export class RaceScene extends Phaser.Scene {
     });
     this.restartAt = 0;
     this.paid = false;
+    this.banner?.setVisible(false);
   }
 
   private renderRace() {
@@ -152,6 +170,7 @@ export class RaceScene extends Phaser.Scene {
   private renderEconomy() {
     const rating = carRating(this.state.upgrades);
     this.moneyText.setText(`$ ${formatNumber(this.state.money)}`);
+    this.seasonText.setText(`Season ${this.state.season} · Race ${this.state.race}/${RACES_PER_SEASON}`);
     this.incomeText.setText(`${formatNumber(incomePerSecond(rating, this.state.sponsors))} $/s · Rating ${Math.round(rating)}`);
     for (const { def, level, button, cost } of this.cards) {
       const lv = this.state.upgrades[def.key] ?? 0;
@@ -164,19 +183,79 @@ export class RaceScene extends Phaser.Scene {
     }
   }
 
-  private payOut() {
+  private finishRace() {
     const order = standings(this.race);
     const positions = order.flatMap((c, i) => (c.isPlayer ? [i + 1] : []));
     this.state.money += racePayout(positions, this.state.season, this.state.sponsors);
+    awardPoints(this.state, order);
+
+    const outcome = advanceSeason(this.state);
+    const best = positions[0];
+    if (outcome.type === 'season-won') {
+      this.banner.setText(`CHAMPIONS!\nSeason ${outcome.newSeason} unlocked`);
+      this.restartDelay = 5000;
+    } else if (outcome.type === 'season-lost') {
+      this.banner.setText('Season over: not champions.\nReplaying the season');
+      this.restartDelay = 5000;
+    } else {
+      this.banner.setText(`Race finished\nBest finish: P${best}`);
+      this.restartDelay = 3000;
+    }
+    this.banner.setVisible(true);
+    saveGame(this.state);
+  }
+
+  private drawPanel() {
+    this.panel = this.add.container(0, 0).setVisible(false);
+    this.panel.add(this.box(0, 70, W, 810, COLORS.bg).setInteractive());
+    this.panelTitle = this.text(W / 2, 90, '', 24).setOrigin(0.5, 0);
+    this.panel.add(this.panelTitle);
+    this.panelRows = [];
+    for (let i = 0; i < 10; i++) {
+      const row = this.text(30, 150 + i * 44, '', 18);
+      const pts = this.text(W - 30, 150 + i * 44, '', 18).setOrigin(1, 0);
+      this.panelRows.push({ row, pts });
+      this.panel.add([row, pts]);
+    }
+    this.panelNote = this.text(W / 2, 620, '', 16, '#9aa7d0').setOrigin(0.5, 0).setWordWrapWidth(W - 60).setAlign('center');
+    this.panel.add(this.panelNote);
+  }
+
+  private selectTab(index: number) {
+    this.tab = index;
+    this.panel.setVisible(index !== 0);
+    this.tabHighlight.setX(index * (W / TABS.length) + 6);
+  }
+
+  private renderPanel() {
+    if (this.tab === 0) return;
+    const showStandings = TABS[this.tab] === 'Standings';
+    this.panelTitle.setText(showStandings ? `Constructors' Championship · Season ${this.state.season}` : TABS[this.tab]);
+    this.panelNote.setText(
+      showStandings
+        ? `Race ${this.state.race}/${RACES_PER_SEASON}. Finish 1st in the standings after race ${RACES_PER_SEASON} to unlock Season ${this.state.season + 1}.`
+        : 'Coming soon',
+    );
+    const table = showStandings ? constructorsTable(this.state, this.state.teamName) : [];
+    this.panelRows.forEach(({ row, pts }, i) => {
+      const r = table[i];
+      row.setText(r ? `${String(i + 1).padStart(2)}  ${r.name}` : '').setColor(r?.isPlayer ? '#ffd400' : '#cfd6ee');
+      pts.setText(r ? String(r.points) : '').setColor(r?.isPlayer ? '#ffd400' : '#cfd6ee');
+    });
   }
 
   private drawTabs() {
     const y = 880;
     this.box(0, y, W, 80, COLORS.bg);
     const w = W / TABS.length;
+    this.tabHighlight = this.box(6, y + 8, w - 12, 64, COLORS.panel).setStrokeStyle(2, COLORS.accent);
     TABS.forEach((t, i) => {
-      if (i === 0) this.box(i * w + 6, y + 8, w - 12, 64, COLORS.panel).setStrokeStyle(2, COLORS.accent);
       this.text(i * w + w / 2, y + 40, t, 14).setOrigin(0.5);
+      this.add
+        .rectangle(i * w, y, w, 80, 0x000000, 0)
+        .setOrigin(0)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerdown', () => this.selectTab(i));
     });
   }
 
@@ -189,13 +268,14 @@ export class RaceScene extends Phaser.Scene {
     stepRace(this.race, dt * RACE_SPEED);
     if (this.race.finished && !this.paid) {
       this.paid = true;
-      this.payOut();
+      this.finishRace();
     }
     this.renderRace();
     this.renderEconomy();
+    this.renderPanel();
     if (this.race.finished) {
       this.restartAt += delta;
-      if (this.restartAt > 3000) this.startRace();
+      if (this.restartAt > this.restartDelay) this.startRace();
     }
   }
 }
