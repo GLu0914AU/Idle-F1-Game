@@ -107,6 +107,8 @@ interface GoalRow {
 
 export interface PanelHooks {
   rename(): void;
+  // Erase the saved game and start over.
+  resetSave(): void;
   // The team colour changed, so cars and the strategy strip need recolouring.
   recolour(): void;
   incomePerSecond(): number;
@@ -200,6 +202,17 @@ export class PanelHost {
   };
   private staffOpen = false;
   private facilitiesOpen = false;
+  private profileOpen = false;
+  private resetArmedUntil = 0;
+  private profileUi!: {
+    box: Phaser.GameObjects.Container;
+    name: Phaser.GameObjects.Text;
+    chip: Phaser.GameObjects.Rectangle;
+    stats: { label: string; value: Phaser.GameObjects.Text }[];
+    toggles: { key: AudioToggle; name: string; button: Button }[];
+    volume: Phaser.GameObjects.Text;
+    reset: Button;
+  };
   private facilitiesUi!: {
     box: Phaser.GameObjects.Container;
     gems: Phaser.GameObjects.Text;
@@ -260,8 +273,6 @@ export class PanelHost {
     unlock: Button;
     toggles: { key: AutoKey; button: Button; name: string }[];
     gemBoost: Button;
-    audioToggles: { key: AudioToggle; name: string; button: Button }[];
-    volume: Phaser.GameObjects.Text;
   };
 
   constructor(
@@ -274,6 +285,7 @@ export class PanelHost {
     this.buildPrestige();
     this.buildShop();
     this.buildGoals();
+    this.buildProfile();
     this.show('Race');
   }
 
@@ -286,9 +298,11 @@ export class PanelHost {
       this.developmentOpen = false;
       this.staffOpen = false;
       this.facilitiesOpen = false;
+      this.profileOpen = false;
       this.goalsOpen = false;
     }
     this.goalsUi?.box.setVisible(this.goalsOpen && tab === 'Race');
+    this.profileUi?.box.setVisible(this.profileOpen);
     this.recruit?.box.setVisible(this.recruitOpen && tab === 'Team');
     this.engineerRecruit?.box.setVisible(this.engineerOpen && tab === 'Team');
     this.developmentUi?.box.setVisible(this.developmentOpen && tab === 'Team');
@@ -606,6 +620,120 @@ export class PanelHost {
         r.currentTitle.setText(`Current ${def.title.toLowerCase()}`);
         r.current.setText(holder ? `${holder.name}\n${def.lines(holder.stats).join('\n')}\n$${formatNumber(holder.salary)}/season` : `No ${def.title.toLowerCase()} hired`);
       }
+
+  openProfile(open: boolean) {
+    this.profileOpen = open;
+    this.resetArmedUntil = 0;
+    this.profileUi.box.setVisible(open);
+  }
+
+  private buildProfile() {
+    const c = this.scene.add.container(0, 0).setDepth(100).setVisible(false);
+    c.add(addBox(this.scene, 0, 70, W, 810, COLORS.bg).setInteractive());
+    c.add(this.scene.add.rectangle(W / 2, 84, 120, 3, COLORS.red));
+    c.add(addText(this.scene, W / 2, 90, 'PROFILE & SETTINGS', 24).setOrigin(0.5, 0));
+
+    addBox(this.scene, 20, 126, W - 40, 62, COLORS.panel, c);
+    const chip = addBox(this.scene, 20, 126, 8, 62, PLAYER_COLOR, c).setStrokeStyle(0);
+    const name = addText(this.scene, 42, 134, '', 24, '#ffd400', c);
+    addText(this.scene, 42, 164, 'Team name', 12, '#9aa7d0', c);
+    addButton(this.scene, W - 160, 138, 128, 38, 'RENAME', () => this.hooks.rename(), { size: 14, parent: c });
+
+    addText(this.scene, 30, 202, 'CAREER', 13, '#9aa7d0', c);
+    const labels = ['Season', 'Best season', 'Prestiges', 'Races won', "Drivers' titles", "Constructors' titles", 'Fans', 'Achievements', 'Daily streak'];
+    const cell = (W - 68) / 3;
+    const stats = labels.map((label, i) => {
+      const x = 30 + (i % 3) * (cell + 4);
+      const y = 222 + Math.floor(i / 3) * 62;
+      addBox(this.scene, x, y, cell, 56, COLORS.panel, c);
+      const value = addText(this.scene, x + cell / 2, y + 6, '', 22, '#ffc933', c).setOrigin(0.5, 0);
+      addText(this.scene, x + cell / 2, y + 36, label, 11, '#9aa7d0', c).setOrigin(0.5, 0);
+      return { label, value };
+    });
+
+    addText(this.scene, 30, 418, 'SOUND & HAPTICS', 13, '#9aa7d0', c);
+    const audioKeys: [AudioToggle, string][] = [
+      ['sound', 'Sound effects'],
+      ['engine', 'Engine hum'],
+      ['music', 'Music'],
+      ['haptics', 'Vibration'],
+    ];
+    const half = (W - 68) / 2;
+    const toggles = audioKeys.map(([key, label], i) => ({
+      key,
+      name: label,
+      button: addButton(
+        this.scene,
+        30 + (i % 2) * (half + 8),
+        440 + Math.floor(i / 2) * 52,
+        half,
+        44,
+        label,
+        () => {
+          const s = this.state();
+          s.settings[key] = !s.settings[key];
+          if (s.settings[key]) playSound('buy');
+          this.hooks.save();
+        },
+        { size: 14, parent: c },
+      ),
+    }));
+    const volume = addText(this.scene, W / 2, 556, '', 16, '#ffffff', c).setOrigin(0.5, 0);
+    const stepVolume = (d: number) => {
+      const s = this.state();
+      s.settings.volume = Math.round(Math.min(1, Math.max(0, s.settings.volume + d)) * 10) / 10;
+      playSound('buy');
+      this.hooks.save();
+    };
+    addButton(this.scene, 30, 548, 80, 40, '-', () => stepVolume(-0.1), { size: 20, parent: c });
+    addButton(this.scene, W - 110, 548, 80, 40, '+', () => stepVolume(0.1), { size: 20, parent: c });
+
+    addText(this.scene, 30, 616, 'SAVE DATA', 13, '#9aa7d0', c);
+    addText(this.scene, 30, 636, 'Progress is saved on this device only. Resetting erases everything: money, upgrades, drivers, gems and goals.', 12, '#9aa7d0', c).setWordWrapWidth(W - 60);
+    const reset = addButton(
+      this.scene,
+      30,
+      684,
+      W - 60,
+      44,
+      'RESET SAVE',
+      () => {
+        if (this.scene.time.now < this.resetArmedUntil) {
+          this.hooks.resetSave();
+        } else {
+          this.resetArmedUntil = this.scene.time.now + 4000;
+        }
+      },
+      { size: 16, parent: c, fill: 0xb8321f },
+    );
+    addButton(this.scene, 30, 812, W - 60, 44, 'BACK', () => this.openProfile(false), { size: 16, parent: c });
+    this.profileUi = { box: c, name, chip, stats, toggles, volume, reset };
+  }
+
+  private renderProfile(s: GameState) {
+    const u = this.profileUi;
+    u.name.setText(s.teamName);
+    u.chip.setFillStyle(s.teamColor);
+    const claimed = ACHIEVEMENTS.filter((a) => achievementClaimed(s, a)).length;
+    const values = [
+      s.season,
+      Math.max(s.season, s.bestSeason),
+      s.prestiges,
+      s.stats.racesWon,
+      s.stats.wdc,
+      s.stats.wcc,
+      formatNumber(fansFor(s.stats)),
+      `${claimed}/${ACHIEVEMENTS.length}`,
+      streakCount(s),
+    ];
+    u.stats.forEach((st, i) => st.value.setText(String(values[i])));
+    for (const { key, name, button } of u.toggles) {
+      button.setLabel(`${name}: ${s.settings[key] ? 'ON' : 'OFF'}`);
+      button.setState(true, s.settings[key] ? COLORS.green : COLORS.accent);
+    }
+    u.volume.setText(`Volume ${Math.round(s.settings.volume * 100)}%`);
+    u.reset.setLabel(this.scene.time.now < this.resetArmedUntil ? 'TAP AGAIN TO ERASE EVERYTHING' : 'RESET SAVE');
+  }
 
   openGoals(open: boolean) {
     this.goalsOpen = open;
@@ -1234,47 +1362,12 @@ export class PanelHost {
       { size: 16, parent: c },
     );
     addText(this.scene, W / 2, 530, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
-    addText(this.scene, 30, 566, 'SOUND & HAPTICS', 13, '#9aa7d0', c);
-    const audioKeys: [AudioToggle, string][] = [
-      ['sound', 'Sound effects'],
-      ['engine', 'Engine hum'],
-      ['music', 'Music'],
-      ['haptics', 'Vibration'],
-    ];
-    const halfW = (W - 68) / 2;
-    const audioToggles = audioKeys.map(([key, name], i) => ({
-      key,
-      name,
-      button: addButton(
-        this.scene,
-        30 + (i % 2) * (halfW + 8),
-        590 + Math.floor(i / 2) * 52,
-        halfW,
-        44,
-        name,
-        () => {
-          const s = this.state();
-          s.settings[key] = !s.settings[key];
-          if (s.settings[key]) playSound('buy');
-          this.hooks.save();
-        },
-        { size: 14, parent: c },
-      ),
-    }));
-    const volume = addText(this.scene, W / 2, 712, '', 16, '#ffffff', c).setOrigin(0.5, 0);
-    const stepVolume = (d: number) => {
-      const s = this.state();
-      s.settings.volume = Math.round(Math.min(1, Math.max(0, s.settings.volume + d)) * 10) / 10;
-      playSound('buy');
-      this.hooks.save();
-    };
-    addButton(this.scene, 30, 704, 80, 40, '-', () => stepVolume(-0.1), { size: 20, parent: c });
-    addButton(this.scene, W - 110, 704, 80, 40, '+', () => stepVolume(0.1), { size: 20, parent: c });
-    this.shop = { gems, unlock, toggles, gemBoost, audioToggles, volume };
+    this.shop = { gems, unlock, toggles, gemBoost };
   }
 
   render() {
     const s = this.state();
+    if (this.profileOpen) this.renderProfile(s);
     if (this.goalsOpen && this.current === 'Race') this.renderGoals(s);
     if (this.current === 'Sponsors') {
       this.renderSponsors(s);
@@ -1310,11 +1403,6 @@ export class PanelHost {
         button.setState(s.autoUnlocked, s[key] ? COLORS.green : COLORS.accent);
       }
       sh.gemBoost.setState(s.gems >= GEM_BOOST_COST);
-      for (const { key, name, button } of sh.audioToggles) {
-        button.setLabel(`${name}: ${s.settings[key] ? 'ON' : 'OFF'}`);
-        button.setState(true, s.settings[key] ? COLORS.green : COLORS.accent);
-      }
-      sh.volume.setText(`Volume ${Math.round(s.settings.volume * 100)}%`);
     }
   }
 }

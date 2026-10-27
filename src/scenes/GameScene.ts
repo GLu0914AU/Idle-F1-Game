@@ -18,7 +18,7 @@ import { FREE_LEVELS_PER_RESEARCH, buyResearch, canPrestige, effectiveUpgrades, 
 import { driverRating } from '../game/drivers';
 import { TITLE_GEMS, settleRace } from '../game/settle';
 import { describeWeather, idealClass, isDry, rollWeather } from '../game/weather';
-import { GameState, loadGame, saveGame } from '../game/save';
+import { GameState, loadGame, resetGame, saveGame } from '../game/save';
 import { RACES_PER_SEASON, driversTable } from '../game/season';
 import { packageDef } from '../game/development';
 import { achievementDef, claimableCount, readyAchievements, recordEvent, recordRaceResult } from '../game/goals';
@@ -109,6 +109,7 @@ export class GameScene extends Phaser.Scene {
   private towerMode: 'race' | 'season' = 'race';
   private tabHighlight!: Phaser.GameObjects.Rectangle;
   private safetyCarSounded = false;
+  private resetting = false;
   private stripChips: Phaser.GameObjects.Rectangle[] = [];
   private cards: { def: UpgradeDef; level: Phaser.GameObjects.Text; button: Button }[] = [];
   private info!: { box: Phaser.GameObjects.Container; title: Phaser.GameObjects.Text; body: Phaser.GameObjects.Text; key: string | null; research: boolean };
@@ -140,6 +141,11 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false);
     this.panels = new PanelHost(this, () => this.state, {
       rename: () => void this.rename(true),
+      resetSave: () => {
+        this.resetting = true;
+        resetGame();
+        window.location.reload();
+      },
       recolour: () => this.applyIdentity(),
       incomePerSecond: () => incomePerSecond(carRating(this.eff()), sponsorMultiplier(this.state)),
       prestige: () => this.doPrestige(),
@@ -174,7 +180,7 @@ export class GameScene extends Phaser.Scene {
 
   // Saves are held back while away results are waiting, so a refresh can't lose them.
   private persist() {
-    if (!this.awayPending) saveGame(this.state);
+    if (!this.awayPending && !this.resetting) saveGame(this.state);
   }
 
   private showAway(report: OfflineReport) {
@@ -223,12 +229,20 @@ export class GameScene extends Phaser.Scene {
     this.stripChips.forEach((chip) => chip.setFillStyle(this.state.teamColor));
   }
 
+  // Long names shrink so they stay inside the red tag, beside the profile button.
+  private fitTeamName() {
+    this.teamText.setScale(1);
+    const room = 222;
+    if (this.teamText.width > room) this.teamText.setScale(room / this.teamText.width);
+  }
+
   private async rename(cancellable: boolean) {
     const name = await askTeamName(this.state.teamName, cancellable);
     if (!name) return;
     this.state.teamName = name;
     this.state.teamNamed = true;
     this.teamText.setText(name.toUpperCase());
+    this.fitTeamName();
     this.persist();
   }
 
@@ -237,7 +251,18 @@ export class GameScene extends Phaser.Scene {
     // Broadcast-style header: red team tag on the left, gold money badge on the right.
     addSlant(this, -12, 6, 300, 36, COLORS.red, 18);
     addSlant(this, 282, 6, 6, 36, 0xffffff, 6);
-    this.teamText = addText(this, 20, 10, this.state.teamName.toUpperCase(), 22).setFixedSize(250, 0);
+    this.teamText = addText(this, 52, 10, this.state.teamName.toUpperCase(), 22);
+    this.fitTeamName();
+    const profileBtn = addButton(this, 10, 9, 34, 30, '', () => {
+      unlockAudio();
+      this.panels.openProfile(true);
+    }, { fill: 0x1a0606, size: 12 });
+    // A small person icon: head and shoulders.
+    const pg = this.add.graphics();
+    pg.fillStyle(0xffffff);
+    pg.fillCircle(27, 19, 5);
+    pg.fillEllipse(27, 33, 18, 10);
+    profileBtn.rect.setStrokeStyle(2, 0xffffff, 0.5);
     this.seasonText = addText(this, 20, 46, '', 14, '#9aa7d0');
     addSlant(this, W - 240, 6, 250, 36, 0x1a2342, 18);
     addSlant(this, W - 240, 6, 6, 36, COLORS.gold, 6);
