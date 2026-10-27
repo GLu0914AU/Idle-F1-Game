@@ -146,12 +146,23 @@ describe('race', () => {
     expect(b.compound).toBe('hard');
   });
 
-  it('a new race starts on the fitted tyres, not an unused selection', () => {
+  it('a new race starts on the fitted tyres and keeps the chosen compound for the next stop', () => {
     const s = newStrategy();
     s.compound = 'hard';
     s.nextCompound = 'soft';
     expect(newStrategy(s).compound).toBe('hard');
-    expect(newStrategy(s).nextCompound).toBe('hard');
+    expect(newStrategy(s).nextCompound).toBe('soft');
+  });
+
+  it('the compound chosen is fitted at the next stop', () => {
+    const race = createRace(config({ laps: 6 }));
+    const a = newStrategy();
+    a.nextCompound = 'soft';
+    a.wear = 0.8;
+    togglePitRequest(a);
+    const team = { strategies: [a, newStrategy()] as [typeof a, ReturnType<typeof newStrategy>], pitCrew: 0 };
+    while (!race.finished) stepRace(race, 0.5, 1, team);
+    expect(a.compound).toBe('soft');
   });
 
   it('a push-mode car outpaces a conserve-mode car', () => {
