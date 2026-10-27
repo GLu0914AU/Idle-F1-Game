@@ -154,6 +154,17 @@ export const salaryMarket = (season: number) => Math.max(1, Math.round(prize(1, 
 
 export const payroll = (state: Pick<GameState, 'drivers'>) => state.drivers.reduce((sum, d) => sum + d.salary, 0);
 
+// What a candidate asks per race, from their quality in 0..1: `secret` is the least they accept, and lo..hi is the estimate the player sees.
+export function rollAsk(season: number, q: number, rng: () => number): { secret: number; lo: number; hi: number } {
+  const secret = Math.max(1, Math.round(salaryMarket(season) * (SECRET_MIN + q * (SECRET_MAX - SECRET_MIN)) * (0.85 + rng() * 0.3)));
+  const u = rng();
+  return {
+    secret,
+    lo: Math.max(1, Math.round(secret / (1 + HINT_SPREAD * u))),
+    hi: Math.round(secret * (1 + HINT_SPREAD * (1 - u))),
+  };
+}
+
 // Quality in 0..1 drives the stats and the asking price together, so better drivers cost more.
 export function requestDriverMeeting(state: DriverState, rng: () => number = Math.random): Candidate | null {
   if (state.driverMeeting || state.clout < DRIVER_MEETING_CLOUT) return null;
@@ -165,20 +176,12 @@ export function requestDriverMeeting(state: DriverState, rng: () => number = Mat
   const q = rng();
   const trait = () => Math.max(0, Math.min(MAX_TRAIT, Math.round(q * MAX_TRAIT * (0.4 + rng() * 1.2))));
   const stats: DriverStats = { skill: Math.round(MAX_SKILL * q), tyreMgmt: trait(), consistency: trait(), raceCraft: trait() };
-  const secret = Math.max(1, Math.round(salaryMarket(state.season) * (SECRET_MIN + q * (SECRET_MAX - SECRET_MIN)) * (0.85 + rng() * 0.3)));
-  const u = rng();
-  const meeting: Candidate = {
-    name,
-    stats,
-    secret,
-    lo: Math.max(1, Math.round(secret / (1 + HINT_SPREAD * u))),
-    hi: Math.round(secret * (1 + HINT_SPREAD * (1 - u))),
-  };
+  const meeting: Candidate = { name, stats, ...rollAsk(state.season, q, rng) };
   state.driverMeeting = meeting;
   return meeting;
 }
 
-export const openingOffer = (c: Candidate) => Math.round(Math.sqrt(c.lo * c.hi));
+export const openingOffer = (c: { lo: number; hi: number }) => Math.round(Math.sqrt(c.lo * c.hi));
 
 export type OfferResult = { outcome: 'signed'; name: string; replaced: string } | { outcome: 'failed'; name: string } | { outcome: 'none' };
 

@@ -1,6 +1,15 @@
-import { autoSelectCompound, pickAutoBuy, shouldAutoPit } from './auto';
+import { pickAutoBuy } from './auto';
 import { canRunFanEvent, runFanEvent } from './career';
 import { DRIVER_MEETING_CLOUT, driverRating, endDriverMeeting, offerContract, requestDriverMeeting } from './drivers';
+import {
+  ENGINEER_MEETING_CLOUT,
+  ENGINEER_REVIEW_SECONDS,
+  endEngineerMeeting,
+  engineerRating,
+  offerEngineerContract,
+  requestEngineerMeeting,
+  reviewStrategy,
+} from './engineers';
 import { buyUpgrade, carRating, incomePerSecond, sponsorMultiplier } from './economy';
 import { buyResearch, canPrestige, effectiveUpgrades, pickAutoResearch, prestige } from './prestige';
 import { Race, createRace, mulberry32, standings, stepRace } from './race';
@@ -8,7 +17,7 @@ import { GameState, newGame } from './save';
 import { settleRace } from './settle';
 import { RACES_PER_SEASON } from './season';
 import { meetingCost, pitch, requestMeeting } from './sponsors';
-import { newStrategy, stepStrategy, tap, togglePitRequest, setMode, Strategy } from './strategy';
+import { newStrategy, stepStrategy, tap, Strategy } from './strategy';
 import { pickTrack } from './tracks';
 import { rollWeather } from './weather';
 
@@ -26,15 +35,18 @@ export interface Profile {
   autoBuy: boolean;
   autoResearch: boolean;
   autoTap: boolean;
-  autoStrategy: boolean;
+  // Calls pit stops and modes by hand when there is no engineer.
+  manual: boolean;
   recruit: boolean;
   sponsors: boolean;
   fanEvent: boolean;
 }
 
-export const ACTIVE: Profile = { name: 'active', autoBuy: true, autoResearch: true, autoTap: true, autoStrategy: true, recruit: true, sponsors: true, fanEvent: true };
-// Buys things but never taps, never calls a stop and ignores sponsors and drivers.
-export const LAZY: Profile = { name: 'lazy', autoBuy: true, autoResearch: true, autoTap: false, autoStrategy: false, recruit: false, sponsors: false, fanEvent: false };
+export const ACTIVE: Profile = { name: 'active', autoBuy: true, autoResearch: true, autoTap: true, manual: true, recruit: true, sponsors: true, fanEvent: true };
+// Buys things but never taps, never calls a stop and ignores sponsors, drivers and engineers.
+export const LAZY: Profile = { name: 'lazy', autoBuy: true, autoResearch: true, autoTap: false, manual: false, recruit: false, sponsors: false, fanEvent: false };
+// A attentive human with no engineer: nearly always makes the right call.
+const HUMAN_CALLER = { pit: 95, tyre: 95, mode: 90 };
 
 export interface SimOptions {
   seed: number;
@@ -103,7 +115,6 @@ export function simulate(opts: SimOptions): SimResult {
   state.autoBuy = p.autoBuy;
   state.autoResearch = p.autoResearch;
   state.autoTap = p.autoTap;
-  state.autoStrategy = p.autoStrategy;
 
   const eff = () => effectiveUpgrades(state);
   let strategies: [Strategy, Strategy] = [newStrategy(), newStrategy()];
@@ -153,6 +164,7 @@ export function simulate(opts: SimOptions): SimResult {
   beginRun();
   let autoBuyTimer = 0;
   let autoTapTimer = 0;
+  let engineerTimer = 0;
   let restartAt = 0;
   let restartDelay = RESTART_DELAY.next;
   let settled = false;
@@ -192,16 +204,16 @@ export function simulate(opts: SimOptions): SimResult {
         for (const s of strategies) tap(s, eff().tapPower ?? 0);
       }
     }
-    if (state.autoStrategy && !race.finished) {
-      strategies.forEach((st, i) => {
-        const car = race.cars.find((c) => c.id === `player-${i}`)!;
-        if (shouldAutoPit(st, car.progress, RACE_LAPS, race.wetness)) {
-          autoSelectCompound(st, car.progress, RACE_LAPS, race.wetness);
-          togglePitRequest(st);
-        }
-        if (st.wear < 0.35 && st.mode !== 'push') setMode(st, 'push');
-        else if (st.wear > 0.6 && st.mode === 'push') setMode(st, 'normal');
-      });
+    const caller = state.engineer ?? (p.manual ? HUMAN_CALLER : null);
+    if (caller && !race.finished) {
+      engineerTimer += dt;
+      if (engineerTimer >= ENGINEER_REVIEW_SECONDS) {
+        engineerTimer = 0;
+        strategies.forEach((st, i) => {
+          const car = race.cars.find((c) => c.id === `player-${i}`)!;
+          reviewStrategy(caller, st, car.progress, RACE_LAPS, race.wetness, rng);
+        });
+      }
     }
 
     const e = eff();
@@ -272,6 +284,15 @@ export function simulate(opts: SimOptions): SimResult {
             offerContract(state, slot, c.hi);
             applyRating();
           } else endDriverMeeting(state);
+        }
+      }
+      if (p.recruit) {
+        while (!state.engineerMeeting && state.clout >= ENGINEER_MEETING_CLOUT) {
+          const c = requestEngineerMeeting(state, rng);
+          if (!c) break;
+          const better = !state.engineer || engineerRating(c.stats) > engineerRating(state.engineer);
+          if (better && state.money > c.hi * 10) offerEngineerContract(state, c.hi);
+          else endEngineerMeeting(state);
         }
       }
 

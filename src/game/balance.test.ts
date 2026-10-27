@@ -64,7 +64,7 @@ describe('simulator', () => {
   it('lets a fresh team clear Season 1 on the first try in a reasonable time', () => {
     const runs = [1, 2, 3].map((seed) => simulate({ seed, profile: ACTIVE, prestiges: 0 }).runs[0]);
     for (const r of runs) {
-      expect(r.season1[0].best).toBeLessThanOrEqual(14);
+      expect(r.season1[0].best).toBeLessThanOrEqual(16);
       expect(r.reached[2]).toBeLessThan(25 * 60);
     }
   }, 120_000);

@@ -1,5 +1,6 @@
 import { CareerStats } from './career';
 import { Candidate, Driver, rookie } from './drivers';
+import type { Engineer, EngineerCandidate } from './engineers';
 import { PLAYER_COLOR, PLAYER_DRIVERS } from './teams';
 
 export interface GameState {
@@ -17,7 +18,6 @@ export interface GameState {
   autoUnlocked: boolean;
   teamNamed: boolean;
   autoBuy: boolean;
-  autoStrategy: boolean;
   autoTap: boolean;
   // Auto Buy for R&D (research points); part of the Auto unlock.
   autoResearch: boolean;
@@ -45,6 +45,9 @@ export interface GameState {
   clout: number;
   drivers: [Driver, Driver];
   driverMeeting: Candidate | null;
+  // The race engineer runs strategy for both cars, and survives prestige like drivers do.
+  engineer: Engineer | null;
+  engineerMeeting: EngineerCandidate | null;
 }
 
 export const SAVE_VERSION = 1;
@@ -71,7 +74,6 @@ export function newGame(now = Date.now()): GameState {
     autoUnlocked: false,
     teamNamed: false,
     autoBuy: false,
-    autoStrategy: false,
     autoTap: false,
     autoResearch: false,
     boostSeconds: 0,
@@ -90,6 +92,8 @@ export function newGame(now = Date.now()): GameState {
     clout: 0,
     drivers: [rookie(), rookie()],
     driverMeeting: null,
+    engineer: null,
+    engineerMeeting: null,
   };
 }
 
@@ -100,8 +104,10 @@ export function loadGame(store: Store = localStorage, now = Date.now()): GameSta
   try {
     const raw = store.getItem(SAVE_KEY);
     if (!raw) return fresh;
-    const data = JSON.parse(raw) as Partial<GameState>;
+    const data = JSON.parse(raw) as Partial<GameState> & { autoStrategy?: boolean };
     if (typeof data !== 'object' || data === null) return fresh;
+    // Auto Strategy was replaced by the race engineer.
+    delete data.autoStrategy;
     // Merge over defaults so saves from older versions gain new fields.
     return {
       ...fresh,

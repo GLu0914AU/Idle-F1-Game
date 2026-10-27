@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { autoSelectCompound, pickAutoBuy, shouldAutoPit } from '../game/auto';
+import { pickAutoBuy } from '../game/auto';
+import { ENGINEER_REVIEW_SECONDS, reviewStrategy } from '../game/engineers';
 import {
   UPGRADE_DEFS,
   UpgradeDef,
@@ -27,7 +28,6 @@ import {
   isPitting,
   newStrategy,
   selectCompound,
-  setMode,
   stepStrategy,
   tap,
   togglePitRequest,
@@ -69,6 +69,7 @@ export class GameScene extends Phaser.Scene {
   private restartDelay = 3000;
   private autoBuyTimer = 0;
   private autoTapTimer = 0;
+  private engineerTimer = 0;
 
   private teamText!: Phaser.GameObjects.Text;
   private moneyText!: Phaser.GameObjects.Text;
@@ -734,18 +735,19 @@ export class GameScene extends Phaser.Scene {
         this.tapBoth();
       }
     }
-    if (s.autoStrategy && !this.race.finished) {
-      this.strategies.forEach((st, i) => {
-        const car = this.race.cars.find((c) => c.id === `player-${i}`)!;
-        if (shouldAutoPit(st, car.progress, RACE_LAPS, this.race.wetness)) {
-          // The player's own tyre choice always wins over Auto's.
-          autoSelectCompound(st, car.progress, RACE_LAPS, this.race.wetness);
-          togglePitRequest(st);
-        }
-        if (st.wear < 0.35 && st.mode !== 'push') setMode(st, 'push');
-        else if (st.wear > 0.6 && st.mode === 'push') setMode(st, 'normal');
-      });
-    }
+  }
+
+  // The race engineer calls strategy for both cars; it works whether or not Auto is unlocked.
+  private runEngineer(dt: number) {
+    const e = this.state.engineer;
+    if (!e || this.race.finished) return;
+    this.engineerTimer += dt;
+    if (this.engineerTimer < ENGINEER_REVIEW_SECONDS) return;
+    this.engineerTimer = 0;
+    this.strategies.forEach((st, i) => {
+      const car = this.race.cars.find((c) => c.id === `player-${i}`)!;
+      reviewStrategy(e, st, car.progress, RACE_LAPS, this.race.wetness, Math.random);
+    });
   }
 
   update(_time: number, delta: number) {
@@ -760,6 +762,7 @@ export class GameScene extends Phaser.Scene {
     s.money += incomePerSecond(rating, sponsorMultiplier(s)) * dt * scale;
 
     this.runAutos(dt);
+    this.runEngineer(dt);
     const gameDt = dt * RACE_SPEED * scale;
     const levels = {
       tapPower: eff.tapPower ?? 0,

@@ -14,6 +14,14 @@ import {
   requestDriverMeeting,
 } from '../game/drivers';
 import { formatNumber } from '../game/economy';
+import {
+  ENGINEER_MEETING_CLOUT,
+  Engineer,
+  EngineerStats,
+  endEngineerMeeting,
+  offerEngineerContract,
+  requestEngineerMeeting,
+} from '../game/engineers';
 import { PLAYER_COLOR } from '../game/teams';
 import { FANS_PER_WIN, FanCurrency, canRunFanEvent, fanChance, fansFor, runFanEvent } from '../game/career';
 import { Button, COLORS, W, addBox, addButton, addText } from './widgets';
@@ -22,7 +30,7 @@ export const TABS = ['Race', 'Team', 'Sponsors', 'Prestige', 'Shop'] as const;
 const TEAM_COLORS = [0xffd400, 0xff7a1a, 0xe10600, 0xff4fa3, 0xb48cff, 0x2f6bff, 0x4de3ff, 0x14b87a, 0xffffff, 0x9aa0b5];
 const STAT_LABELS = ['RACES WON', "DRIVERS' TITLES", "CONSTRUCTORS' TITLES"];
 type TabName = (typeof TABS)[number];
-type AutoKey = 'autoBuy' | 'autoStrategy' | 'autoTap';
+type AutoKey = 'autoBuy' | 'autoTap';
 
 const driverLines = (d: DriverStats) => [
   `Skill: +${d.skill}% car rating`,
@@ -31,8 +39,17 @@ const driverLines = (d: DriverStats) => [
   `Race craft: ${d.raceCraft}/${MAX_TRAIT}`,
 ];
 
+const engineerLines = (e: EngineerStats) => [
+  `Pit calls: right ${e.pit}% of the time`,
+  `Tyre choice: right ${e.tyre}% of the time`,
+  `Push / conserve: right ${e.mode}% of the time`,
+];
+
 const describeDriver = (d: Driver) =>
   `Skill +${d.skill}% · Tyres ${d.tyreMgmt} · Consistency ${d.consistency} · Race craft ${d.raceCraft} · ${d.salary > 0 ? `$${formatNumber(d.salary)}/race` : 'no wage'}`;
+
+const describeEngineer = (e: Engineer | null) =>
+  e ? `Pit ${e.pit}% · Tyres ${e.tyre}% · Mode ${e.mode}% · $${formatNumber(e.salary)}/race` : 'No engineer: you call strategy by hand';
 
 export const GEM_BOOST_COST = 10;
 export const BOOST_SECONDS = 60;
@@ -97,10 +114,32 @@ export class PanelHost {
     current: Phaser.GameObjects.Text[];
   };
   private fanMessage = '';
+  private engineerOpen = false;
+  private engineerMessage = '';
+  private engineerMessageGood = false;
+  private engineerOffer = 0;
+  private engineerOfferFor: GameState['engineerMeeting'] = null;
+  private engineerRecruit!: {
+    box: Phaser.GameObjects.Container;
+    info: Phaser.GameObjects.Text;
+    meet: Button;
+    name: Phaser.GameObjects.Text;
+    estimate: Phaser.GameObjects.Text;
+    traits: Phaser.GameObjects.Text;
+    amount: Phaser.GameObjects.Text;
+    caption: Phaser.GameObjects.Text;
+    stepBtns: Button[];
+    sign: Button;
+    walkBtn: Button;
+    idle: Phaser.GameObjects.Text;
+    current: Phaser.GameObjects.Text;
+  };
   private team!: {
     swatches: { sw: Phaser.GameObjects.Rectangle; color: number }[];
     driverRows: { name: Phaser.GameObjects.Text; chip: Phaser.GameObjects.Rectangle; detail: Phaser.GameObjects.Text }[];
     recruitBtn: Button;
+    engineerRow: { name: Phaser.GameObjects.Text; chip: Phaser.GameObjects.Rectangle; detail: Phaser.GameObjects.Text };
+    engineerBtn: Button;
     stats: Phaser.GameObjects.Text[];
     fans: Phaser.GameObjects.Text;
     fanInfo: Phaser.GameObjects.Text;
@@ -136,8 +175,12 @@ export class PanelHost {
   show(tab: TabName) {
     const changed = tab !== this.current;
     this.current = tab;
-    if (changed) this.recruitOpen = false;
+    if (changed) {
+      this.recruitOpen = false;
+      this.engineerOpen = false;
+    }
     this.recruit?.box.setVisible(this.recruitOpen && tab === 'Team');
+    this.engineerRecruit?.box.setVisible(this.engineerOpen && tab === 'Team');
     for (const [name, c] of this.panels) {
       c.setVisible(name === tab);
       if (name === tab && changed) {
@@ -307,39 +350,132 @@ export class PanelHost {
     });
 
     section(256, 'Drivers');
-    const driverRows = [0, 1].map((i) => {
-      const y = 280 + i * 60;
-      addBox(this.scene, 30, y, W - 60, 54, COLORS.panel, c);
-      const chip = addBox(this.scene, 30, y, 8, 54, PLAYER_COLOR, c).setStrokeStyle(0);
-      const name = addText(this.scene, 52, y + 5, '', 19, '#ffffff', c);
-      const detail = addText(this.scene, 52, y + 32, '', 12, '#9aa7d0', c);
-      return { name, chip, detail };
-    });
-    const recruitBtn = addButton(this.scene, 30, 402, W - 60, 36, 'RECRUIT A DRIVER', () => this.openRecruit(true), { parent: c, size: 15, fill: COLORS.green });
+    const rowBox = (y: number, name: string) => {
+      addBox(this.scene, 30, y, W - 60, 48, COLORS.panel, c);
+      const chip = addBox(this.scene, 30, y, 8, 48, PLAYER_COLOR, c).setStrokeStyle(0);
+      return {
+        name: addText(this.scene, 52, y + 4, name, 19, '#ffffff', c),
+        chip,
+        detail: addText(this.scene, 52, y + 28, '', 12, '#9aa7d0', c),
+      };
+    };
+    const driverRows = [0, 1].map((i) => rowBox(276 + i * 52, ''));
+    const recruitBtn = addButton(this.scene, 30, 382, W - 60, 32, 'RECRUIT A DRIVER', () => this.openRecruit(true), { parent: c, size: 15, fill: COLORS.green });
 
-    section(450, 'Career');
+    section(422, 'Race engineer');
+    const engineerRow = rowBox(442, '');
+    const engineerBtn = addButton(this.scene, 30, 496, W - 60, 32, 'RECRUIT A RACE ENGINEER', () => this.openEngineer(true), { parent: c, size: 15, fill: COLORS.green });
+
+    section(538, 'Career');
     const stats = STAT_LABELS.map((label, i) => {
       const x = 30 + i * 156;
-      addBox(this.scene, x, 474, 144, 66, COLORS.panel, c);
-      const value = addText(this.scene, x + 72, 482, '', 28, '#ffc933', c).setOrigin(0.5, 0);
-      addText(this.scene, x + 72, 518, label, 12, '#9aa7d0', c).setOrigin(0.5, 0);
+      addBox(this.scene, x, 558, 144, 56, COLORS.panel, c);
+      const value = addText(this.scene, x + 72, 562, '', 26, '#ffc933', c).setOrigin(0.5, 0);
+      addText(this.scene, x + 72, 594, label, 12, '#9aa7d0', c).setOrigin(0.5, 0);
       return value;
     });
 
-    section(556, 'Fans');
-    addBox(this.scene, 30, 580, W - 60, 190, COLORS.panel, c);
-    addBox(this.scene, 30, 580, 5, 190, COLORS.red, c).setStrokeStyle(0);
-    const fans = addText(this.scene, 52, 590, '', 30, '#ffffff', c);
-    const fanInfo = addText(this.scene, 52, 628, '', 12, '#9aa7d0', c).setWordWrapWidth(W - 120);
-    const fanButton = addButton(this.scene, 52, 722, W - 104, 40, '', () => this.runFanEvent(), { parent: c, size: 16, fill: COLORS.green });
-    const fanResult = addText(this.scene, W / 2, 780, '', 16, '#ffc933', c).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 80);
-    this.team = { swatches, driverRows, recruitBtn, stats, fans, fanInfo, fanButton, fanResult };
+    section(624, 'Fans');
+    addBox(this.scene, 30, 644, W - 60, 172, COLORS.panel, c);
+    addBox(this.scene, 30, 644, 5, 172, COLORS.red, c).setStrokeStyle(0);
+    const fans = addText(this.scene, 52, 650, '', 28, '#ffffff', c);
+    const fanInfo = addText(this.scene, 52, 686, '', 12, '#9aa7d0', c).setWordWrapWidth(W - 120);
+    const fanButton = addButton(this.scene, 52, 768, W - 104, 40, '', () => this.runFanEvent(), { parent: c, size: 16, fill: COLORS.green });
+    const fanResult = addText(this.scene, W / 2, 822, '', 16, '#ffc933', c).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 80);
+    this.team = { swatches, driverRows, recruitBtn, engineerRow, engineerBtn, stats, fans, fanInfo, fanButton, fanResult };
     this.buildRecruit();
+    this.buildEngineerRecruit();
   }
 
   private openRecruit(open: boolean) {
     this.recruitOpen = open;
     this.recruit.box.setVisible(open && this.current === 'Team');
+  }
+
+  private openEngineer(open: boolean) {
+    this.engineerOpen = open;
+    this.engineerRecruit.box.setVisible(open && this.current === 'Team');
+  }
+
+  private buildEngineerRecruit() {
+    const c = this.scene.add.container(0, 0).setVisible(false);
+    c.add(addBox(this.scene, 0, 70, W, 810, COLORS.bg).setInteractive());
+    c.add(this.scene.add.rectangle(W / 2, 84, 120, 3, COLORS.red));
+    c.add(addText(this.scene, W / 2, 90, 'RECRUIT A RACE ENGINEER', 24).setOrigin(0.5, 0));
+    const info = addText(this.scene, W / 2, 124, '', 14, '#9aa7d0', c).setOrigin(0.5, 0).setWordWrapWidth(W - 60).setAlign('center');
+    const meet = addButton(this.scene, 30, 170, W - 60, 44, '', () => {
+      if (requestEngineerMeeting(this.state())) {
+        this.engineerMessage = '';
+        this.hooks.save();
+      }
+    }, { fill: COLORS.green, size: 16, parent: c });
+
+    addBox(this.scene, 20, 226, W - 40, 370, COLORS.panel, c);
+    const name = addText(this.scene, W / 2, 238, '', 22, '#ffd400', c).setOrigin(0.5, 0);
+    const estimate = addText(this.scene, W / 2, 272, '', 14, '#9aa7d0', c).setOrigin(0.5, 0);
+    const traits = addText(this.scene, W / 2, 304, '', 15, '#cfd6ee', c).setOrigin(0.5, 0).setAlign('center').setLineSpacing(4);
+    const amount = addText(this.scene, W / 2, 398, '', 30, '#ffffff', c).setOrigin(0.5, 0);
+    const caption = addText(this.scene, W / 2, 438, 'per race, paid after every race', 12, '#9aa7d0', c).setOrigin(0.5, 0);
+    const steps: [string, number][] = [['-25%', 0.75], ['-5%', 0.95], ['+5%', 1.05], ['+25%', 1.25]];
+    const stepBtns = steps.map(([label, mult], i) =>
+      addButton(this.scene, 34 + i * 118, 466, 108, 38, label, () => {
+        this.engineerOffer = Math.max(1, Math.round(this.engineerOffer * mult));
+      }, { size: 16, parent: c }),
+    );
+    const sign = addButton(this.scene, 34, 514, W - 68, 40, '', () => {
+      const s = this.state();
+      const m = s.engineerMeeting;
+      if (!m) return;
+      const result = offerEngineerContract(s, this.engineerOffer);
+      this.engineerMessage =
+        result.outcome === 'signed'
+          ? `${result.name} signed for $${formatNumber(this.engineerOffer)} a race${result.replaced ? `, replacing ${result.replaced}` : ''}.`
+          : `${m.name} turned the offer down and left.`;
+      this.engineerMessageGood = result.outcome === 'signed';
+      this.hooks.save();
+    }, { fill: COLORS.green, size: 14, parent: c });
+    const walkBtn = addButton(this.scene, 34, 558, W - 68, 30, 'WALK AWAY', () => {
+      const s = this.state();
+      if (!s.engineerMeeting) return;
+      this.engineerMessage = `You ended talks with ${s.engineerMeeting.name}.`;
+      this.engineerMessageGood = false;
+      endEngineerMeeting(s);
+      this.hooks.save();
+    }, { size: 14, parent: c });
+    const idle = addText(this.scene, W / 2, 320, '', 15, '#9aa7d0', c).setOrigin(0.5, 0).setWordWrapWidth(W - 90).setAlign('center');
+
+    addText(this.scene, 30, 612, 'Current race engineer', 16, '#ffffff', c);
+    const current = addText(this.scene, 36, 642, '', 13, '#cfd6ee', c).setWordWrapWidth(W - 72);
+    addButton(this.scene, 30, 800, W - 60, 44, 'BACK TO TEAM', () => this.openEngineer(false), { size: 16, parent: c });
+    this.engineerRecruit = { box: c, info, meet, name, estimate, traits, amount, caption, stepBtns, sign, walkBtn, idle, current };
+  }
+
+  private renderEngineerRecruit(s: GameState) {
+    const r = this.engineerRecruit;
+    r.info.setText(`Clout: ${s.clout} · One engineer calls pits, tyres and push/conserve for both cars. Each stat is how often they get it right. Unpaid engineers quit.`);
+    r.meet.setLabel(s.engineerMeeting ? 'NEGOTIATION IN PROGRESS' : `MEET AN ENGINEER: ${ENGINEER_MEETING_CLOUT} CLOUT`);
+    r.meet.setState(!s.engineerMeeting && s.clout >= ENGINEER_MEETING_CLOUT, COLORS.green);
+
+    const m = s.engineerMeeting;
+    if (m !== this.engineerOfferFor) {
+      this.engineerOfferFor = m;
+      if (m) this.engineerOffer = openingOffer(m);
+    }
+    for (const b of [r.name, r.estimate, r.traits, r.amount, r.caption, ...r.stepBtns.flatMap((x) => [x.rect, x.label]), r.sign.rect, r.sign.label, r.walkBtn.rect, r.walkBtn.label]) {
+      b.setVisible(!!m);
+    }
+    r.idle.setVisible(!m);
+    if (m) {
+      r.name.setText(m.name);
+      r.estimate.setText(`They want roughly $${formatNumber(m.lo)} to $${formatNumber(m.hi)} a race`);
+      r.traits.setText(engineerLines(m.stats).join('\n'));
+      r.amount.setText(`$${formatNumber(this.engineerOffer)}`);
+      r.sign.setLabel(s.engineer ? `SIGN, REPLACING ${s.engineer.name.toUpperCase()}` : 'SIGN AS RACE ENGINEER');
+    } else {
+      r.idle.setText(this.engineerMessage || 'Spend clout to meet a race engineer. Each has a hidden minimum wage: offer at least that and they sign, offer less and they walk. A better engineer costs more.');
+      r.idle.setColor(this.engineerMessage ? (this.engineerMessageGood ? '#14b87a' : '#e08a1f') : '#9aa7d0');
+    }
+    r.current.setText(s.engineer ? `${s.engineer.name}\n${describeEngineer(s.engineer)}` : describeEngineer(null));
   }
 
   private buildRecruit() {
@@ -451,6 +587,11 @@ export class PanelHost {
     });
     t.recruitBtn.setLabel(`RECRUIT A DRIVER (${s.clout} CLOUT)`);
     if (this.recruitOpen) this.renderRecruit(s);
+    t.engineerRow.name.setText(s.engineer ? s.engineer.name : 'No race engineer');
+    t.engineerRow.detail.setText(describeEngineer(s.engineer));
+    t.engineerRow.chip.setFillStyle(s.engineer ? s.teamColor : COLORS.border);
+    t.engineerBtn.setLabel(`RECRUIT A RACE ENGINEER (${s.clout} CLOUT)`);
+    if (this.engineerOpen) this.renderEngineerRecruit(s);
     [s.stats.racesWon, s.stats.wdc, s.stats.wcc].forEach((v, i) => t.stats[i].setText(String(v)));
     const fans = fansFor(s.stats);
     t.fans.setText(`${formatNumber(fans)} FANS`);
@@ -541,7 +682,6 @@ export class PanelHost {
     );
     const names: [AutoKey, string][] = [
       ['autoBuy', 'Auto Buy'],
-      ['autoStrategy', 'Auto Strategy'],
       ['autoTap', 'Auto Tap'],
     ];
     const toggles = names.map(([key, name], i) => ({
@@ -564,7 +704,7 @@ export class PanelHost {
     addButton(
       this.scene,
       30,
-      460,
+      390,
       W - 60,
       48,
       `Watch ad: 2x speed for ${BOOST_SECONDS}s`,
@@ -576,7 +716,7 @@ export class PanelHost {
     const gemBoost = addButton(
       this.scene,
       30,
-      520,
+      450,
       W - 60,
       48,
       `${GEM_BOOST_COST} gems: 2x speed for ${GEM_BOOST_SECONDS / 60} min`,
@@ -588,7 +728,7 @@ export class PanelHost {
       },
       { size: 16, parent: c },
     );
-    addText(this.scene, W / 2, 600, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
+    addText(this.scene, W / 2, 530, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
     this.shop = { gems, unlock, toggles, gemBoost };
   }
 
