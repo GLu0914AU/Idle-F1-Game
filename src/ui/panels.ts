@@ -68,6 +68,8 @@ import { playSound } from '../game/audio';
 export const TABS = ['Race', 'Team', 'Sponsors', 'Prestige', 'Shop'] as const;
 const TEAM_COLORS = [0xffd400, 0xff7a1a, 0xe10600, 0xff4fa3, 0xb48cff, 0x2f6bff, 0x4de3ff, 0x14b87a, 0xffffff, 0x9aa0b5];
 const STAT_LABELS = ['RACES WON', "DRIVERS' TITLES", "CONSTRUCTORS' TITLES"];
+// Sponsor rows visible at once; the signed list scrolls beyond this.
+const SPONSOR_ROWS = 13;
 type TabName = (typeof TABS)[number];
 type AutoKey = 'autoBuy' | 'autoTap';
 type AudioToggle = 'sound' | 'engine' | 'music' | 'haptics';
@@ -149,6 +151,7 @@ export class PanelHost {
   private sponsorMessage = '';
   private sponsorMessageGood = false;
   private pitchAmount = 0;
+  private sponsorScroll = 0;
   private pitchFor: GameState['meeting'] = null;
   private sponsors!: {
     info: Phaser.GameObjects.Text;
@@ -163,6 +166,7 @@ export class PanelHost {
     idle: Phaser.GameObjects.Text;
     total: Phaser.GameObjects.Text;
     rows: { name: Phaser.GameObjects.Text; amount: Phaser.GameObjects.Text }[];
+    thumb: Phaser.GameObjects.Rectangle;
   };
   private teamName!: Phaser.GameObjects.Text;
   private recruitOpen = false;
@@ -462,11 +466,31 @@ export class PanelHost {
 
     addText(this.scene, 30, 490, 'Signed sponsors', 16, '#ffffff', c);
     const total = addText(this.scene, W - 30, 492, '', 14, '#14b87a', c).setOrigin(1, 0);
-    const rows = Array.from({ length: 10 }, (_, i) => ({
+    const rows = Array.from({ length: SPONSOR_ROWS }, (_, i) => ({
       name: addText(this.scene, 36, 522 + i * 26, '', 15, '#cfd6ee', c),
-      amount: addText(this.scene, W - 36, 522 + i * 26, '', 15, '#cfd6ee', c).setOrigin(1, 0),
+      amount: addText(this.scene, W - 46, 522 + i * 26, '', 15, '#cfd6ee', c).setOrigin(1, 0),
     }));
-    this.sponsors = { info, meet, name, estimate, amount, caption, stepBtns, pitchBtn, walkBtn, idle, total, rows };
+    // Scrolling by dragging the list or using the mouse wheel; the bar on the right shows the position.
+    const track = this.scene.add.rectangle(W - 22, 522 + (SPONSOR_ROWS * 26) / 2, 4, SPONSOR_ROWS * 26, 0x1d2745);
+    const thumb = this.scene.add.rectangle(W - 22, 522, 4, 40, 0x6b7bb0).setOrigin(0.5, 0);
+    c.add([track, thumb]);
+    const zone = this.scene.add.zone(W / 2, 522 + (SPONSOR_ROWS * 26) / 2, W - 20, SPONSOR_ROWS * 26).setInteractive();
+    c.add(zone);
+    let dragFrom: { y: number; scroll: number } | null = null;
+    const scrollBy = (rows: number) => {
+      const max = Math.max(0, this.state().sponsorList.length - SPONSOR_ROWS);
+      this.sponsorScroll = Math.min(max, Math.max(0, rows));
+    };
+    zone.on('pointerdown', (p: Phaser.Input.Pointer) => (dragFrom = { y: p.y, scroll: this.sponsorScroll }));
+    zone.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (dragFrom && p.isDown) scrollBy(Math.round(dragFrom.scroll - (p.y - dragFrom.y) / 26));
+    });
+    zone.on('pointerup', () => (dragFrom = null));
+    zone.on('pointerout', () => (dragFrom = null));
+    this.scene.input.on('wheel',  (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
+      if (this.current === 'Sponsors' && zone.getBounds().contains(p.x, p.y)) scrollBy(this.sponsorScroll + Math.sign(dy));
+    });
+    this.sponsors = { info, meet, name, estimate, amount, caption, stepBtns, pitchBtn, walkBtn, idle, total, rows, thumb };
   }
 
   private renderSponsors(s: GameState) {
@@ -499,13 +523,21 @@ export class PanelHost {
 
     const boost = fanMultiplier(s);
     p.total.setText(s.sponsorList.length ? `$${formatNumber(sponsorIncome(s))} / season${boost > 1.005 ? ` (fans x${boost.toFixed(2)})` : ''}` : '');
-    const shown = [...s.sponsorList].reverse();
+    const shown = [...s.sponsorList].sort((a, b) => b.amount - a.amount);
+    const max = Math.max(0, shown.length - SPONSOR_ROWS);
+    this.sponsorScroll = Math.min(this.sponsorScroll, max);
     p.rows.forEach((row, i) => {
-      const sp = shown[i];
-      const more = i === p.rows.length - 1 && shown.length > p.rows.length;
-      row.name.setText(more ? `+ ${shown.length - i} more` : (sp?.name ?? (i === 0 ? 'None yet' : '')));
-      row.amount.setText(!more && sp ? `$${formatNumber(sp.amount)}` : '');
+      const idx = this.sponsorScroll + i;
+      const sp = shown[idx];
+      row.name.setText(sp ? `${idx + 1}. ${sp.name}` : i === 0 ? 'None yet' : '');
+      row.amount.setText(sp ? `$${formatNumber(sp.amount)}` : '');
     });
+    const barH = SPONSOR_ROWS * 26;
+    p.thumb.setVisible(max > 0);
+    if (max > 0) {
+      const h = Math.max(24, (barH * SPONSOR_ROWS) / shown.length);
+      p.thumb.setSize(4, h).setPosition(W - 22, 522 + ((barH - h) * this.sponsorScroll) / max);
+    }
   }
 
   private buildTeam() {
