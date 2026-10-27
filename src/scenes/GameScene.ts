@@ -46,6 +46,8 @@ const RACE_SPEED = 6;
 const TITLE_GEMS = 5;
 // The pit lane runs alongside the start/finish straight; distances are fractions of a lap.
 const PIT_OFFSET = 15;
+// Car drawing is 10 units long at scale 1; 1.7 makes it about 17px.
+const CAR_SCALE = 1.7;
 
 // Sideways offset of the pit route at t (0 entrance .. 1 exit): ramps out, runs parallel, ramps back.
 const pitOffset = (t: number) => PIT_OFFSET * Math.max(0, Math.min(1, t / 0.15, (1 - t) / 0.15));
@@ -252,11 +254,11 @@ export class GameScene extends Phaser.Scene {
     // Local coords: +u forward, +v to the right of travel.
     const rect = (u0: number, u1: number, v0: number, v1: number, fill: number) => {
       const corners = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]].map(
-        ([u, v]) => new Phaser.Math.Vector2(x + u * cos - v * sin, y + u * sin + v * cos),
+        ([u, v]) => new Phaser.Math.Vector2(x + (u * cos - v * sin) * CAR_SCALE, y + (u * sin + v * cos) * CAR_SCALE),
       );
       g.fillStyle(fill).fillPoints(corners, true);
     };
-    if (isPlayer) g.lineStyle(1.5, 0xffffff, 0.9).strokeCircle(x, y, 6.5);
+    if (isPlayer) g.lineStyle(1.5, 0xffffff, 0.9).strokeCircle(x, y, 6.5 * CAR_SCALE);
     const dark = 0x10131f;
     rect(-1.8, -0.2, -2.3, -1.2, dark); // rear wheels
     rect(-1.8, -0.2, 1.2, 2.3, dark);
