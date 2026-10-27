@@ -25,9 +25,13 @@ export const RND_DEFS: UpgradeDef[] = [
   { key: 'sponsorDeals', name: 'Sponsor Deals', baseCost: 4000, ratingPerLevel: 0 },
 ];
 
-// Permanent sponsors multiplier plus 10% per Sponsor Deals level.
-export function sponsorMultiplier(state: { sponsors: number; upgrades: Record<string, number> }): number {
-  return state.sponsors * (1 + 0.1 * (state.upgrades.sponsorDeals ?? 0));
+// Permanent sponsors multiplier, plus 10% per Sponsor Deals level and 25% per Funding research level.
+export function sponsorMultiplier(state: {
+  sponsors: number;
+  upgrades: Record<string, number>;
+  research?: Record<string, number>;
+}): number {
+  return state.sponsors * (1 + 0.1 * (state.upgrades.sponsorDeals ?? 0)) * (1 + 0.25 * (state.research?.funding ?? 0));
 }
 
 export function upgradeCost(def: UpgradeDef, level: number): number {

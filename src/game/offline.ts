@@ -1,4 +1,5 @@
 import { incomePerSecond, sponsorMultiplier, carRating } from './economy';
+import { effectiveUpgrades } from './prestige';
 import { GameState } from './save';
 
 export const FREE_OFFLINE_CAP_S = 2 * 3600;
@@ -19,6 +20,6 @@ export function offlineEarnings(state: GameState, now: number): OfflineResult {
   const cap = state.autoUnlocked ? AUTO_OFFLINE_CAP_S : FREE_OFFLINE_CAP_S;
   const rate = state.autoUnlocked ? 1 : FREE_OFFLINE_RATE;
   const seconds = Math.min(elapsed, cap);
-  const perSecond = incomePerSecond(carRating(state.upgrades), sponsorMultiplier(state));
+  const perSecond = incomePerSecond(carRating(effectiveUpgrades(state)), sponsorMultiplier(state));
   return { seconds, earned: Math.floor(perSecond * seconds * rate) };
 }

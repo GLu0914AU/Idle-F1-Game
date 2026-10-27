@@ -24,7 +24,8 @@ export const PLAYER_TEAM_ID = 'player';
 export const PLAYER_DRIVERS: [string, string] = ['Driver One', 'Driver Two'];
 export const PLAYER_COLOR = 0xffd400;
 
-// Rivals get stronger every season so progression stays under pressure.
+// Rivals get stronger every season, compounding, until they outgrow what a run can build: that's the cue to prestige.
+export const RIVAL_GROWTH = 1.3;
 export function rivalRating(base: number, season: number): number {
-  return base * (1 + 0.25 * (season - 1));
+  return base * RIVAL_GROWTH ** (season - 1);
 }

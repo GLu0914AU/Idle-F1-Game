@@ -13,4 +13,4 @@ All steps are done (v1).
 
 - Real in-app purchase and rewarded ads via Capacitor.
 - Sound, car sprites and visual polish.
-- Cloud saves and prestige reset.
+- Cloud saves.

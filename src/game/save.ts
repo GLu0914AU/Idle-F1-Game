@@ -18,6 +18,11 @@ export interface GameState {
   // Multiplies all income and prizes.
   sponsors: number;
   lastSavedAt: number;
+  // Prestige currency, and the permanent research levels bought with it.
+  researchPoints: number;
+  research: Record<string, number>;
+  prestiges: number;
+  bestSeason: number;
 }
 
 export const SAVE_VERSION = 1;
@@ -50,6 +55,10 @@ export function newGame(now = Date.now()): GameState {
     boostSeconds: 0,
     sponsors: 1,
     lastSavedAt: now,
+    researchPoints: 0,
+    research: {},
+    prestiges: 0,
+    bestSeason: 1,
   };
 }
 
@@ -68,6 +77,7 @@ export function loadGame(store: Store = localStorage, now = Date.now()): GameSta
       ...data,
       upgrades: { ...fresh.upgrades, ...(data.upgrades ?? {}) },
       points: { ...(data.points ?? {}) },
+      research: { ...(data.research ?? {}) },
       version: SAVE_VERSION,
     };
   } catch {

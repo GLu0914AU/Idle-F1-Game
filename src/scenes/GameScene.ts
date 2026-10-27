@@ -13,6 +13,7 @@ import {
 } from '../game/economy';
 import { showRewardedAd } from '../game/monetization';
 import { Race, createRace, standings, stepRace } from '../game/race';
+import { canPrestige, effectiveUpgrades, prestige, researchPointsFor } from '../game/prestige';
 import { GameState, loadGame, saveGame } from '../game/save';
 import { RACES_PER_SEASON, advanceSeason, awardPoints } from '../game/season';
 import {
@@ -100,7 +101,11 @@ export class GameScene extends Phaser.Scene {
       .setBackgroundColor('#0b1020cc')
       .setPadding(14)
       .setVisible(false);
-    this.panels = new PanelHost(this, () => this.state, { rename: () => void this.rename(true) });
+    this.panels = new PanelHost(this, () => this.state, {
+      rename: () => void this.rename(true),
+      prestige: () => this.doPrestige(),
+      onResearch: () => this.applyRating(),
+    });
     this.drawTabs();
     this.startRace();
 
@@ -203,7 +208,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onTap(x: number, y: number) {
-    tap(this.strategy, this.state.upgrades.tapPower ?? 0);
+    tap(this.strategy, this.eff().tapPower ?? 0);
     const ring = this.add.circle(x, y, 8, 0xffffff, 0.35);
     this.tweens.add({ targets: ring, scale: 3, alpha: 0, duration: 300, onComplete: () => ring.destroy() });
   }
@@ -227,7 +232,7 @@ export class GameScene extends Phaser.Scene {
       track: this.track,
       laps: RACE_LAPS,
       season: this.state.season,
-      playerRating: carRating(this.state.upgrades),
+      playerRating: carRating(this.eff()),
       playerTeamName: this.state.teamName,
       seed: Date.now() & 0x7fffffff,
     });
@@ -332,16 +337,21 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  // Upgrade levels including free levels from research.
+  private eff() {
+    return effectiveUpgrades(this.state);
+  }
+
   private applyRating() {
-    const rating = carRating(this.state.upgrades);
+    const rating = carRating(this.eff());
     for (const car of this.race.cars) if (car.isPlayer) car.rating = rating;
   }
 
   private renderEconomy() {
     const s = this.state;
-    const rating = carRating(s.upgrades);
+    const rating = carRating(this.eff());
     this.moneyText.setText(`$ ${formatNumber(s.money)}`);
-    this.gemText.setText(`Gems ${s.gems}`);
+    this.gemText.setText(`Gems ${s.gems} · RP ${s.researchPoints}`);
     this.seasonText.setText(`Season ${s.season} · Race ${s.race}/${RACES_PER_SEASON}`);
     this.incomeText.setText(`${formatNumber(incomePerSecond(rating, sponsorMultiplier(s)))} $/s · Rating ${Math.round(rating)}`);
     for (const { def, level, button } of this.cards) {
@@ -357,6 +367,16 @@ export class GameScene extends Phaser.Scene {
     this.autoBtn.rect.setStrokeStyle(2, COLORS.accent);
   }
 
+  private doPrestige() {
+    if (!canPrestige(this.state)) return;
+    const from = this.state.season;
+    const earned = prestige(this.state);
+    this.startRace();
+    this.banner.setText(`Prestiged from Season ${from}\n+${earned} research points\nBack to Season 1`).setVisible(true);
+    this.time.delayedCall(4000, () => this.banner.setVisible(false));
+    saveGame(this.state);
+  }
+
   private finishRace() {
     const order = standings(this.race);
     const positions = order.flatMap((c, i) => (c.isPlayer ? [i + 1] : []));
@@ -369,7 +389,10 @@ export class GameScene extends Phaser.Scene {
       this.banner.setText(`CHAMPIONS!\nSeason ${outcome.newSeason} unlocked\n+${TITLE_GEMS} gems`);
       this.restartDelay = 5000;
     } else if (outcome.type === 'season-lost') {
-      this.banner.setText('Season over: not champions.\nReplaying the season');
+      const rp = researchPointsFor(this.state.season);
+      this.banner.setText(
+        `Season over: not champions.\nReplaying the season${rp > 0 ? `\nOr prestige for ${rp} RP (Prestige tab)` : ''}`,
+      );
       this.restartDelay = 5000;
     } else {
       this.banner.setText(`Race finished\nBest finish: P${positions[0]}`);
@@ -414,7 +437,7 @@ export class GameScene extends Phaser.Scene {
       this.autoTapTimer += dt;
       while (this.autoTapTimer >= 0.4) {
         this.autoTapTimer -= 0.4;
-        tap(this.strategy, s.upgrades.tapPower ?? 0);
+        tap(this.strategy, this.eff().tapPower ?? 0);
       }
     }
     if (s.autoStrategy && !this.race.finished) {
@@ -435,19 +458,20 @@ export class GameScene extends Phaser.Scene {
     const scale = s.boostSeconds > 0 ? 2 : 1;
     s.boostSeconds = Math.max(0, s.boostSeconds - dt);
 
-    const rating = carRating(s.upgrades);
+    const eff = this.eff();
+    const rating = carRating(eff);
     s.money += incomePerSecond(rating, sponsorMultiplier(s)) * dt * scale;
 
     this.runAutos(dt);
     const gameDt = dt * RACE_SPEED * scale;
     stepStrategy(this.strategy, gameDt, {
-      tapPower: s.upgrades.tapPower ?? 0,
-      pitCrew: s.upgrades.pitCrew ?? 0,
-      tyres: s.upgrades.tyres ?? 0,
+      tapPower: eff.tapPower ?? 0,
+      pitCrew: eff.pitCrew ?? 0,
+      tyres: eff.tyres ?? 0,
     });
     stepRace(this.race, gameDt, paceFactor(this.strategy), {
       strategy: this.strategy,
-      pitCrew: s.upgrades.pitCrew ?? 0,
+      pitCrew: eff.pitCrew ?? 0,
     });
     if (this.race.finished && !this.paid) {
       this.paid = true;

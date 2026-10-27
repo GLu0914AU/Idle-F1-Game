@@ -2,11 +2,12 @@ import Phaser from 'phaser';
 import { RND_DEFS, UpgradeDef, buyUpgrade, formatNumber, upgradeCost } from '../game/economy';
 import { AUTO_PRICE_LABEL, purchaseAutoUnlock, showRewardedAd } from '../game/monetization';
 import { GameState } from '../game/save';
+import { MIN_PRESTIGE_SEASON, RESEARCH_DEFS, ResearchDef, buyResearch, researchCost, researchPointsFor } from '../game/prestige';
 import { RACES_PER_SEASON, constructorsTable } from '../game/season';
 import { PLAYER_DRIVERS } from '../game/teams';
 import { Button, COLORS, W, addBox, addButton, addText } from './widgets';
 
-export const TABS = ['Race', 'Team', 'Standings', 'R&D', 'Shop'] as const;
+export const TABS = ['Race', 'Team', 'Standings', 'R&D', 'Prestige', 'Shop'] as const;
 type TabName = (typeof TABS)[number];
 type AutoKey = 'autoBuy' | 'autoStrategy' | 'autoTap';
 
@@ -16,6 +17,9 @@ export const GEM_BOOST_SECONDS = 300;
 
 export interface PanelHooks {
   rename(): void;
+  prestige(): void;
+  // Research changes the car's rating, so the live race needs refreshing.
+  onResearch(): void;
 }
 
 // Full-screen panels shown over the race view for every tab except Race.
@@ -27,6 +31,12 @@ export class PanelHost {
   private teamName!: Phaser.GameObjects.Text;
   private teamInfo!: Phaser.GameObjects.Text;
   private rnd: { def: UpgradeDef; level: Phaser.GameObjects.Text; button: Button }[] = [];
+  private prestige!: {
+    info: Phaser.GameObjects.Text;
+    button: Button;
+    rows: { def: ResearchDef; level: Phaser.GameObjects.Text; button: Button }[];
+  };
+  private prestigeArmedUntil = 0;
   private shop!: {
     gems: Phaser.GameObjects.Text;
     unlock: Button;
@@ -42,6 +52,7 @@ export class PanelHost {
     this.buildStandings();
     this.buildTeam();
     this.buildRnd();
+    this.buildPrestige();
     this.buildShop();
     this.show('Race');
   }
@@ -97,6 +108,53 @@ export class PanelHost {
       const button = addButton(this.scene, W - 190, y + 28, 150, 40, '', () => buyUpgrade(this.state(), def), { parent: c });
       this.rnd.push({ def, level, button });
     });
+  }
+
+  private buildPrestige() {
+    const c = this.panel('Prestige', 'Prestige');
+    const info = addText(this.scene, W / 2, 128, '', 14, '#9aa7d0', c)
+      .setOrigin(0.5, 0)
+      .setWordWrapWidth(W - 60)
+      .setAlign('center');
+    const button = addButton(
+      this.scene,
+      30,
+      188,
+      W - 60,
+      46,
+      '',
+      () => {
+        const now = this.scene.time.now;
+        if (now < this.prestigeArmedUntil) {
+          this.prestigeArmedUntil = 0;
+          this.hooks.prestige();
+        } else {
+          this.prestigeArmedUntil = now + 3000;
+        }
+      },
+      { fill: COLORS.green, size: 16, parent: c },
+    );
+    addText(this.scene, 30, 246, 'Research (permanent)', 16, '#ffffff', c);
+    const rows = RESEARCH_DEFS.map((def, i) => {
+      const y = 272 + i * 64;
+      addBox(this.scene, 20, y, W - 40, 58, COLORS.panel, c);
+      addText(this.scene, 32, y + 6, def.name, 17, '#ffffff', c);
+      const level = addText(this.scene, 32, y + 32, '', 12, '#9aa7d0', c);
+      const button = addButton(
+        this.scene,
+        W - 170,
+        y + 9,
+        140,
+        40,
+        '',
+        () => {
+          if (buyResearch(this.state(), def)) this.hooks.onResearch();
+        },
+        { size: 14, parent: c },
+      );
+      return { def, level, button };
+    });
+    this.prestige = { info, button, rows };
   }
 
   private buildShop() {
@@ -171,7 +229,7 @@ export class PanelHost {
     const s = this.state();
     if (this.current === 'Standings') {
       this.standingNote.setText(
-        `Season ${s.season} · Race ${s.race}/${RACES_PER_SEASON}. Finish 1st after race ${RACES_PER_SEASON} to unlock Season ${s.season + 1}.`,
+        `Season ${s.season} · Race ${s.race}/${RACES_PER_SEASON}. Finish 1st after race ${RACES_PER_SEASON} to unlock Season ${s.season + 1}. Rivals grow stronger every season; when you can't beat them, prestige.`,
       );
       const table = constructorsTable(s, s.teamName);
       this.standingRows.forEach(({ row, pts }, i) => {
@@ -190,6 +248,24 @@ export class PanelHost {
         level.setText(`Level ${lv}`);
         button.setLabel(`$${formatNumber(cost)}`);
         button.setState(s.money >= cost);
+      }
+    } else if (this.current === 'Prestige') {
+      const p = this.prestige;
+      const rp = researchPointsFor(s.season);
+      p.info.setText(
+        rp > 0
+          ? `Season ${s.season} · Research points: ${s.researchPoints}\nPrestige resets money, upgrades and seasons to Season 1 Race 1, but keeps research, gems and Auto.`
+          : `Season ${s.season} · Research points: ${s.researchPoints}\nReach Season ${MIN_PRESTIGE_SEASON} to prestige. The further you get, the more research points you earn.`,
+      );
+      const armed = this.scene.time.now < this.prestigeArmedUntil;
+      p.button.setLabel(armed ? 'TAP AGAIN TO CONFIRM' : rp > 0 ? `PRESTIGE: +${rp} RP` : 'PRESTIGE LOCKED');
+      p.button.setState(rp > 0, armed ? COLORS.accent : COLORS.green);
+      for (const { def, level, button } of p.rows) {
+        const lv = s.research[def.key] ?? 0;
+        const cost = researchCost(def, lv);
+        level.setText(`Lv ${lv} · ${def.blurb}`);
+        button.setLabel(`${cost} RP`);
+        button.setState(s.researchPoints >= cost);
       }
     } else if (this.current === 'Shop') {
       const sh = this.shop;
