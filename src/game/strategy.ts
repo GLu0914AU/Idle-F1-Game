@@ -36,6 +36,8 @@ export interface Strategy {
   boost: number;
   // Game seconds left in the pit stop; 0 when on track.
   pitRemaining: number;
+  // The player has called the car in; the stop starts when it reaches the pit lane (the start/finish line).
+  pitRequested: boolean;
   modeCooldown: number;
 }
 
@@ -54,6 +56,7 @@ export function newStrategy(prev?: Pick<Strategy, 'mode' | 'nextCompound'>): Str
     wear: 0,
     boost: 0,
     pitRemaining: 0,
+    pitRequested: false,
     modeCooldown: 0,
   };
 }
@@ -82,8 +85,23 @@ export function cycleMode(s: Strategy): boolean {
   return setMode(s, MODES[(MODES.indexOf(s.mode) + 1) % MODES.length]);
 }
 
-export function cycleCompound(s: Strategy): void {
-  s.nextCompound = COMPOUNDS[(COMPOUNDS.indexOf(s.nextCompound) + 1) % COMPOUNDS.length];
+// Tyres are only ever changed in the pit lane, so this just picks the set to fit at the next stop.
+export function selectCompound(s: Strategy, compound: Compound): void {
+  s.nextCompound = compound;
+}
+
+// Call the car in (or cancel the call). The stop itself happens at the pit lane entrance.
+export function togglePitRequest(s: Strategy): boolean {
+  if (isPitting(s)) return false;
+  s.pitRequested = !s.pitRequested;
+  return true;
+}
+
+// Called when the car crosses the pit entrance: starts the stop if one was requested.
+export function enterPitLane(s: Strategy, pitCrew: number): boolean {
+  if (!s.pitRequested) return false;
+  s.pitRequested = false;
+  return startPit(s, pitCrew);
 }
 
 export function startPit(s: Strategy, pitCrew: number): boolean {

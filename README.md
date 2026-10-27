@@ -11,7 +11,7 @@ A mobile-first idle racing game. Run your own F1 team, upgrade your cars, and be
 - **Seasons:** each season is a stage of 10 races. Finish 1st in the Constructors' standings to unlock the next one.
 - **Teams:** the player names their own team; rivals are real F1 teams and drivers.
 - **Cars:** 2 per team; Constructors' points are the sum of both.
-- **Play:** tap to boost and make strategy calls (pit timing, tyres, push/conserve) for free. Auto (auto-buy, auto-strategy, auto-tap) is a paid unlock.
+- **Play:** tap to boost and make strategy calls for free: push/normal/conserve mode, and pit calls where you choose the tyre (soft/medium/hard). Tyres only change in the pit lane when the car reaches the start/finish line. Auto (auto-buy, auto-strategy, auto-tap) is a paid unlock.
 
 See [docs/SPEC.md](docs/SPEC.md) for the full v1 spec and [docs/ROADMAP.md](docs/ROADMAP.md) for the build order.
 

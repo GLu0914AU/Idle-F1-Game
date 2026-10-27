@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickAutoBuy, shouldAutoPit } from './auto';
+import { autoCompound, pickAutoBuy, shouldAutoPit } from './auto';
 import { upgradeCost, UPGRADE_DEFS } from './economy';
 import { newStrategy, startPit } from './strategy';
 
@@ -27,5 +27,18 @@ describe('auto', () => {
     expect(shouldAutoPit(s, 4.5, 5)).toBe(false);
     startPit(s, 0);
     expect(shouldAutoPit(s, 1, 5)).toBe(false);
+  });
+
+  it('does not call the car in twice', () => {
+    const s = newStrategy();
+    s.wear = 0.8;
+    s.pitRequested = true;
+    expect(shouldAutoPit(s, 1, 5)).toBe(false);
+  });
+
+  it('picks tyres to match the laps left', () => {
+    expect(autoCompound(1, 5)).toBe('hard');
+    expect(autoCompound(2, 5)).toBe('medium');
+    expect(autoCompound(3.5, 5)).toBe('soft');
   });
 });

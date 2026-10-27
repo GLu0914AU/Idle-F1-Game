@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   MODE_COOLDOWN,
+  enterPitLane,
+  isPitting,
   newStrategy,
   paceFactor,
   pitDuration,
+  selectCompound,
   setMode,
   startPit,
   stepStrategy,
   tap,
+  togglePitRequest,
 } from './strategy';
 
 const L = { tapPower: 0, pitCrew: 0, tyres: 0 };
@@ -60,6 +64,30 @@ describe('strategy', () => {
     expect(s.wear).toBe(0);
     expect(s.compound).toBe('hard');
     expect(s.pitRemaining).toBe(0);
+  });
+
+  it('tyres only change at the pit lane, never on track', () => {
+    const s = newStrategy();
+    stepStrategy(s, 100, L);
+    selectCompound(s, 'soft');
+    togglePitRequest(s);
+    stepStrategy(s, 100, L);
+    expect(s.compound).toBe('medium');
+    expect(s.wear).toBeGreaterThan(0);
+    expect(enterPitLane(s, 0)).toBe(true);
+    expect(s.pitRequested).toBe(false);
+    stepStrategy(s, pitDuration(0) + 1, L);
+    expect(s.compound).toBe('soft');
+    expect(s.wear).toBe(0);
+  });
+
+  it('entering the pit lane without a request does nothing, and a request can be cancelled', () => {
+    const s = newStrategy();
+    expect(enterPitLane(s, 0)).toBe(false);
+    expect(isPitting(s)).toBe(false);
+    togglePitRequest(s);
+    togglePitRequest(s);
+    expect(enterPitLane(s, 0)).toBe(false);
   });
 
   it('taps shorten a pit stop and pit crew upgrades help', () => {

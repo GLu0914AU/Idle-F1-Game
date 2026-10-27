@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { pickAutoBuy, shouldAutoPit } from '../game/auto';
+import { autoCompound, pickAutoBuy, shouldAutoPit } from '../game/auto';
 import {
   UPGRADE_DEFS,
   UpgradeDef,
@@ -16,16 +16,19 @@ import { Race, createRace, standings, stepRace } from '../game/race';
 import { GameState, loadGame, saveGame } from '../game/save';
 import { RACES_PER_SEASON, advanceSeason, awardPoints } from '../game/season';
 import {
+  COMPOUNDS,
+  Compound,
   Strategy,
-  cycleCompound,
   cycleMode,
+  enterPitLane,
   isPitting,
   newStrategy,
   paceFactor,
+  selectCompound,
   setMode,
-  startPit,
   stepStrategy,
   tap,
+  togglePitRequest,
 } from '../game/strategy';
 import { offlineEarnings } from '../game/offline';
 import { Point, Track, pointAt } from '../game/track';
@@ -39,6 +42,11 @@ const RACE_LAPS = 5;
 // Game seconds per real second; ~90s laps would be too slow to watch.
 const RACE_SPEED = 6;
 const TITLE_GEMS = 5;
+// The pit lane runs alongside the start/finish straight; distances are fractions of a lap.
+const PIT_OFFSET = 15;
+const PIT_HALF_LENGTH = 0.06;
+const COMPOUND_COLORS: Record<Compound, number> = { soft: 0xe03b2c, medium: 0xe0b02c, hard: 0xd8dcea };
+const COMPOUND_LETTERS: Record<Compound, string> = { soft: 'S', medium: 'M', hard: 'H' };
 
 export class GameScene extends Phaser.Scene {
   private state!: GameState;
@@ -68,7 +76,8 @@ export class GameScene extends Phaser.Scene {
   private tabHighlight!: Phaser.GameObjects.Rectangle;
   private cards: { def: UpgradeDef; level: Phaser.GameObjects.Text; button: Button }[] = [];
   private modeBtn!: Button;
-  private tyreBtn!: Button;
+  private tyreBtns: Partial<Record<Compound, Button>> = {};
+  private lastLead = 0;
   private pitBtn!: Button;
   private speedBtn!: Button;
   private autoBtn!: Button;
@@ -155,6 +164,16 @@ export class GameScene extends Phaser.Scene {
       .on('pointerdown', (p: Phaser.Input.Pointer) => this.onTap(p.x, p.y));
   }
 
+  // View position at a distance along the lap, optionally shifted sideways (used for the pit lane).
+  private trackPos(distance: number, offset = 0): Point {
+    const len = this.track.length;
+    const a = this.toView(pointAt(this.track, distance));
+    if (offset === 0) return a;
+    const b = this.toView(pointAt(this.track, distance + len * 0.002));
+    const d = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    return { x: a.x - ((b.y - a.y) / d) * offset, y: a.y + ((b.x - a.x) / d) * offset };
+  }
+
   private drawCircuit() {
     const pts = this.track.points.map((p) => {
       const v = this.toView(p);
@@ -165,13 +184,25 @@ export class GameScene extends Phaser.Scene {
     this.trackGfx.lineStyle(11, 0x2b3350).strokePoints(pts, true, true);
     this.trackGfx.lineStyle(1, 0x4a5580, 0.8).strokePoints(pts, true, true);
 
-    // Start/finish line across the track at the first point.
-    const a = pts[0];
-    const b = pts[Math.min(3, pts.length - 1)];
-    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-    const nx = -(b.y - a.y) / len;
-    const ny = (b.x - a.x) / len;
-    this.trackGfx.lineStyle(3, 0xffffff).lineBetween(a.x - nx * 9, a.y - ny * 9, a.x + nx * 9, a.y + ny * 9);
+    // Pit lane beside the start/finish straight, with entry and exit links to the track.
+    const len = this.track.length;
+    const lane: Phaser.Math.Vector2[] = [];
+    for (let i = -10; i <= 10; i++) {
+      const p = this.trackPos(len * ((PIT_HALF_LENGTH * i) / 10), PIT_OFFSET);
+      lane.push(new Phaser.Math.Vector2(p.x, p.y));
+    }
+    this.trackGfx.lineStyle(9, 0x1d2540).strokePoints(lane, false, false);
+    this.trackGfx.lineStyle(1, 0x6b78a8, 0.9).strokePoints(lane, false, false);
+    for (const end of [-PIT_HALF_LENGTH, PIT_HALF_LENGTH]) {
+      const a = this.trackPos(len * end);
+      const b = this.trackPos(len * end, PIT_OFFSET);
+      this.trackGfx.lineStyle(5, 0x1d2540).lineBetween(a.x, a.y, b.x, b.y);
+    }
+
+    // Start/finish line across the track.
+    const a = this.trackPos(0, -6);
+    const b = this.trackPos(0, 6);
+    this.trackGfx.lineStyle(3, 0xffffff).lineBetween(a.x, a.y, b.x, b.y);
   }
 
   private onTap(x: number, y: number) {
@@ -182,11 +213,14 @@ export class GameScene extends Phaser.Scene {
 
   private drawStrategyStrip() {
     const y = VIEW.y + VIEW.h - 40;
-    this.modeBtn = addButton(this, 10, y, 170, 34, '', () => cycleMode(this.strategy), { fill: 0x1d2745 });
-    this.tyreBtn = addButton(this, 190, y, 170, 34, '', () => cycleCompound(this.strategy), { fill: 0x1d2745 });
-    this.pitBtn = addButton(this, 370, y, 160, 34, 'PIT', () => startPit(this.strategy, this.state.upgrades.pitCrew ?? 0), {
-      fill: 0xb8321f,
+    this.modeBtn = addButton(this, 10, y, 150, 34, '', () => cycleMode(this.strategy), { fill: 0x1d2745 });
+    COMPOUNDS.forEach((c, i) => {
+      this.tyreBtns[c] = addButton(this, 170 + i * 52, y, 48, 34, COMPOUND_LETTERS[c], () => selectCompound(this.strategy, c), {
+        fill: COMPOUND_COLORS[c],
+        size: 18,
+      });
     });
+    this.pitBtn = addButton(this, 330, y, 200, 34, 'PIT', () => togglePitRequest(this.strategy), { fill: 0xb8321f });
   }
 
   private startRace() {
@@ -201,6 +235,7 @@ export class GameScene extends Phaser.Scene {
       seed: Date.now() & 0x7fffffff,
     });
     this.strategy = newStrategy(this.strategy);
+    this.lastLead = 0;
     this.restartAt = 0;
     this.paid = false;
     this.banner?.setVisible(false);
@@ -210,7 +245,10 @@ export class GameScene extends Phaser.Scene {
     const order = standings(this.race);
     this.carGfx.clear();
     for (const car of [...this.race.cars].reverse()) {
-      const p = this.toView(pointAt(this.track, car.progress * this.track.length));
+      const dist = car.progress * this.track.length;
+      const frac = car.progress - Math.floor(car.progress);
+      const inLane = car.isPlayer && isPitting(this.strategy) && Math.min(frac, 1 - frac) <= PIT_HALF_LENGTH;
+      const p = this.trackPos(dist, inLane ? PIT_OFFSET : 0);
       this.carGfx.fillStyle(car.color).fillCircle(p.x, p.y, car.isPlayer ? 7 : 5);
       if (car.isPlayer) this.carGfx.lineStyle(2, 0xffffff).strokeCircle(p.x, p.y, 8);
     }
@@ -236,10 +274,20 @@ export class GameScene extends Phaser.Scene {
 
     this.modeBtn.setLabel(`MODE: ${s.mode.toUpperCase()}${s.modeCooldown > 0 ? ` (${Math.ceil(s.modeCooldown / RACE_SPEED)}s)` : ''}`);
     this.modeBtn.setState(s.modeCooldown <= 0, 0x1d2745);
-    this.tyreBtn.setLabel(`NEXT TYRE: ${s.nextCompound.toUpperCase()}`);
-    this.tyreBtn.setState(true, 0x1d2745);
-    this.pitBtn.setLabel(isPitting(s) ? `PITTING... TAP! ${(s.pitRemaining / RACE_SPEED).toFixed(1)}s` : 'PIT');
-    this.pitBtn.setState(!isPitting(s) && !this.race.finished, 0xb8321f);
+    COMPOUNDS.forEach((c) => {
+      const btn = this.tyreBtns[c];
+      if (!btn) return;
+      btn.rect.setStrokeStyle(c === s.nextCompound ? 4 : 2, c === s.nextCompound ? 0xffffff : COLORS.border);
+      btn.label.setColor('#0b1020');
+    });
+    if (isPitting(s)) {
+      this.pitBtn.setLabel(`IN PITS: TAP! ${(s.pitRemaining / RACE_SPEED).toFixed(1)}s`);
+    } else if (s.pitRequested) {
+      this.pitBtn.setLabel(`BOX THIS LAP: ${s.nextCompound.toUpperCase()} (cancel)`);
+    } else {
+      this.pitBtn.setLabel('PIT NEXT LAP');
+    }
+    this.pitBtn.setState(!isPitting(s) && !this.race.finished, s.pitRequested ? 0xe08a1f : 0xb8321f);
   }
 
   private drawStats() {
@@ -372,7 +420,10 @@ export class GameScene extends Phaser.Scene {
     }
     if (s.autoStrategy && !this.race.finished) {
       const lead = Math.max(...this.race.cars.filter((c) => c.isPlayer).map((c) => c.progress));
-      if (shouldAutoPit(this.strategy, lead, RACE_LAPS)) startPit(this.strategy, s.upgrades.pitCrew ?? 0);
+      if (shouldAutoPit(this.strategy, lead, RACE_LAPS)) {
+        selectCompound(this.strategy, autoCompound(lead, RACE_LAPS));
+        togglePitRequest(this.strategy);
+      }
       if (this.strategy.wear < 0.35 && this.strategy.mode !== 'push') setMode(this.strategy, 'push');
       else if (this.strategy.wear > 0.6 && this.strategy.mode === 'push') setMode(this.strategy, 'normal');
     }
@@ -397,6 +448,12 @@ export class GameScene extends Phaser.Scene {
     });
     stepRace(this.race, gameDt, paceFactor(this.strategy));
 
+    // The stop starts when the lead player car crosses the line into the pit lane.
+    const lead = Math.max(...this.race.cars.filter((c) => c.isPlayer).map((c) => c.progress));
+    if (!this.race.finished && Math.floor(lead) > Math.floor(this.lastLead)) {
+      enterPitLane(this.strategy, s.upgrades.pitCrew ?? 0);
+    }
+    this.lastLead = lead;
     if (this.race.finished && !this.paid) {
       this.paid = true;
       this.finishRace();
