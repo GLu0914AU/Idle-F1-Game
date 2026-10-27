@@ -1,3 +1,5 @@
+import { facilityEffects } from './facilities';
+
 export interface UpgradeDef {
   key: string;
   name: string;
@@ -37,9 +39,9 @@ export function handlingFactor(h: Handling, c: number): number {
   return 1 + handlingBonus(h.topSpeed) * (1 - c) + handlingBonus(h.cornering) * c;
 }
 
-// Permanent sponsors multiplier, plus 25% per Funding research level.
-export function sponsorMultiplier(state: { sponsors: number; research?: Record<string, number> }): number {
-  return state.sponsors * (1 + 0.25 * (state.research?.funding ?? 0));
+// Permanent sponsors multiplier, plus 25% per Funding research level and the Factory bonus.
+export function sponsorMultiplier(state: { sponsors: number; research?: Record<string, number>; facilities?: Record<string, number> }): number {
+  return state.sponsors * (1 + 0.25 * (state.research?.funding ?? 0)) * (1 + facilityEffects(state.facilities).moneyBonus);
 }
 
 export function upgradeCost(def: UpgradeDef, level: number): number {

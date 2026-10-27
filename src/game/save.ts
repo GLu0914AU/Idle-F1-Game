@@ -1,5 +1,6 @@
 import { CareerStats } from './career';
 import { Development, newDevelopment } from './development';
+import { FacilityKey, newFacilities } from './facilities';
 import { GoalsState, mergeGoals, newGoals } from './goals';
 import { Candidate, Driver, rookie } from './drivers';
 import type { Engineer, EngineerCandidate } from './engineers';
@@ -59,6 +60,8 @@ export interface GameState {
   development: Development;
   // Achievements, daily goals and the streak; they survive prestige.
   goals: GoalsState;
+  // Gem-bought buildings by level; they survive prestige.
+  facilities: Record<FacilityKey, number>;
 }
 
 export const SAVE_VERSION = 1;
@@ -111,6 +114,7 @@ export function newGame(now = Date.now()): GameState {
     staffMeetings: newStaffMeetings(),
     development: newDevelopment(),
     goals: newGoals(),
+    facilities: newFacilities(),
   };
 }
 
@@ -141,6 +145,7 @@ export function loadGame(store: Store = localStorage, now = Date.now()): GameSta
       staff: { ...fresh.staff, ...(data.staff ?? {}) },
       staffMeetings: { ...fresh.staffMeetings, ...(data.staffMeetings ?? {}) },
       goals: mergeGoals(data.goals),
+      facilities: { ...fresh.facilities, ...(data.facilities ?? {}) },
       version: SAVE_VERSION,
     };
   } catch {

@@ -2,6 +2,7 @@ import { carRating, incomePerSecond, sponsorMultiplier } from './economy';
 import { MAX_SKILL } from './drivers';
 import { engineerRating } from './engineers';
 import { staffEffects } from './staff';
+import { facilityEffects } from './facilities';
 import { effectiveUpgrades } from './prestige';
 import { RIVAL_TEAMS } from './teams';
 import type { GameState } from './save';
@@ -55,25 +56,26 @@ export const RIVAL_DRIFT_MAX = 0.015;
 const BASE_BIG = 0.1;
 const BASE_FLOP = 0.3;
 
-type DevState = Pick<GameState, 'money' | 'season' | 'race' | 'upgrades' | 'research' | 'sponsors' | 'drivers' | 'engineer' | 'staff' | 'development'>;
+type DevState = Pick<GameState, 'money' | 'season' | 'race' | 'upgrades' | 'research' | 'sponsors' | 'drivers' | 'engineer' | 'staff' | 'development' | 'facilities'>;
 
 export const packageDef = (key: string) => DEV_PACKAGES.find((p) => p.key === key);
 
 export function developmentCost(state: DevState, def: DevPackage): number {
   const income = incomePerSecond(carRating(effectiveUpgrades(state)), sponsorMultiplier(state));
-  return Math.ceil(income * def.costSeconds);
+  return Math.ceil(income * def.costSeconds * (1 - facilityEffects(state.facilities).devCostCut));
 }
 
 // 0..1: how good the drivers (technical feedback), the engineer and the wind tunnel engineer are.
-export function teamQuality(state: Pick<GameState, 'drivers' | 'engineer'> & Partial<Pick<GameState, 'staff'>>): number {
+export function teamQuality(state: Pick<GameState, 'drivers' | 'engineer'> & Partial<Pick<GameState, 'staff' | 'facilities'>>): number {
   const driverPart = (state.drivers[0].skill + state.drivers[1].skill) / 2 / MAX_SKILL;
   const engineerPart = state.engineer ? engineerRating(state.engineer) / 100 : 0;
-  return Math.min(1, 0.5 * driverPart + 0.5 * engineerPart + staffEffects(state.staff).windQuality);
+  const extra = staffEffects(state.staff).windQuality + facilityEffects(state.facilities).windQuality;
+  return Math.min(1, 0.5 * driverPart + 0.5 * engineerPart + extra);
 }
 
-export function developmentOdds(quality: number, def: DevPackage): { big: number; solid: number; flop: number } {
+export function developmentOdds(quality: number, def: DevPackage, flopCut = 0): { big: number; solid: number; flop: number } {
   const big = BASE_BIG + 0.3 * quality;
-  const flop = Math.max(0.02, (BASE_FLOP - 0.2 * quality) * def.risk);
+  const flop = Math.max(0.02, (BASE_FLOP - 0.2 * quality) * def.risk * (1 - flopCut));
   return { big, flop, solid: Math.max(0, 1 - big - flop) };
 }
 
@@ -102,7 +104,7 @@ export function tickDevelopment(state: DevState, rng: () => number = Math.random
   if (dev.active.racesLeft > 0) return null;
   const def = packageDef(dev.active.key)!;
   dev.active = null;
-  const odds = developmentOdds(teamQuality(state), def);
+  const odds = developmentOdds(teamQuality(state), def, facilityEffects(state.facilities).flopCut);
   const roll = rng();
   const outcome: DevOutcome = roll < odds.big ? 'big' : roll < odds.big + odds.solid ? 'solid' : 'flop';
   const gain = outcome === 'big' ? def.big : outcome === 'solid' ? def.solid : def.flop;

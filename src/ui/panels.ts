@@ -35,6 +35,7 @@ import {
 } from '../game/staff';
 import { DEV_PACKAGES, DevPackage, DevOutcome, developmentCost, developmentOdds, fitsSeason, packageDef, startDevelopment, teamQuality } from '../game/development';
 import { RACES_PER_SEASON } from '../game/season';
+import { FACILITY_DEFS, FACILITY_KEYS, FacilityKey, MAX_FACILITY_LEVEL, buyFacility, facilityCost, facilityEffects, facilityLevel } from '../game/facilities';
 import {
   ACHIEVEMENTS,
   AchievementDef,
@@ -196,6 +197,12 @@ export class PanelHost {
     page: Phaser.GameObjects.Text;
   };
   private staffOpen = false;
+  private facilitiesOpen = false;
+  private facilitiesUi!: {
+    box: Phaser.GameObjects.Container;
+    gems: Phaser.GameObjects.Text;
+    rows: { key: FacilityKey; level: Phaser.GameObjects.Text; effect: Phaser.GameObjects.Text; next: Phaser.GameObjects.Text; buy1: Button; buy10: Button }[];
+  };
   private staffRole: StaffRole = 'tyre';
   private staffMessage = '';
   private staffMessageGood = false;
@@ -232,6 +239,7 @@ export class PanelHost {
     engineerBtn: Button;
     developmentBtn: Button;
     staffBtn: Button;
+    facilitiesBtn: Button;
     stats: Phaser.GameObjects.Text[];
     fans: Phaser.GameObjects.Text;
     fanInfo: Phaser.GameObjects.Text;
@@ -273,6 +281,7 @@ export class PanelHost {
       this.engineerOpen = false;
       this.developmentOpen = false;
       this.staffOpen = false;
+      this.facilitiesOpen = false;
       this.goalsOpen = false;
     }
     this.goalsUi?.box.setVisible(this.goalsOpen && tab === 'Race');
@@ -280,6 +289,7 @@ export class PanelHost {
     this.engineerRecruit?.box.setVisible(this.engineerOpen && tab === 'Team');
     this.developmentUi?.box.setVisible(this.developmentOpen && tab === 'Team');
     this.staffUi?.box.setVisible(this.staffOpen && tab === 'Team');
+    this.facilitiesUi?.box.setVisible(this.facilitiesOpen && tab === 'Team');
     for (const [name, c] of this.panels) {
       c.setVisible(name === tab);
       if (name === tab && changed) {
@@ -465,10 +475,11 @@ export class PanelHost {
     const engineerRow = rowBox(442, '');
     const engineerBtn = addButton(this.scene, 30, 496, W - 60, 32, 'RECRUIT A RACE ENGINEER', () => this.openEngineer(true), { parent: c, size: 15, fill: COLORS.green });
 
-    section(538, 'Car development & staff');
-    const half = (W - 68) / 2;
-    const developmentBtn = addButton(this.scene, 30, 558, half, 32, 'CAR DEVELOPMENT', () => this.openDevelopment(true), { parent: c, size: 13, fill: COLORS.green });
-    const staffBtn = addButton(this.scene, 38 + half, 558, half, 32, 'SPECIALIST STAFF', () => this.openStaff(true), { parent: c, size: 13, fill: COLORS.green });
+    section(538, 'Development, staff & facilities');
+    const third = (W - 76) / 3;
+    const developmentBtn = addButton(this.scene, 30, 558, third, 32, 'DEVELOPMENT', () => this.openDevelopment(true), { parent: c, size: 12, fill: COLORS.green });
+    const staffBtn = addButton(this.scene, 38 + third, 558, third, 32, 'STAFF', () => this.openStaff(true), { parent: c, size: 12, fill: COLORS.green });
+    const facilitiesBtn = addButton(this.scene, 46 + third * 2, 558, third, 32, 'FACILITIES', () => this.openFacilities(true), { parent: c, size: 12, fill: COLORS.green });
 
     section(600, 'Career');
     const stats = STAT_LABELS.map((label, i) => {
@@ -486,10 +497,11 @@ export class PanelHost {
     const fanInfo = addText(this.scene, 52, 740, '', 11, '#9aa7d0', c).setWordWrapWidth(W - 120);
     const fanButton = addButton(this.scene, 52, 800, W - 104, 36, '', () => this.runFanEvent(), { parent: c, size: 16, fill: COLORS.green });
     const fanResult = addText(this.scene, W / 2, 848, '', 14, '#ffc933', c).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 80);
-    this.team = { swatches, driverRows, recruitBtn, engineerRow,     engineerBtn, developmentBtn, staffBtn, stats, fans, fanInfo, fanButton, fanResult };
+    this.team = { swatches, driverRows, recruitBtn, engineerRow,     engineerBtn, developmentBtn, staffBtn, facilitiesBtn, stats, fans, fanInfo, fanButton, fanResult };
     this.buildRecruit();
     this.buildEngineerRecruit();
     this.buildDevelopment();
+    this.buildFacilities();
         this.buildStaff();
       }
 
@@ -748,6 +760,65 @@ export class PanelHost {
     this.developmentUi.box.setVisible(open && this.current === 'Team');
   }
 
+  private openFacilities(open: boolean) {
+    this.facilitiesOpen = open;
+    this.facilitiesUi.box.setVisible(open && this.current === 'Team');
+  }
+
+  private buildFacilities() {
+    const c = this.scene.add.container(0, 0).setVisible(false);
+    c.add(addBox(this.scene, 0, 70, W, 810, COLORS.bg).setInteractive());
+    c.add(this.scene.add.rectangle(W / 2, 84, 120, 3, COLORS.red));
+    c.add(addText(this.scene, W / 2, 90, 'FACILITIES', 24).setOrigin(0.5, 0));
+    addText(this.scene, W / 2, 124, `Permanent buildings bought with gems, up to level ${MAX_FACILITY_LEVEL}. They survive prestige.`, 13, '#9aa7d0', c)
+      .setOrigin(0.5, 0)
+      .setWordWrapWidth(W - 60)
+      .setAlign('center');
+    const gems = addText(this.scene, W / 2, 164, '', 20, '#4de3ff', c).setOrigin(0.5, 0);
+    const rows = FACILITY_KEYS.map((key, i) => {
+      const def = FACILITY_DEFS[key];
+      const y = 200 + i * 172;
+      addBox(this.scene, 20, y, W - 40, 160, COLORS.panel, c);
+      addText(this.scene, 32, y + 8, def.name, 20, '#ffffff', c);
+      const level = addText(this.scene, W - 32, y + 10, '', 16, '#ffc933', c).setOrigin(1, 0);
+      addText(this.scene, 32, y + 36, def.blurb, 12, '#9aa7d0', c).setWordWrapWidth(W - 64);
+      const effect = addText(this.scene, 32, y + 58, '', 14, '#cfd6ee', c).setWordWrapWidth(W - 64);
+      const next = addText(this.scene, 32, y + 82, '', 12, '#7dffb2', c).setWordWrapWidth(W - 64);
+      const half = (W - 76) / 2;
+      const buy1 = addButton(this.scene, 32, y + 112, half, 38, '', () => this.buyFacility(key, 1), { fill: COLORS.green, size: 14, parent: c });
+      const buy10 = addButton(this.scene, 44 + half, y + 112, half, 38, '', () => this.buyFacility(key, 10), { fill: COLORS.green, size: 14, parent: c });
+      return { key, level, effect, next, buy1, buy10 };
+    });
+    addButton(this.scene, 30, 800, W - 60, 44, 'BACK TO TEAM', () => this.openFacilities(false), { size: 16, parent: c });
+    this.facilitiesUi = { box: c, gems, rows };
+  }
+
+  private buyFacility(key: FacilityKey, count: number) {
+    if (buyFacility(this.state(), key, count) > 0) this.hooks.save();
+  }
+
+  private renderFacilities(s: GameState) {
+    const u = this.facilitiesUi;
+    u.gems.setText(`${formatNumber(s.gems)} GEMS`);
+    for (const { key, level, effect, next, buy1, buy10 } of u.rows) {
+      const def = FACILITY_DEFS[key];
+      const lv = facilityLevel(s, key);
+      const maxed = lv >= MAX_FACILITY_LEVEL;
+      level.setText(`LEVEL ${lv}/${MAX_FACILITY_LEVEL}`);
+      effect.setText(`Now: ${def.effect(lv)}`);
+      next.setText(maxed ? 'Fully built' : `Next level: ${def.effect(lv + 1)}`);
+      // Price the ×10 button as the gems needed for the levels it can actually buy.
+      let total = 0;
+      let n = 0;
+      while (n < 10 && lv + n < MAX_FACILITY_LEVEL) total += facilityCost(key, lv + n++);
+      const one = maxed ? 0 : facilityCost(key, lv);
+      buy1.setLabel(maxed ? 'MAX' : `BUY ×1: ${formatNumber(one)} GEMS`);
+      buy10.setLabel(maxed ? 'MAX' : `BUY ×${n}: ${formatNumber(total)} GEMS`);
+      buy1.setState(!maxed && s.gems >= one, COLORS.green);
+      buy10.setState(!maxed && s.gems >= total, COLORS.green);
+    }
+  }
+
   private buildDevelopment() {
     const c = this.scene.add.container(0, 0).setVisible(false);
     c.add(addBox(this.scene, 0, 70, W, 810, COLORS.bg).setInteractive());
@@ -797,7 +868,7 @@ export class PanelHost {
     );
     const q = teamQuality(s);
     for (const { def, odds, button } of u.rows) {
-      const o = developmentOdds(q, def);
+      const o = developmentOdds(q, def, facilityEffects(s.facilities).flopCut);
       const g = (v: number) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)}%`;
       odds.setText(`Breakthrough ${g(def.big)}: ${oddsHint(o.big)} · Solid ${g(def.solid)}: ${oddsHint(o.solid)} · Flop ${def.flop === 0 ? '(nothing)' : g(def.flop)}: ${oddsHint(o.flop)}`);
       const cost = developmentCost(s, def);
@@ -1002,10 +1073,11 @@ export class PanelHost {
     t.engineerRow.chip.setFillStyle(s.engineer ? s.teamColor : COLORS.border);
     t.engineerBtn.setLabel(`RECRUIT A RACE ENGINEER (${s.clout} CLOUT)`);
     if (this.engineerOpen) this.renderEngineerRecruit(s);
-    t.developmentBtn.setLabel(s.development.active ? `CAR DEVELOPMENT (${s.development.active.racesLeft} RACES LEFT)` : 'CAR DEVELOPMENT');
+    t.developmentBtn.setLabel(s.development.active ? `DEV (${s.development.active.racesLeft} LEFT)` : 'DEVELOPMENT');
     if (this.developmentOpen) this.renderDevelopment(s);
-    t.staffBtn.setLabel(`SPECIALIST STAFF (${STAFF_ROLES.filter((r) => s.staff[r]).length}/${STAFF_ROLES.length})`);
+    t.staffBtn.setLabel(`STAFF (${STAFF_ROLES.filter((r) => s.staff[r]).length}/${STAFF_ROLES.length})`);
     if (this.staffOpen) this.renderStaff(s);
+    if (this.facilitiesOpen) this.renderFacilities(s);
     [s.stats.racesWon, s.stats.wdc, s.stats.wcc].forEach((v, i) => t.stats[i].setText(String(v)));
     const fans = fansFor(s.stats);
     t.fans.setText(`${formatNumber(fans)} FANS`);
