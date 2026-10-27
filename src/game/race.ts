@@ -39,6 +39,9 @@ export interface RaceConfig {
   season: number;
   playerRating: number;
   playerTeamName: string;
+  // Defaults to the standard names and colour.
+  playerDrivers?: readonly [string, string];
+  playerColor?: number;
   seed: number;
   // Seconds a rating-0 car takes for one lap.
   baseLapTime?: number;
@@ -84,13 +87,13 @@ export function createRace(config: RaceConfig): Race {
   const add = (c: Omit<Car, 'progress' | 'form' | 'finishTime'>) =>
     cars.push({ ...c, progress: 0, form: rollForm(rng), finishTime: null });
 
-  PLAYER_DRIVERS.forEach((driver, i) =>
+  PLAYER_DRIVERS.forEach((fallback, i) =>
     add({
       id: `player-${i}`,
       teamId: 'player',
       teamName: config.playerTeamName,
-      driver,
-      color: PLAYER_COLOR,
+      driver: config.playerDrivers?.[i] ?? fallback,
+      color: config.playerColor ?? PLAYER_COLOR,
       isPlayer: true,
       rating: config.playerRating,
     }),

@@ -32,11 +32,11 @@ import {
   togglePitRequest,
 } from '../game/strategy';
 import { offlineEarnings } from '../game/offline';
-import { PLAYER_COLOR } from '../game/teams';
 import { Point, Track, pointAt } from '../game/track';
 import { pickTrack } from '../game/tracks';
 import { PanelHost, BOOST_SECONDS, TABS } from '../ui/panels';
-import { askTeamName } from '../ui/teamName';
+import { askTeamName, askText } from '../ui/teamName';
+import { recordRace, recordSeason } from '../game/career';
 import { Button, COLORS, W, addBox, addButton, addSlant, addText, fillPoly } from '../ui/widgets';
 
 const VIEW = { y: 70, h: 580, padX: 90, padTop: 30, padBottom: 80 };
@@ -86,6 +86,7 @@ export class GameScene extends Phaser.Scene {
   // The list shows this race's running order, or each driver's points this season.
   private towerMode: 'race' | 'season' = 'race';
   private tabHighlight!: Phaser.GameObjects.Rectangle;
+  private stripChips: Phaser.GameObjects.Rectangle[] = [];
   private cards: { def: UpgradeDef; level: Phaser.GameObjects.Text; button: Button }[] = [];
   private modeBtns: Button[] = [];
   private tyreBtns: Partial<Record<Compound, Button>>[] = [{}, {}];
@@ -112,6 +113,9 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false);
     this.panels = new PanelHost(this, () => this.state, {
       rename: () => void this.rename(true),
+      renameDriver: (i) => void this.renameDriver(i),
+      recolour: () => this.applyIdentity(),
+      incomePerSecond: () => incomePerSecond(carRating(this.eff()), sponsorMultiplier(this.state)),
       prestige: () => this.doPrestige(),
       save: () => saveGame(this.state),
       onResearch: () => this.applyRating(),
@@ -129,6 +133,24 @@ export class GameScene extends Phaser.Scene {
     this.time.addEvent({ delay: 5000, loop: true, callback: () => saveGame(this.state) });
     window.addEventListener('beforeunload', () => saveGame(this.state));
     if (!this.state.teamNamed) void this.rename(false);
+  }
+
+  private async renameDriver(index: number) {
+    const name = await askText(`Driver ${index + 1} name`, this.state.driverNames[index], true);
+    if (!name) return;
+    this.state.driverNames[index] = name;
+    this.applyIdentity();
+    saveGame(this.state);
+  }
+
+  // Pushes the player's chosen driver names and colour into the live race and strategy strip.
+  private applyIdentity() {
+    this.race.cars.forEach((car) => {
+      if (!car.isPlayer) return;
+      car.driver = this.state.driverNames[car.id === 'player-0' ? 0 : 1];
+      car.color = this.state.teamColor;
+    });
+    this.stripChips.forEach((chip) => chip.setFillStyle(this.state.teamColor));
   }
 
   private async rename(cancellable: boolean) {
@@ -265,7 +287,7 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < 2; i++) {
       const y = VIEW.y + VIEW.h - 2 * STRIP_H - 10 + i * (STRIP_H + 2);
       const s = () => this.strategies[i];
-      addBox(this, 10, y, 22, STRIP_H - 2, PLAYER_COLOR);
+      this.stripChips[i] = addBox(this, 10, y, 22, STRIP_H - 2, this.state.teamColor);
       addText(this, 21, y + (STRIP_H - 2) / 2, String(i + 1), 14, '#0b1020').setOrigin(0.5);
       this.modeBtns[i] = addButton(this, 36, y, 112, STRIP_H - 2, '', () => cycleMode(s()), { fill: 0x1d2745, size: 12 });
       COMPOUNDS.forEach((c, k) => {
@@ -287,6 +309,8 @@ export class GameScene extends Phaser.Scene {
       season: this.state.season,
       playerRating: carRating(this.eff()),
       playerTeamName: this.state.teamName,
+      playerDrivers: this.state.driverNames,
+      playerColor: this.state.teamColor,
       seed: Date.now() & 0x7fffffff,
     });
     this.strategies = [newStrategy(this.strategies[0]), newStrategy(this.strategies[1])];
@@ -481,8 +505,10 @@ export class GameScene extends Phaser.Scene {
     this.state.money += payout;
     this.floatText(W - 90, 70, `+$${formatNumber(payout)}`, '#ffc933');
     awardPoints(this.state, order);
+    recordRace(this.state, order[0].isPlayer);
 
     const outcome = advanceSeason(this.state);
+    recordSeason(this.state, outcome);
     if (outcome.type === 'season-won') {
       this.confetti();
       this.state.gems += TITLE_GEMS;

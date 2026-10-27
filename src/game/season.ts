@@ -18,7 +18,8 @@ export type SeasonOutcome =
   | { type: 'next-race' }
   // skipped is how many seasons were jumped over on top of the normal one.
   | { type: 'season-won'; newSeason: number; skipped: number; constructors: boolean; oneTwo: boolean }
-  | { type: 'season-lost' };
+  // constructors is true if the player won the constructors' title without the drivers' one.
+  | { type: 'season-lost'; constructors: boolean };
 
 export function pointsForPosition(position: number): number {
   return POINTS_TABLE[position - 1] ?? 0;
@@ -56,9 +57,12 @@ export interface DriverRow {
 }
 
 // All 20 drivers by season points; ties keep the player's cars first.
-export function driversTable(state: Pick<SeasonState, 'driverPoints'>): DriverRow[] {
+export function driversTable(
+  state: Pick<SeasonState, 'driverPoints'> & { driverNames?: readonly string[] },
+): DriverRow[] {
+  const names = state.driverNames ?? PLAYER_DRIVERS;
   const rows: DriverRow[] = [
-    ...PLAYER_DRIVERS.map((name, i) => ({ carId: `player-${i}`, name, isPlayer: true })),
+    ...PLAYER_DRIVERS.map((fallback, i) => ({ carId: `player-${i}`, name: names[i] ?? fallback, isPlayer: true })),
     ...RIVAL_TEAMS.flatMap((t) => t.drivers.map((name, i) => ({ carId: `${t.id}-${i}`, name, isPlayer: false }))),
   ].map((d) => ({ ...d, points: state.driverPoints[d.carId] ?? 0 }));
   return rows.sort((a, b) => b.points - a.points);
@@ -92,7 +96,8 @@ export function advanceSeason(state: SeasonState): SeasonOutcome {
     return { type: 'next-race' };
   }
   const drivers = playerWonDrivers(state);
-  const constructors = drivers && playerWonChampionship(state);
+  const wcc = playerWonChampionship(state);
+  const constructors = drivers && wcc;
   const oneTwo = constructors && playerOneTwo(state);
   state.race = 1;
   state.points = {};
@@ -102,5 +107,5 @@ export function advanceSeason(state: SeasonState): SeasonOutcome {
     state.season += 1 + skipped;
     return { type: 'season-won', newSeason: state.season, skipped, constructors, oneTwo };
   }
-  return { type: 'season-lost' };
+  return { type: 'season-lost', constructors: wcc };
 }

@@ -72,7 +72,7 @@ describe('season', () => {
 
   it('a constructors title is not enough without a drivers title', () => {
     const s = lastRace({ points: { player: 200, ferrari: 100 }, driverPoints: { 'player-0': 60, 'player-1': 60, 'ferrari-0': 61 } });
-    expect(advanceSeason(s)).toEqual({ type: 'season-lost' });
+    expect(advanceSeason(s)).toEqual({ type: 'season-lost', constructors: true });
     expect(s.season).toBe(3);
   });
 
@@ -88,12 +88,12 @@ describe('season', () => {
 
   it('a drivers tie is not a win', () => {
     const s = lastRace({ points: { player: 200 }, driverPoints: { 'player-0': 100, 'ferrari-0': 100 } });
-    expect(advanceSeason(s)).toEqual({ type: 'season-lost' });
+    expect(advanceSeason(s)).toEqual({ type: 'season-lost', constructors: true });
   });
 
   it('replays the season when the title is lost', () => {
     const s = lastRace({ points: { player: 50, ferrari: 100 }, driverPoints: { 'player-0': 30, 'ferrari-0': 60 } });
-    expect(advanceSeason(s)).toEqual({ type: 'season-lost' });
+    expect(advanceSeason(s)).toEqual({ type: 'season-lost', constructors: false });
     expect(s).toEqual({ season: 3, race: 1, points: {}, driverPoints: {} });
   });
 });

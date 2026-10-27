@@ -1,3 +1,6 @@
+import { CareerStats } from './career';
+import { PLAYER_COLOR, PLAYER_DRIVERS } from './teams';
+
 export interface GameState {
   version: number;
   teamName: string;
@@ -28,6 +31,13 @@ export interface GameState {
   // Signed sponsors and the open negotiation, if any.
   sponsorList: { name: string; amount: number }[];
   meeting: { name: string; secret: number; lo: number; hi: number } | null;
+  // Player-chosen identity.
+  driverNames: [string, string];
+  teamColor: number;
+  // Lifetime stats; they survive prestige.
+  stats: CareerStats;
+  // The Fan Event can be run once per prestige.
+  fanEventUsed: boolean;
 }
 
 export const SAVE_VERSION = 1;
@@ -65,6 +75,10 @@ export function newGame(now = Date.now()): GameState {
     bestSeason: 1,
     sponsorList: [],
     meeting: null,
+    driverNames: [...PLAYER_DRIVERS],
+    teamColor: PLAYER_COLOR,
+    stats: { racesWon: 0, wdc: 0, wcc: 0 },
+    fanEventUsed: false,
   };
 }
 
@@ -86,6 +100,8 @@ export function loadGame(store: Store = localStorage, now = Date.now()): GameSta
       driverPoints: { ...(data.driverPoints ?? {}) },
       research: { ...(data.research ?? {}) },
       sponsorList: [...(data.sponsorList ?? [])],
+      driverNames: [data.driverNames?.[0] || fresh.driverNames[0], data.driverNames?.[1] || fresh.driverNames[1]],
+      stats: { ...fresh.stats, ...(data.stats ?? {}) },
       version: SAVE_VERSION,
     };
   } catch {

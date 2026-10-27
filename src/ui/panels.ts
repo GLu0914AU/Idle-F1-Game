@@ -4,10 +4,13 @@ import { GameState } from '../game/save';
 import { MIN_PRESTIGE_SEASON, RESEARCH_DEFS, ResearchDef, buyResearch, researchCost, researchPointsFor } from '../game/prestige';
 import { openingPitch, meetingCost, pitch, requestMeeting, sponsorIncome, walkAway } from '../game/sponsors';
 import { formatNumber } from '../game/economy';
-import { PLAYER_DRIVERS } from '../game/teams';
+import { PLAYER_COLOR } from '../game/teams';
+import { FANS_PER_WIN, FanCurrency, canRunFanEvent, fanChance, fansFor, runFanEvent } from '../game/career';
 import { Button, COLORS, W, addBox, addButton, addText } from './widgets';
 
 export const TABS = ['Race', 'Team', 'Sponsors', 'Prestige', 'Shop'] as const;
+const TEAM_COLORS = [0xffd400, 0xff7a1a, 0xe10600, 0xff4fa3, 0xb48cff, 0x2f6bff, 0x4de3ff, 0x14b87a, 0xffffff, 0x9aa0b5];
+const STAT_LABELS = ['RACES WON', "DRIVERS' TITLES", "CONSTRUCTORS' TITLES"];
 type TabName = (typeof TABS)[number];
 type AutoKey = 'autoBuy' | 'autoStrategy' | 'autoTap';
 
@@ -17,6 +20,10 @@ export const GEM_BOOST_SECONDS = 300;
 
 export interface PanelHooks {
   rename(): void;
+  renameDriver(index: number): void;
+  // The team colour changed, so cars and the strategy strip need recolouring.
+  recolour(): void;
+  incomePerSecond(): number;
   prestige(): void;
   // Persist right away so a reload can't undo a spend or an outcome.
   save(): void;
@@ -47,7 +54,16 @@ export class PanelHost {
     rows: { name: Phaser.GameObjects.Text; amount: Phaser.GameObjects.Text }[];
   };
   private teamName!: Phaser.GameObjects.Text;
-  private teamInfo!: Phaser.GameObjects.Text;
+  private fanMessage = '';
+  private team!: {
+    swatches: { sw: Phaser.GameObjects.Rectangle; color: number }[];
+    driverRows: { name: Phaser.GameObjects.Text; chip: Phaser.GameObjects.Rectangle }[];
+    stats: Phaser.GameObjects.Text[];
+    fans: Phaser.GameObjects.Text;
+    fanInfo: Phaser.GameObjects.Text;
+    fanButton: Button;
+    fanResult: Phaser.GameObjects.Text;
+  };
   private prestige!: {
     info: Phaser.GameObjects.Text;
     button: Button;
@@ -229,11 +245,81 @@ export class PanelHost {
 
   private buildTeam() {
     const c = this.panel('Team', 'Team');
-    this.teamName = addText(this.scene, W / 2, 150, '', 28, '#ffd400', c).setOrigin(0.5, 0);
-    addButton(this.scene, W / 2 - 80, 200, 160, 40, 'RENAME', () => this.hooks.rename(), { parent: c });
-    addText(this.scene, 40, 280, 'Drivers', 20, '#9aa7d0', c);
-    PLAYER_DRIVERS.forEach((d, i) => addText(this.scene, 40, 316 + i * 32, d, 20, '#ffffff', c));
-    this.teamInfo = addText(this.scene, 40, 420, '', 16, '#9aa7d0', c).setWordWrapWidth(W - 80);
+    const section = (y: number, label: string) => addText(this.scene, 30, y, label.toUpperCase(), 14, '#9aa7d0', c);
+    this.teamName = addText(this.scene, W / 2, 124, '', 22, '#ffd400', c).setOrigin(0.5, 0);
+    addButton(this.scene, W / 2 - 80, 154, 160, 30, 'RENAME TEAM', () => this.hooks.rename(), { parent: c, size: 14 });
+
+    section(196, 'Team colour');
+    const swatches = TEAM_COLORS.map((color, i) => {
+      const sw = addBox(this.scene, 30 + i * 48, 218, 40, 28, color, c).setInteractive({ useHandCursor: true });
+      sw.on('pointerdown', () => {
+        this.state().teamColor = color;
+        this.hooks.recolour();
+        this.hooks.save();
+      });
+      return { sw, color };
+    });
+
+    section(256, 'Drivers');
+    const driverRows = [0, 1].map((i) => {
+      const y = 280 + i * 42;
+      addBox(this.scene, 30, y, W - 60, 36, COLORS.panel, c);
+      const chip = addBox(this.scene, 30, y, 8, 36, PLAYER_COLOR, c).setStrokeStyle(0);
+      const name = addText(this.scene, 52, y + 6, '', 20, '#ffffff', c);
+      addButton(this.scene, W - 150, y + 5, 110, 26, 'CHANGE NAME', () => this.hooks.renameDriver(i), { parent: c, size: 12 });
+      return { name, chip };
+    });
+
+    section(376, 'Career');
+    const stats = STAT_LABELS.map((label, i) => {
+      const x = 30 + i * 156;
+      addBox(this.scene, x, 400, 144, 66, COLORS.panel, c);
+      const value = addText(this.scene, x + 72, 408, '', 28, '#ffc933', c).setOrigin(0.5, 0);
+      addText(this.scene, x + 72, 444, label, 12, '#9aa7d0', c).setOrigin(0.5, 0);
+      return value;
+    });
+
+    section(486, 'Fans');
+    addBox(this.scene, 30, 510, W - 60, 190, COLORS.panel, c);
+    addBox(this.scene, 30, 510, 5, 190, COLORS.red, c).setStrokeStyle(0);
+    const fans = addText(this.scene, 52, 520, '', 30, '#ffffff', c);
+    const fanInfo = addText(this.scene, 52, 560, '', 13, '#9aa7d0', c).setWordWrapWidth(W - 120);
+    const fanButton = addButton(this.scene, 52, 626, W - 104, 40, '', () => this.runFanEvent(), { parent: c, size: 16, fill: COLORS.green });
+    const fanResult = addText(this.scene, W / 2, 712, '', 16, '#ffc933', c).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 80);
+    this.team = { swatches, driverRows, stats, fans, fanInfo, fanButton, fanResult };
+  }
+
+  private runFanEvent() {
+    const s = this.state();
+    const drops = runFanEvent(s, this.hooks.incomePerSecond());
+    if (!drops) return;
+    const parts = [
+      drops.money > 0 && `$${formatNumber(drops.money)}`,
+      drops.gems > 0 && `${drops.gems} gems`,
+      drops.researchPoints > 0 && `${drops.researchPoints} RP`,
+    ].filter(Boolean);
+    this.fanMessage = parts.length > 0 ? `The fans came through!\n+ ${parts.join('  + ')}` : 'The fans cheered, but nothing dropped this time.';
+    this.hooks.save();
+  }
+
+  private renderTeam(s: GameState) {
+    const t = this.team;
+    this.teamName.setText(s.teamName.toUpperCase());
+    t.swatches.forEach(({ sw, color }) => sw.setStrokeStyle(color === s.teamColor ? 4 : 2, color === s.teamColor ? 0xffffff : COLORS.border));
+    t.driverRows.forEach((row, i) => {
+      row.name.setText(s.driverNames[i]);
+      row.chip.setFillStyle(s.teamColor);
+    });
+    [s.stats.racesWon, s.stats.wdc, s.stats.wcc].forEach((v, i) => t.stats[i].setText(String(v)));
+    const fans = fansFor(s.stats);
+    t.fans.setText(`${formatNumber(fans)} FANS`);
+    const pct = (cur: FanCurrency) => `${Math.round(fanChance(fans, cur) * 100)}%`;
+    t.fanInfo.setText(
+      `Every race win brings ${FANS_PER_WIN} fans. Run a Fan Event once per prestige: each currency has its own chance to drop, and more fans means better odds and bigger drops.\nChances: money ${pct('money')} · gems ${pct('gems')} · research ${pct('researchPoints')}`,
+    );
+    t.fanButton.setLabel(s.fanEventUsed ? 'FAN EVENT USED (PRESTIGE TO RESET)' : fans > 0 ? 'RUN FAN EVENT' : 'WIN A RACE TO GET FANS');
+    t.fanButton.setState(canRunFanEvent(s));
+    t.fanResult.setText(s.fanEventUsed ? this.fanMessage : '');
   }
 
   private buildPrestige() {
@@ -356,8 +442,7 @@ export class PanelHost {
     if (this.current === 'Sponsors') {
       this.renderSponsors(s);
     } else if (this.current === 'Team') {
-      this.teamName.setText(s.teamName);
-      this.teamInfo.setText(`Season ${s.season}\nCars: 2\nAuto: ${s.autoUnlocked ? 'unlocked' : 'locked'}`);
+      this.renderTeam(s);
     } else if (this.current === 'Prestige') {
       const p = this.prestige;
       const rp = researchPointsFor(s.season);

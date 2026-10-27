@@ -13,6 +13,7 @@ A mobile-first idle racing game. Run your own F1 team, upgrade your cars, and be
 - **Sponsors:** spend gems to book a meeting with a sponsor (each signed sponsor makes the next meeting cost more). Each has a hidden budget and you only see a rough range. Pitch an amount: at or under their budget they sign and pay that amount at the start of every new season, until you prestige; over it, talks collapse and the gems are lost. Gems currently come only from season titles.
 - **Teams:** the player names their own team; rivals are real F1 teams and drivers.
 - **Cars:** 2 per team; Constructors' points are the sum of both.
+- **Team tab:** rename the team and both drivers, pick a team colour, and see career stats (races won, drivers' and constructors' titles). Each race win brings 100 fans (kept through prestige). Once per prestige, run a Fan Event: money, gems and research points each roll a chance to drop, scaled by fans.
 - **Play:** tap to boost and make strategy calls for free. Each of your two cars has its own row of controls: push/normal/conserve mode, the next tyre (soft/medium/hard), and its own pit call. Tyres only change in the pit lane when the car reaches the start/finish line. Auto (auto-buy, auto-strategy, auto-tap) is a paid unlock; auto-strategy manages each car separately.
 
 See [docs/SPEC.md](docs/SPEC.md) for the full v1 spec and [docs/ROADMAP.md](docs/ROADMAP.md) for the build order.
