@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   ENGINEER_MEETING_CLOUT,
   Engineer,
-  MAX_ENGINEER_STAT,
   MIN_ENGINEER_STAT,
+  callAccuracy,
   endEngineerMeeting,
   offerEngineerContract,
   payEngineer,
@@ -24,15 +24,25 @@ const base = (over: Partial<Parameters<typeof requestEngineerMeeting>[0]> = {}) 
 });
 
 describe('engineer negotiation', () => {
-  it('spends clout and rolls stats in range', () => {
+  it('spends clout and rolls stats above the minimum', () => {
     const s = base();
     const c = requestEngineerMeeting(s, mulberry32(1))!;
     expect(s.clout).toBe(5 - ENGINEER_MEETING_CLOUT);
     for (const v of [c.stats.pit, c.stats.tyre, c.stats.mode]) {
       expect(v).toBeGreaterThanOrEqual(MIN_ENGINEER_STAT);
-      expect(v).toBeLessThanOrEqual(MAX_ENGINEER_STAT);
     }
     expect(requestEngineerMeeting(s, mulberry32(2))).toBeNull();
+  });
+
+  it('later seasons recruit better engineers with no ceiling, and accuracy never reaches certainty', () => {
+    const top = () => 1;
+    const early = requestEngineerMeeting(base({ season: 1 }), top)!.stats.pit;
+    const late = requestEngineerMeeting(base({ season: 101 }), top)!.stats.pit;
+    expect(late).toBeGreaterThan(early * 3);
+    expect(callAccuracy(50)).toBeCloseTo(0.5);
+    expect(callAccuracy(90)).toBeCloseTo(0.9);
+    expect(callAccuracy(190)).toBeGreaterThan(callAccuracy(99));
+    expect(callAccuracy(1e6)).toBeLessThan(1);
   });
 
   it('refuses a meeting without clout', () => {

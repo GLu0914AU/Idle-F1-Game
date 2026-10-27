@@ -24,8 +24,8 @@ import {
   ENGINEER_MEETING_CLOUT,
   Engineer,
   EngineerStats,
-  endEngineerMeeting,
-  offerEngineerContract,
+  callAccuracy,
+  endEngineerMeeting,  offerEngineerContract,
   requestEngineerMeeting,
 } from '../game/engineers';
 import { PLAYER_COLOR } from '../game/teams';
@@ -80,10 +80,12 @@ const driverLines = (d: DriverStats, career?: number) => [
   careerLabel(career),
 ];
 
+const pctRight = (stat: number) => (callAccuracy(stat) * 100).toFixed(1).replace(/\.0$/, '');
+
 const engineerLines = (e: EngineerStats, career?: number) => [
-  `Pit calls: right ${e.pit}% of the time`,
-  `Tyre choice: right ${e.tyre}% of the time`,
-  `Push / conserve: right ${e.mode}% of the time`,
+  `Pit calls: ${e.pit} (right ${pctRight(e.pit)}% of the time)`,
+  `Tyre choice: ${e.tyre} (right ${pctRight(e.tyre)}%)`,
+  `Push / conserve: ${e.mode} (right ${pctRight(e.mode)}%)`,
   careerLabel(career),
 ];
 
@@ -103,7 +105,7 @@ const DEV_OUTCOME_LABEL: Record<DevOutcome, string> = { big: 'a breakthrough!', 
 const oddsHint = (p: number) => (p < 0.1 ? 'rare' : p < 0.2 ? 'unlikely' : p < 0.35 ? 'possible' : p < 0.55 ? 'likely' : 'very likely');
 
 const describeEngineer = (e: Engineer | null, s: SeasonInfo) =>
-  e ? `Pit ${e.pit}% · Tyres ${e.tyre}% · Mode ${e.mode}% · ${wageLabel(e, s)}` : 'No engineer: you call strategy by hand';
+  e ? `Pit ${e.pit} · Tyres ${e.tyre} · Mode ${e.mode} · ${wageLabel(e, s)}` : 'No engineer: you call strategy by hand';
 
 export const GEM_BOOST_COST = 10;
 export const BOOST_SECONDS = 60;

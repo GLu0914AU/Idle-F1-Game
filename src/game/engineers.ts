@@ -3,7 +3,7 @@ import type { GameState } from './save';
 import { Strategy, COMPOUNDS, Compound, isPitting, setMode, togglePitRequest } from './strategy';
 import { autoCompound, shouldAutoPit } from './auto';
 
-// Each stat is the percentage of the time the engineer makes the right call.
+// Each stat is a rating. Up to 90 it is the percentage of the time the engineer makes the right call; beyond that the chance keeps rising towards 100% without reaching it.
 export interface EngineerStats {
   // Boxes the car when it needs it (worn tyres, or the wrong tyres for the weather), and doesn't box it when it doesn't.
   pit: number;
@@ -33,7 +33,15 @@ export type EngineerState = Pick<GameState, 'clout' | 'season' | 'bestSeason' | 
 
 export const ENGINEER_MEETING_CLOUT = 2;
 export const MIN_ENGINEER_STAT = 30;
-export const MAX_ENGINEER_STAT = 99;
+// Stats are open-ended ratings. Up to this point a rating is the success percentage; beyond it the chance of a right call
+// keeps closing in on certainty but never reaches it.
+export const ACCURACY_KNEE = 90;
+export const ENGINEER_SEASON_GROWTH = 1 / 20;
+
+export function callAccuracy(stat: number): number {
+  if (stat <= ACCURACY_KNEE) return Math.max(0, stat) / 100;
+  return 1 - 0.1 / (1 + (stat - ACCURACY_KNEE) / 10);
+}
 
 export const ENGINEER_NAMES = [
   'Gianpiero Lambada',
@@ -69,7 +77,8 @@ export function requestEngineerMeeting(state: EngineerState, rng: () => number =
   const free = ENGINEER_NAMES.filter((n) => n !== state.engineer?.name);
   const name = free[Math.floor(rng() * free.length) % free.length];
   const q = rng();
-  const stat = () => Math.max(MIN_ENGINEER_STAT, Math.min(MAX_ENGINEER_STAT, Math.round(MIN_ENGINEER_STAT + 70 * q * (0.6 + rng() * 0.8))));
+  const growth = 1 + (Math.max(1, state.season) - 1) * ENGINEER_SEASON_GROWTH;
+  const stat = () => Math.max(MIN_ENGINEER_STAT, Math.round(MIN_ENGINEER_STAT + 70 * growth * q * (0.6 + rng() * 0.8)));
   const stats: EngineerStats = { pit: stat(), tyre: stat(), mode: stat() };
   const meeting: EngineerCandidate = { name, stats, ...rollAsk(state.season, q, rng), career: rollCareer(rng) };
   state.engineerMeeting = meeting;
@@ -109,7 +118,7 @@ export function payEngineer(state: EngineerState, instalments = 0): { paid: numb
 
 // Real seconds between the engineer's looks at each car (a race lap takes about 12 s).
 export const ENGINEER_REVIEW_SECONDS = 4;
-// How often a Pit stat below 100 sends a car in for a stop it doesn't need, per review.
+// How often a Pit stat that isn't perfect sends a car in for a stop it doesn't need, per review.
 export const BLUNDER_CHANCE = 0.04;
 // Game-laps from the flag inside which no stop is called.
 const NO_STOP_LAPS = 0.8;
@@ -127,7 +136,7 @@ export function reviewStrategy(
   rng: () => number,
   safetyCar = false,
 ): void {
-  const right = (pct: number) => rng() * 100 < pct;
+  const right = (stat: number) => rng() < callAccuracy(stat);
   const left = totalLaps - progressLaps;
   // A safety car makes a stop cheap, so a worn set is worth changing even before it is due.
   const cheapStop = safetyCar && st.wear >= SAFETY_CAR_STOP_WEAR && left > NO_STOP_LAPS * 2 && !st.pitRequested && !isPitting(st);
