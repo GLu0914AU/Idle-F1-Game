@@ -905,8 +905,7 @@ export class PanelHost {
     const list = [...ACHIEVEMENTS].sort((a, b) => order(a) - order(b));
     const pages = Math.max(1, Math.ceil(list.length / ACH_ROWS));
     this.goalsPage = Math.min(this.goalsPage, pages - 1);
-    const claimedCount = list.filter((a) => achievementClaimed(s, a)).length;
-    r.info.setText(`${claimedCount}/${list.length} achievements collected`);
+    r.info.setText('');
     r.rows.forEach((row, i) => {
       const a = list[this.goalsPage * ACH_ROWS + i];
       this.setGoalRow(
