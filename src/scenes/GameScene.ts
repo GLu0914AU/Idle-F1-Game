@@ -7,18 +7,17 @@ import {
   carRating,
   formatNumber,
   incomePerSecond,
-  racePayout,
   sponsorMultiplier,
   upgradeCost,
 } from '../game/economy';
 import { showRewardedAd } from '../game/monetization';
 import { Race, createRace, standings, stepRace } from '../game/race';
 import { FREE_LEVELS_PER_RESEARCH, buyResearch, canPrestige, effectiveUpgrades, pickAutoResearch, prestige, researchPointsFor } from '../game/prestige';
-import { sponsorIncome } from '../game/sponsors';
-import { driverRating, payDrivers } from '../game/drivers';
+import { driverRating } from '../game/drivers';
+import { TITLE_GEMS, settleRace } from '../game/settle';
 import { describeWeather, idealClass, isDry, rollWeather } from '../game/weather';
 import { GameState, loadGame, saveGame } from '../game/save';
-import { RACES_PER_SEASON, advanceSeason, awardPoints, driversTable } from '../game/season';
+import { RACES_PER_SEASON, driversTable } from '../game/season';
 import {
   COMPOUNDS,
   Compound,
@@ -40,7 +39,6 @@ import { PanelHost, BOOST_SECONDS, TABS } from '../ui/panels';
 import { askTeamName } from '../ui/teamName';
 import { drawScenery, themeFor } from '../ui/scenery';
 import { researchInfo, upgradeInfo } from '../game/upgradeInfo';
-import { recordRace, recordSeason } from '../game/career';
 import { Button, COLORS, W, addBox, addButton, addSlant, addText, fillPoly } from '../ui/widgets';
 
 const VIEW = { y: 70, h: 580, padX: 90, padTop: 30, padBottom: 80 };
@@ -48,7 +46,6 @@ const STRIP_H = 30;
 const RACE_LAPS = 5;
 // Game seconds per real second; ~90s laps would be too slow to watch.
 const RACE_SPEED = 6;
-const TITLE_GEMS = 5;
 // The pit lane runs alongside the start/finish straight; distances are fractions of a lap.
 const PIT_OFFSET = 15;
 // Car drawing is 10 units long at scale 1; 1.7 makes it about 17px.
@@ -601,27 +598,16 @@ export class GameScene extends Phaser.Scene {
 
   private finishRace() {
     const order = standings(this.race);
-    const positions = order.flatMap((c, i) => (c.isPlayer ? [i + 1] : []));
-    const payout = racePayout(positions, this.state.season, sponsorMultiplier(this.state));
-    this.state.money += payout;
+    const { positions, payout, wagesPaid, quit, outcome, sponsorCash } = settleRace(this.state, order);
     this.floatText(W - 90, 70, `+$${formatNumber(payout)}`, '#ffc933');
-    const wages = payDrivers(this.state);
-    if (wages.paid > 0) this.floatText(W - 90, 96, `-$${formatNumber(wages.paid)} wages`, '#ff8a80');
-    if (wages.quit.length > 0) {
+    if (wagesPaid > 0) this.floatText(W - 90, 96, `-$${formatNumber(wagesPaid)} wages`, '#ff8a80');
+    if (quit.length > 0) {
       this.applyIdentity();
       this.applyRating();
-      this.floatText(W / 2, 300, `${wages.quit.join(' & ')} quit: unpaid wages`, '#ff8a80');
+      this.floatText(W / 2, 300, `${quit.join(' & ')} quit: unpaid wages`, '#ff8a80');
     }
-    awardPoints(this.state, order);
-    recordRace(this.state, order[0].isPlayer);
-
-    const outcome = advanceSeason(this.state);
-    recordSeason(this.state, outcome);
     if (outcome.type === 'season-won') {
       this.confetti();
-      this.state.gems += TITLE_GEMS;
-      const sponsorCash = sponsorIncome(this.state);
-      this.state.money += sponsorCash;
       const title = outcome.oneTwo
         ? "DRIVERS' 1-2 + CONSTRUCTORS!\nSkipping 2 seasons"
         : outcome.constructors

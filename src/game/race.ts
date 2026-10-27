@@ -89,10 +89,11 @@ export function mulberry32(seed: number): () => number {
   };
 }
 
-// Diminishing returns: rating 0 -> 1.0x, rating 100 -> 1.25x, approaching 1.5x.
+// Diminishing returns that never stop: rating 0 -> 1.0x, rating 100 -> 1.25x, 300 -> 1.5x, 1000 -> 1.86x.
+// There is no ceiling, so rivals that keep growing stay a threat however long the run goes on.
 export function paceMultiplier(rating: number): number {
   const r = Math.max(0, rating);
-  return 1 + 0.5 * (r / (r + 100));
+  return 1 + 0.25 * Math.log2(1 + r / 100);
 }
 
 export function lapTime(rating: number, baseLapTime = 90): number {

@@ -16,9 +16,10 @@ import { newGame } from './save';
 import { rivalRating } from './teams';
 
 describe('prestige', () => {
-  it('rivals compound each season', () => {
+  it('rivals get stronger every season, with ever smaller relative steps', () => {
     const r = (s: number) => rivalRating(60, s);
-    expect(r(2) / r(1)).toBeCloseTo(r(6) / r(5), 5);
+    for (let s = 1; s < 40; s++) expect(r(s + 1)).toBeGreaterThan(r(s));
+    expect(r(2) / r(1)).toBeGreaterThan(r(21) / r(20));
     expect(r(12)).toBeGreaterThan(r(1) * 5);
   });
 

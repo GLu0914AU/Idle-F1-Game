@@ -24,8 +24,17 @@ export const PLAYER_TEAM_ID = 'player';
 export const PLAYER_DRIVERS: [string, string] = ['Driver One', 'Driver Two'];
 export const PLAYER_COLOR = 0xffd400;
 
-// Rivals get stronger every season, compounding, until they outgrow what a run can build: that's the cue to prestige.
-export const RIVAL_GROWTH = 1.3;
+// Rivals get stronger every season until they outgrow what a run can build: that's the cue to prestige. Early on the growth is steep
+// (a polynomial), so the first runs hit a wall; past the knee it continues in a straight line at the knee's slope, which is about
+// what one prestige's research adds, so every prestige keeps buying a few more seasons instead of the gains shrinking away.
+export const RIVAL_SLOPE = 0.16;
+export const RIVAL_EXPONENT = 3;
+export const RIVAL_KNEE = 22;
 export function rivalRating(base: number, season: number): number {
-  return base * RIVAL_GROWTH ** (season - 1);
+  const x = season - 1;
+  const knee = RIVAL_KNEE - 1;
+  const poly = (t: number) => (1 + RIVAL_SLOPE * t) ** RIVAL_EXPONENT;
+  if (x <= knee) return base * poly(x);
+  const slope = RIVAL_EXPONENT * RIVAL_SLOPE * (1 + RIVAL_SLOPE * knee) ** (RIVAL_EXPONENT - 1);
+  return base * (poly(knee) + slope * (x - knee));
 }

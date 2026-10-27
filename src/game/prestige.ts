@@ -3,7 +3,7 @@ import { GameState } from './save';
 
 // Prestige is offered once the player has reached this season; earlier runs yield no research points.
 export const MIN_PRESTIGE_SEASON = 3;
-export const COST_GROWTH_RP = 1.6;
+export const COST_GROWTH_RP = 1.3;
 // Each research level in a stat grants this many free levels of it, every run.
 export const FREE_LEVELS_PER_RESEARCH = 5;
 export const FUNDING_BONUS = 0.25;
@@ -37,7 +37,7 @@ export const RESEARCH_DEFS: ResearchDef[] = [
 // Research points earned by prestiging from a given season.
 export function researchPointsFor(season: number): number {
   if (season < MIN_PRESTIGE_SEASON) return 0;
-  return Math.floor(2 * (season - MIN_PRESTIGE_SEASON + 1) ** 1.5);
+  return Math.floor(3 * (season - MIN_PRESTIGE_SEASON + 1) ** 1.5);
 }
 
 export const canPrestige = (state: Pick<GameState, 'season'>) => researchPointsFor(state.season) > 0;
