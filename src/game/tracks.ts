@@ -46,9 +46,49 @@ const CIRCUITS: { name: string; control: Point[] }[] = [
   },
 ];
 
-export const CALENDAR: Track[] = CIRCUITS.map((c) => buildTrack(c.name, c.control));
+// Every circuit that has hosted a World Championship Grand Prix (through the 2026 calendar).
+// Circuits without a hand-made shape above get a stable shape generated from their name.
+const OTHER_CIRCUITS = [
+  'Adelaide', 'Aintree', 'Anderstorp', 'Austin', 'Avus', 'Baku', 'Brands Hatch', 'Bremgarten',
+  'Buddh', 'Buenos Aires', 'Barcelona', 'Casablanca', 'Charade', 'Dallas', 'Detroit', 'Dijon-Prenois',
+  'Donington Park', 'East London', 'Estoril', 'Fuji', 'Hockenheim', 'Hungaroring', 'Imola', 'Indianapolis',
+  'Istanbul', 'Jarama', 'Jeddah', 'Jerez', 'Kyalami', 'Las Vegas', 'Le Mans', 'Long Beach', 'Lusail',
+  'Madrid', 'Magny-Cours', 'Mexico City', 'Miami', 'Monsanto', 'Montjuic', 'Montreal', 'Mont-Tremblant',
+  'Mosport', 'Mugello', 'Nivelles', 'Nurburgring', 'Okayama', 'Osterreichring', 'Paul Ricard', 'Pedralbes',
+  'Pescara', 'Phoenix', 'Porto', 'Red Bull Ring', 'Reims', 'Riverside', 'Rouen-Les-Essarts', 'Sebring',
+  'Sepang', 'Sochi', 'Valencia', 'Watkins Glen', 'Yas Marina', 'Yeongam', 'Zandvoort', 'Zeltweg', 'Zolder',
+];
 
-// Race numbers are 1-based and the calendar repeats every season.
-export function trackForRace(race: number): Track {
-  return CALENDAR[(Math.max(1, race) - 1) % CALENDAR.length];
+function hashName(name: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < name.length; i++) h = Math.imul(h ^ name.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+// Star-shaped loop around the centre, so it never crosses itself.
+export function generateControl(name: string): Point[] {
+  let s = hashName(name) || 1;
+  const rnd = () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+  const n = 10 + Math.floor(rnd() * 5);
+  const out: Point[] = [];
+  for (let i = 0; i < n; i++) {
+    const angle = ((i + (rnd() - 0.5) * 0.4) / n) * Math.PI * 2;
+    const r = 0.28 + rnd() * 0.17;
+    out.push(p(0.5 + Math.cos(angle) * r, 0.5 + Math.sin(angle) * r * 1.05));
+  }
+  return out;
+}
+
+export const CALENDAR: Track[] = [
+  ...CIRCUITS.map((c) => buildTrack(c.name, c.control)),
+  ...OTHER_CIRCUITS.map((name) => buildTrack(name, generateControl(name))),
+];
+
+// Random circuit for the next race, never the same one twice in a row.
+export function pickTrack(rng: () => number = Math.random, excludeName?: string): Track {
+  const pool = CALENDAR.filter((t) => t.name !== excludeName);
+  return pool[Math.floor(rng() * pool.length) % pool.length];
 }

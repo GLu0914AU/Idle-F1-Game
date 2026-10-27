@@ -29,7 +29,7 @@ import {
 } from '../game/strategy';
 import { offlineEarnings } from '../game/offline';
 import { DEFAULT_TRACK, Point, Track, pointAt } from '../game/track';
-import { trackForRace } from '../game/tracks';
+import { pickTrack } from '../game/tracks';
 import { PanelHost, BOOST_SECONDS, TABS } from '../ui/panels';
 import { askTeamName } from '../ui/teamName';
 import { Button, COLORS, W, addBox, addButton, addText } from '../ui/widgets';
@@ -172,7 +172,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private startRace() {
-    this.track = trackForRace(this.state.race);
+    this.track = pickTrack(Math.random, this.track.name);
     this.drawCircuit();
     this.race = createRace({
       track: this.track,

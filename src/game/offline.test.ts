@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { carRating, incomePerSecond, sponsorMultiplier } from './economy';
 import { AUTO_OFFLINE_CAP_S, FREE_OFFLINE_CAP_S, offlineEarnings } from './offline';
 import { newGame } from './save';
-import { CALENDAR, trackForRace } from './tracks';
+import { CALENDAR, pickTrack } from './tracks';
 import { pointAt } from './track';
 
 describe('offline', () => {
@@ -37,10 +37,19 @@ describe('offline', () => {
 });
 
 describe('calendar', () => {
-  it('has 10 distinct circuits that repeat each season', () => {
-    expect(CALENDAR).toHaveLength(10);
-    expect(new Set(CALENDAR.map((t) => t.name)).size).toBe(10);
-    expect(trackForRace(1).name).toBe(trackForRace(11).name);
+  it('has many distinct circuits', () => {
+    expect(CALENDAR.length).toBeGreaterThan(70);
+    expect(new Set(CALENDAR.map((t) => t.name)).size).toBe(CALENDAR.length);
+  });
+
+  it('never picks the excluded circuit and varies', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 200; i++) {
+      const t = pickTrack(Math.random, 'Monaco');
+      expect(t.name).not.toBe('Monaco');
+      seen.add(t.name);
+    }
+    expect(seen.size).toBeGreaterThan(20);
   });
 
   it('every circuit stays inside the unit square and closes its loop', () => {
