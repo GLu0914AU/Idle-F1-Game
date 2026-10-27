@@ -13,7 +13,7 @@ import {
 } from '../game/economy';
 import { showRewardedAd } from '../game/monetization';
 import { Race, createRace, standings, stepRace } from '../game/race';
-import { buyResearch, canPrestige, effectiveUpgrades, pickAutoResearch, prestige, researchPointsFor } from '../game/prestige';
+import { FREE_LEVELS_PER_RESEARCH, buyResearch, canPrestige, effectiveUpgrades, pickAutoResearch, prestige, researchPointsFor } from '../game/prestige';
 import { sponsorIncome } from '../game/sponsors';
 import { GameState, loadGame, saveGame } from '../game/save';
 import { RACES_PER_SEASON, advanceSeason, awardPoints, driversTable } from '../game/season';
@@ -486,8 +486,9 @@ export class GameScene extends Phaser.Scene {
     this.incomeText.setText(`${formatNumber(incomePerSecond(rating, sponsorMultiplier(s)))} $/s · Rating ${Math.round(rating)}`);
     for (const { def, level, button } of this.cards) {
       const lv = s.upgrades[def.key] ?? 0;
+      const free = (s.research[def.key] ?? 0) * FREE_LEVELS_PER_RESEARCH;
       const price = upgradeCost(def, lv);
-      level.setText(`Lv ${lv} · +${def.ratingPerLevel} rating`);
+      level.setText(`Lv ${lv + free}${free ? ` (+${free} R&D)` : ''} · +${def.ratingPerLevel}/lvl`);
       button.setLabel(`$${formatNumber(price)}`);
       button.setState(s.money >= price);
     }
