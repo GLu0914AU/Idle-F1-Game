@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PIT_HALF_LENGTH, newStrategy, togglePitRequest } from './strategy';
 import { createRace, lapTime, paceMultiplier, standings, stepRace } from './race';
 import { pointAt } from './track';
 import { CALENDAR } from './tracks';
@@ -66,7 +67,7 @@ describe('race', () => {
     expect(standings(race)[0].isPlayer).toBe(false);
   });
 
-  it('NPC cars wear tyres, pit in the pit lane at the line, and fit fresh random tyres', () => {
+  it('NPC cars enter at the pit entrance, exit past the line, and fit fresh random tyres', () => {
     const race = createRace(config({ laps: 8 }));
     const npc = race.cars.filter((c) => !c.isPlayer);
     expect(npc.every((c) => c.tyres)).toBe(true);
@@ -77,15 +78,16 @@ describe('race', () => {
       stepRace(race, 0.5);
       const now = new Set<string>();
       for (const c of npc) {
-        if (c.tyres!.pitRemaining > 0) {
+        if (c.pit) {
           now.add(c.id);
-          // A stop only ever starts right after the line, so the car is near progress = integer.
           if (!wasPitting.has(c.id)) {
             stops.set(c.id, (stops.get(c.id) ?? 0) + 1);
-            expect(c.progress - Math.floor(c.progress)).toBeLessThan(0.1);
+            // The entrance is just before the line, never at or after it.
+            expect(c.pit.start - Math.floor(c.pit.start)).toBeCloseTo(1 - PIT_HALF_LENGTH, 5);
           }
         } else if (wasPitting.has(c.id)) {
           expect(c.tyres!.wear).toBe(0);
+          expect(c.progress - Math.floor(c.progress)).toBeLessThan(PIT_HALF_LENGTH + 0.02);
           compounds.add(c.tyres!.compound);
         }
       }
@@ -98,7 +100,31 @@ describe('race', () => {
   it('NPCs never start a stop on the final lap', () => {
     const race = createRace(config({ laps: 3 }));
     runToEnd(race);
-    for (const c of race.cars.filter((x) => !x.isPlayer)) expect(c.tyres!.pitRemaining).toBe(0);
+    for (const c of race.cars.filter((x) => !x.isPlayer)) expect(c.pit).toBeUndefined();
+  });
+
+  it('both player cars make one stop per call, entering independently', () => {
+    const race = createRace(config({ laps: 6 }));
+    const s = newStrategy();
+    s.wear = 0.8;
+    s.nextCompound = 'hard';
+    togglePitRequest(s);
+    const team = { strategy: s, pitCrew: 0 };
+    const players = race.cars.filter((c) => c.isPlayer);
+    expect(players.length).toBe(2);
+    let entries = 0;
+    let was = [false, false];
+    for (let i = 0; i < 100000 && !race.finished; i++) {
+      stepRace(race, 0.5, 1, team);
+      players.forEach((c, k) => {
+        if (c.pit && !was[k]) entries++;
+        was[k] = !!c.pit;
+      });
+    }
+    expect(entries).toBe(2);
+    expect(s.pitRequested).toBe(false);
+    expect(s.compound).toBe('hard');
+    expect(s.wear).toBeLessThan(0.8);
   });
 
   it('rivals get stronger in later seasons', () => {

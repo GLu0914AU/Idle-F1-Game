@@ -24,7 +24,8 @@ export const TYRE_PENALTY = 0.06;
 export const TAP_MAX_BOOST = 0.03;
 export const BOOST_DECAY_PER_SEC = 0.3;
 export const MODE_COOLDOWN = 30;
-export const PIT_LANE_SPEED = 0.1;
+// The pit lane runs from the entrance to the exit, each this far (in laps) from the start/finish line.
+export const PIT_HALF_LENGTH = 0.06;
 
 export interface Strategy {
   mode: Mode;
@@ -34,10 +35,16 @@ export interface Strategy {
   wear: number;
   // 0..1 energy from tapping.
   boost: number;
-  // Game seconds left in the pit stop; 0 when on track.
+  // Longest game-seconds-left among this team's cars currently in the pit lane; 0 when none are. Set by the race.
   pitRemaining: number;
-  // The player has called the car in; the stop starts when it reaches the pit lane (the start/finish line).
+  // A stop has been called; each car peels off at the next pit entrance it reaches.
   pitRequested: boolean;
+  // Increments with each new call, so every car makes exactly one stop per call.
+  pitRequestId: number;
+  // Fresh tyres are fitted when the first car completes the stop.
+  pendingFit: boolean;
+  // Seconds of pit time that taps have earned, consumed by the race.
+  pitTapCredit: number;
   modeCooldown: number;
 }
 
@@ -57,6 +64,9 @@ export function newStrategy(prev?: Pick<Strategy, 'mode' | 'nextCompound'>): Str
     boost: 0,
     pitRemaining: 0,
     pitRequested: false,
+    pitRequestId: 0,
+    pendingFit: false,
+    pitTapCredit: 0,
     modeCooldown: 0,
   };
 }
@@ -64,13 +74,13 @@ export function newStrategy(prev?: Pick<Strategy, 'mode' | 'nextCompound'>): Str
 export const isPitting = (s: Strategy) => s.pitRemaining > 0;
 
 export function pitDuration(pitCrew: number): number {
-  return 12 / (1 + 0.1 * pitCrew);
+  return 18 / (1 + 0.1 * pitCrew);
 }
 
 // A tap charges boost on track, and speeds up the crew while in the pits.
 export function tap(s: Strategy, tapPower: number): void {
   const power = 1 + 0.1 * tapPower;
-  if (isPitting(s)) s.pitRemaining = Math.max(0, s.pitRemaining - 1.5 * power);
+  if (isPitting(s)) s.pitTapCredit += 1.5 * power;
   else s.boost = Math.min(1, s.boost + 0.12 * power);
 }
 
@@ -90,44 +100,25 @@ export function selectCompound(s: Strategy, compound: Compound): void {
   s.nextCompound = compound;
 }
 
-// Call the car in (or cancel the call). The stop itself happens at the pit lane entrance.
+// Call the car in (or cancel the call). Each car then peels off at the next pit entrance it reaches.
 export function togglePitRequest(s: Strategy): boolean {
   if (isPitting(s)) return false;
   s.pitRequested = !s.pitRequested;
-  return true;
-}
-
-// Called when the car crosses the pit entrance: starts the stop if one was requested.
-export function enterPitLane(s: Strategy, pitCrew: number): boolean {
-  if (!s.pitRequested) return false;
-  s.pitRequested = false;
-  return startPit(s, pitCrew);
-}
-
-export function startPit(s: Strategy, pitCrew: number): boolean {
-  if (isPitting(s)) return false;
-  s.pitRemaining = pitDuration(pitCrew);
+  if (s.pitRequested) s.pitRequestId += 1;
   return true;
 }
 
 export function stepStrategy(s: Strategy, dt: number, levels: StrategyLevels): void {
   s.boost = Math.max(0, s.boost - BOOST_DECAY_PER_SEC * dt);
   s.modeCooldown = Math.max(0, s.modeCooldown - dt);
-  if (isPitting(s)) {
-    s.pitRemaining = Math.max(0, s.pitRemaining - dt);
-    if (s.pitRemaining === 0) {
-      s.wear = 0;
-      s.compound = s.nextCompound;
-    }
-    return;
-  }
+  // Tyres don't wear while the car is crawling through the pit lane.
+  if (isPitting(s)) return;
   const rate = (BASE_WEAR_PER_SEC * MODE_FX[s.mode].wear * COMPOUND_FX[s.compound].wear) / (1 + 0.05 * levels.tyres);
   s.wear = Math.min(1, s.wear + rate * dt);
 }
 
-// Multiplier applied to the player cars' pace.
+// Multiplier applied to a car's pace on track.
 export function paceFactor(s: Strategy): number {
-  if (isPitting(s)) return PIT_LANE_SPEED;
   return (
     MODE_FX[s.mode].pace *
     COMPOUND_FX[s.compound].pace *

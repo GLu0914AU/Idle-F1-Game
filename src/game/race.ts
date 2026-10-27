@@ -1,4 +1,12 @@
-import { COMPOUNDS, Strategy, enterPitLane, isPitting, newStrategy, paceFactor, stepStrategy } from './strategy';
+import {
+  COMPOUNDS,
+  PIT_HALF_LENGTH,
+  Strategy,
+  newStrategy,
+  paceFactor,
+  pitDuration,
+  stepStrategy,
+} from './strategy';
 import { PLAYER_COLOR, PLAYER_DRIVERS, RIVAL_TEAMS, rivalRating } from './teams';
 import { Track } from './track';
 
@@ -19,6 +27,9 @@ export interface Car {
   tyres?: Strategy;
   // Wear level at which this NPC calls itself in.
   pitWear?: number;
+  // Set while the car is in the pit lane: it travels the lane from the entrance to the exit as the stop completes.
+  pit?: { start: number; remaining: number; total: number };
+  lastPitId?: number;
 }
 
 export interface RaceConfig {
@@ -110,32 +121,80 @@ function randomCompound(rng: () => number) {
 
 const NO_UPGRADES = { tapPower: 0, pitCrew: 0, tyres: 0 };
 
-// NPC tyre logic: call the car in when worn (with a random fresh compound), stop at the line.
+// NPC tyre logic: call the car in when worn, with a random fresh compound.
 function stepNpcTyres(race: Race, car: Car, dt: number): number {
   const s = car.tyres;
   if (!s) return 1;
   stepStrategy(s, dt, NO_UPGRADES);
-  if (!isPitting(s) && !s.pitRequested && s.wear >= (car.pitWear ?? 0.7) && race.config.laps - car.progress > 1) {
+  if (!s.pitRequested && !car.pit && s.wear >= (car.pitWear ?? 0.7) && race.config.laps - car.progress > 1) {
     s.pitRequested = true;
+    s.pitRequestId += 1;
     s.nextCompound = randomCompound(race.rng);
   }
   return paceFactor(s);
 }
 
-// Advance the race by dt seconds. speedBoost multiplies the player cars only (taps/strategy later).
-export function stepRace(race: Race, dt: number, playerBoost = 1): void {
+export interface PlayerTeam {
+  strategy: Strategy;
+  pitCrew: number;
+}
+
+// Where a car in the pit lane is, as laps of progress along the route (entrance to exit).
+export function pitProgress(pit: NonNullable<Car['pit']>): number {
+  return pit.start + 2 * PIT_HALF_LENGTH * (1 - pit.remaining / pit.total);
+}
+
+// Advance the race by dt seconds. playerBoost multiplies the player cars' pace; player carries their pit crew.
+export function stepRace(race: Race, dt: number, playerBoost = 1, player?: PlayerTeam): void {
   if (race.finished) return;
   const { laps, baseLapTime = 90 } = race.config;
+
+  // Taps made during a stop shorten it for every player car in the lane.
+  if (player && player.strategy.pitTapCredit > 0) {
+    for (const car of race.cars) if (car.isPlayer && car.pit) car.pit.remaining -= player.strategy.pitTapCredit;
+    player.strategy.pitTapCredit = 0;
+  }
+
   for (const car of race.cars) {
     if (car.finishTime !== null) continue;
+    const s = car.isPlayer ? player?.strategy : car.tyres;
+    const crew = car.isPlayer ? (player?.pitCrew ?? 0) : 0;
     const boost = car.isPlayer ? playerBoost : stepNpcTyres(race, car, dt);
-    const lapsPerSecond = (paceMultiplier(car.rating) * car.form * boost) / baseLapTime;
     const before = car.progress;
-    car.progress += lapsPerSecond * dt;
-    if (Math.floor(car.progress) > Math.floor(before)) {
-      car.form = rollForm(race.rng);
-      if (car.tyres && car.progress < laps) enterPitLane(car.tyres, 0);
+
+    if (car.pit) {
+      // In the pit lane the car follows the lane at the pace of the stop, whatever its racing speed.
+      car.pit.remaining = Math.max(0, car.pit.remaining - dt);
+      car.progress = pitProgress(car.pit);
+      if (car.pit.remaining === 0) {
+        car.pit = undefined;
+        if (s?.pendingFit) {
+          s.wear = 0;
+          s.compound = s.nextCompound;
+          s.pendingFit = false;
+        }
+      }
+      if (Math.floor(car.progress) > Math.floor(before)) car.form = rollForm(race.rng);
+      continue;
     }
+
+    const lapsPerSecond = (paceMultiplier(car.rating) * car.form * boost) / baseLapTime;
+    car.progress += lapsPerSecond * dt;
+    if (Math.floor(car.progress) > Math.floor(before)) car.form = rollForm(race.rng);
+
+    // Peel off into the pit lane at the entrance, which sits just before the line; never so late the exit would pass the flag.
+    if (s?.pitRequested && car.lastPitId !== s.pitRequestId) {
+      const lap = Math.floor(car.progress + PIT_HALF_LENGTH);
+      if (lap > Math.floor(before + PIT_HALF_LENGTH) && lap >= 1 && lap < laps) {
+        const total = pitDuration(crew);
+        car.pit = { start: lap - PIT_HALF_LENGTH, remaining: total, total };
+        car.progress = car.pit.start;
+        car.lastPitId = s.pitRequestId;
+        s.pendingFit = true;
+        continue;
+      }
+    }
+
     if (car.progress >= laps) {
       // Interpolate the exact crossing time within this step.
       const over = (car.progress - laps) / lapsPerSecond;
@@ -143,6 +202,20 @@ export function stepRace(race: Race, dt: number, playerBoost = 1): void {
       car.progress = laps;
     }
   }
+
+  // Team-level pit state: the call is done once every car has made its stop.
+  const teams = new Map<Strategy, Car[]>();
+  for (const car of race.cars) {
+    const s = car.isPlayer ? player?.strategy : car.tyres;
+    if (s) teams.set(s, [...(teams.get(s) ?? []), car]);
+  }
+  for (const [s, cars] of teams) {
+    s.pitRemaining = Math.max(0, ...cars.map((c) => c.pit?.remaining ?? 0));
+    if (s.pitRequested && cars.every((c) => c.lastPitId === s.pitRequestId || c.finishTime !== null)) {
+      s.pitRequested = false;
+    }
+  }
+
   race.time += dt;
   race.finished = race.cars.every((c) => c.finishTime !== null);
 }

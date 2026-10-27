@@ -18,9 +18,9 @@ import { RACES_PER_SEASON, advanceSeason, awardPoints } from '../game/season';
 import {
   COMPOUNDS,
   Compound,
+  PIT_HALF_LENGTH,
   Strategy,
   cycleMode,
-  enterPitLane,
   isPitting,
   newStrategy,
   paceFactor,
@@ -44,7 +44,9 @@ const RACE_SPEED = 6;
 const TITLE_GEMS = 5;
 // The pit lane runs alongside the start/finish straight; distances are fractions of a lap.
 const PIT_OFFSET = 15;
-const PIT_HALF_LENGTH = 0.06;
+
+// Sideways offset of the pit route at t (0 entrance .. 1 exit): ramps out, runs parallel, ramps back.
+const pitOffset = (t: number) => PIT_OFFSET * Math.max(0, Math.min(1, t / 0.15, (1 - t) / 0.15));
 const COMPOUND_COLORS: Record<Compound, number> = { soft: 0xe03b2c, medium: 0xe0b02c, hard: 0xd8dcea };
 const COMPOUND_LETTERS: Record<Compound, string> = { soft: 'S', medium: 'M', hard: 'H' };
 
@@ -77,7 +79,6 @@ export class GameScene extends Phaser.Scene {
   private cards: { def: UpgradeDef; level: Phaser.GameObjects.Text; button: Button }[] = [];
   private modeBtn!: Button;
   private tyreBtns: Partial<Record<Compound, Button>> = {};
-  private lastLead = 0;
   private pitBtn!: Button;
   private speedBtn!: Button;
   private autoBtn!: Button;
@@ -184,20 +185,16 @@ export class GameScene extends Phaser.Scene {
     this.trackGfx.lineStyle(11, 0x2b3350).strokePoints(pts, true, true);
     this.trackGfx.lineStyle(1, 0x4a5580, 0.8).strokePoints(pts, true, true);
 
-    // Pit lane beside the start/finish straight, with entry and exit links to the track.
+    // Pit lane: branches off at the entrance, runs beside the straight, and rejoins at the exit.
     const len = this.track.length;
     const lane: Phaser.Math.Vector2[] = [];
-    for (let i = -10; i <= 10; i++) {
-      const p = this.trackPos(len * ((PIT_HALF_LENGTH * i) / 10), PIT_OFFSET);
+    for (let i = 0; i <= 40; i++) {
+      const t = i / 40;
+      const p = this.trackPos(len * (-PIT_HALF_LENGTH + 2 * PIT_HALF_LENGTH * t), pitOffset(t));
       lane.push(new Phaser.Math.Vector2(p.x, p.y));
     }
     this.trackGfx.lineStyle(9, 0x1d2540).strokePoints(lane, false, false);
     this.trackGfx.lineStyle(1, 0x6b78a8, 0.9).strokePoints(lane, false, false);
-    for (const end of [-PIT_HALF_LENGTH, PIT_HALF_LENGTH]) {
-      const a = this.trackPos(len * end);
-      const b = this.trackPos(len * end, PIT_OFFSET);
-      this.trackGfx.lineStyle(5, 0x1d2540).lineBetween(a.x, a.y, b.x, b.y);
-    }
 
     // Start/finish line across the track.
     const a = this.trackPos(0, -6);
@@ -235,7 +232,6 @@ export class GameScene extends Phaser.Scene {
       seed: Date.now() & 0x7fffffff,
     });
     this.strategy = newStrategy(this.strategy);
-    this.lastLead = 0;
     this.restartAt = 0;
     this.paid = false;
     this.banner?.setVisible(false);
@@ -246,10 +242,8 @@ export class GameScene extends Phaser.Scene {
     this.carGfx.clear();
     for (const car of [...this.race.cars].reverse()) {
       const dist = car.progress * this.track.length;
-      const frac = car.progress - Math.floor(car.progress);
-      const inPitLane = car.isPlayer ? isPitting(this.strategy) : !!car.tyres && isPitting(car.tyres);
-      const inLane = inPitLane && Math.min(frac, 1 - frac) <= PIT_HALF_LENGTH;
-      const p = this.trackPos(dist, inLane ? PIT_OFFSET : 0);
+      const t = car.pit ? (car.progress - car.pit.start) / (2 * PIT_HALF_LENGTH) : 0;
+      const p = this.trackPos(dist, car.pit ? pitOffset(t) : 0);
       this.carGfx.fillStyle(car.color).fillCircle(p.x, p.y, car.isPlayer ? 7 : 5);
       if (car.isPlayer) this.carGfx.lineStyle(2, 0xffffff).strokeCircle(p.x, p.y, 8);
     }
@@ -451,14 +445,10 @@ export class GameScene extends Phaser.Scene {
       pitCrew: s.upgrades.pitCrew ?? 0,
       tyres: s.upgrades.tyres ?? 0,
     });
-    stepRace(this.race, gameDt, paceFactor(this.strategy));
-
-    // The stop starts when the lead player car crosses the line into the pit lane.
-    const lead = Math.max(...this.race.cars.filter((c) => c.isPlayer).map((c) => c.progress));
-    if (!this.race.finished && Math.floor(lead) > Math.floor(this.lastLead)) {
-      enterPitLane(this.strategy, s.upgrades.pitCrew ?? 0);
-    }
-    this.lastLead = lead;
+    stepRace(this.race, gameDt, paceFactor(this.strategy), {
+      strategy: this.strategy,
+      pitCrew: s.upgrades.pitCrew ?? 0,
+    });
     if (this.race.finished && !this.paid) {
       this.paid = true;
       this.finishRace();

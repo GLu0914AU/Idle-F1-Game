@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { autoCompound, pickAutoBuy, shouldAutoPit } from './auto';
 import { upgradeCost, UPGRADE_DEFS } from './economy';
-import { newStrategy, startPit } from './strategy';
+import { newStrategy } from './strategy';
 
 describe('auto', () => {
   it('buys nothing when broke', () => {
@@ -25,7 +25,7 @@ describe('auto', () => {
     s.wear = 0.8;
     expect(shouldAutoPit(s, 1, 5)).toBe(true);
     expect(shouldAutoPit(s, 4.5, 5)).toBe(false);
-    startPit(s, 0);
+    s.pitRemaining = 5;
     expect(shouldAutoPit(s, 1, 5)).toBe(false);
   });
 

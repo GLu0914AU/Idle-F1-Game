@@ -1,14 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   MODE_COOLDOWN,
-  enterPitLane,
   isPitting,
   newStrategy,
   paceFactor,
   pitDuration,
   selectCompound,
   setMode,
-  startPit,
   stepStrategy,
   tap,
   togglePitRequest,
@@ -54,19 +52,7 @@ describe('strategy', () => {
     expect(s.boost).toBe(0);
   });
 
-  it('a pit stop resets tyres and switches compound', () => {
-    const s = newStrategy();
-    stepStrategy(s, 200, L);
-    s.nextCompound = 'hard';
-    expect(startPit(s, 0)).toBe(true);
-    expect(startPit(s, 0)).toBe(false);
-    stepStrategy(s, pitDuration(0) + 1, L);
-    expect(s.wear).toBe(0);
-    expect(s.compound).toBe('hard');
-    expect(s.pitRemaining).toBe(0);
-  });
-
-  it('tyres only change at the pit lane, never on track', () => {
+  it('tyres are fitted only by the race when a car completes its stop, not on track', () => {
     const s = newStrategy();
     stepStrategy(s, 100, L);
     selectCompound(s, 'soft');
@@ -74,28 +60,25 @@ describe('strategy', () => {
     stepStrategy(s, 100, L);
     expect(s.compound).toBe('medium');
     expect(s.wear).toBeGreaterThan(0);
-    expect(enterPitLane(s, 0)).toBe(true);
+    expect(s.pitRequested).toBe(true);
+  });
+
+  it('a request can be cancelled but not while pitting', () => {
+    const s = newStrategy();
+    togglePitRequest(s);
+    togglePitRequest(s);
     expect(s.pitRequested).toBe(false);
-    stepStrategy(s, pitDuration(0) + 1, L);
-    expect(s.compound).toBe('soft');
-    expect(s.wear).toBe(0);
+    s.pitRemaining = 4;
+    expect(togglePitRequest(s)).toBe(false);
+    expect(isPitting(s)).toBe(true);
   });
 
-  it('entering the pit lane without a request does nothing, and a request can be cancelled', () => {
+  it('taps earn pit credit during a stop and pit crew upgrades help', () => {
     const s = newStrategy();
-    expect(enterPitLane(s, 0)).toBe(false);
-    expect(isPitting(s)).toBe(false);
-    togglePitRequest(s);
-    togglePitRequest(s);
-    expect(enterPitLane(s, 0)).toBe(false);
-  });
-
-  it('taps shorten a pit stop and pit crew upgrades help', () => {
-    const s = newStrategy();
-    startPit(s, 0);
-    const before = s.pitRemaining;
+    s.pitRemaining = 5;
     tap(s, 0);
-    expect(s.pitRemaining).toBeLessThan(before);
+    expect(s.pitTapCredit).toBeGreaterThan(0);
+    expect(s.boost).toBe(0);
     expect(pitDuration(10)).toBeLessThan(pitDuration(0));
   });
 
