@@ -101,11 +101,15 @@ const wageLabel = (c: Contract, s: SeasonInfo) => {
   return c.prestigesLeft === undefined ? wage : `${wage} · ${careerLabel(c.prestigesLeft)}`;
 };
 
+const driverStats = (d: Driver) => `Skill +${d.skill}% · Tyres ${d.tyreMgmt} · Consistency ${d.consistency} · Race craft ${d.raceCraft}`;
+
 const describeDriver = (d: Driver, s: SeasonInfo) =>
   `Skill +${d.skill}% · Tyres ${d.tyreMgmt} · Consistency ${d.consistency} · Race craft ${d.raceCraft} · ${d.salary > 0 ? wageLabel(d, s) : 'no wage'}`;
 
 const DEV_OUTCOME_LABEL: Record<DevOutcome, string> = { big: 'a breakthrough!', solid: 'a solid gain', flop: 'a flop' };
 const oddsHint = (p: number) => (p < 0.1 ? 'rare' : p < 0.2 ? 'unlikely' : p < 0.35 ? 'possible' : p < 0.55 ? 'likely' : 'very likely');
+
+const engineerStats = (e: Engineer) => `Pit ${e.pit} · Tyres ${e.tyre} · Mode ${e.mode}`;
 
 const describeEngineer = (e: Engineer | null, s: SeasonInfo) =>
   e ? `Pit ${e.pit} · Tyres ${e.tyre} · Mode ${e.mode} · ${wageLabel(e, s)}` : 'No engineer: you call strategy by hand';
@@ -273,9 +277,9 @@ export class PanelHost {
   };
   private team!: {
     swatches: { sw: Phaser.GameObjects.Rectangle; color: number }[];
-    driverRows: { name: Phaser.GameObjects.Text; chip: Phaser.GameObjects.Rectangle; detail: Phaser.GameObjects.Text }[];
+    driverRows: { name: Phaser.GameObjects.Text; chip: Phaser.GameObjects.Rectangle; detail: Phaser.GameObjects.Text; wage: Phaser.GameObjects.Text }[];
     recruitBtn: Button;
-    engineerRow: { name: Phaser.GameObjects.Text; chip: Phaser.GameObjects.Rectangle; detail: Phaser.GameObjects.Text };
+    engineerRow: { name: Phaser.GameObjects.Text; chip: Phaser.GameObjects.Rectangle; detail: Phaser.GameObjects.Text; wage: Phaser.GameObjects.Text };
     engineerBtn: Button;
     developmentBtn: Button;
     staffBtn: Button;
@@ -567,6 +571,7 @@ export class PanelHost {
         name: addText(this.scene, 52, y + 4, name, 19, '#ffffff', c),
         chip,
         detail: addText(this.scene, 52, y + 28, '', 12, '#9aa7d0', c),
+        wage: addText(this.scene, W - 40, y + 8, '', 12, '#9aa7d0', c).setOrigin(1, 0),
       };
     };
     const driverRows = [0, 1].map((i) => rowBox(276 + i * 52, ''));
@@ -1290,14 +1295,16 @@ export class PanelHost {
     t.swatches.forEach(({ sw, color }) => sw.setStrokeStyle(color === s.teamColor ? 4 : 2, color === s.teamColor ? 0xffffff : COLORS.border));
     t.driverRows.forEach((row, i) => {
       row.name.setText(`${s.driverNames[i]}${s.drivers[i].salary > 0 ? '' : '  (rookie)'}`);
-      row.detail.setText(describeDriver(s.drivers[i], s));
+      row.detail.setText(driverStats(s.drivers[i]));
+      row.wage.setText(s.drivers[i].salary > 0 ? wageLabel(s.drivers[i], s) : 'no wage');
       row.chip.setFillStyle(s.teamColor);
     });
     t.recruitBtn.setLabel(isUnlocked(s, 'driver') ? `RECRUIT A DRIVER (${s.clout} CLOUT)` : lockLabel('driver'));
     t.recruitBtn.setState(isUnlocked(s, 'driver'), COLORS.green);
     if (this.recruitOpen) this.renderRecruit(s);
     t.engineerRow.name.setText(s.engineer ? s.engineer.name : 'No race engineer');
-    t.engineerRow.detail.setText(describeEngineer(s.engineer, s));
+    t.engineerRow.detail.setText(s.engineer ? engineerStats(s.engineer) : describeEngineer(null, s));
+    t.engineerRow.wage.setText(s.engineer ? wageLabel(s.engineer, s) : '');
     t.engineerRow.chip.setFillStyle(s.engineer ? s.teamColor : COLORS.border);
     t.engineerBtn.setLabel(isUnlocked(s, 'engineer') ? `RECRUIT A RACE ENGINEER (${s.clout} CLOUT)` : lockLabel('engineer'));
     t.engineerBtn.setState(isUnlocked(s, 'engineer'), COLORS.green);
