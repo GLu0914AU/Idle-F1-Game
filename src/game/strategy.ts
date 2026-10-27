@@ -26,7 +26,7 @@ export const COMPOUND_FX: Record<Compound, { pace: number; wear: number }> = {
 export const BASE_WEAR_PER_SEC = 0.004;
 // Worst-case pace lost to fully worn tyres.
 export const TYRE_PENALTY = 0.06;
-// Pace gained at full tap boost.
+// Pace gained at full tap boost (boost 1); more Tap Power lets the boost go higher.
 export const TAP_MAX_BOOST = 0.03;
 export const BOOST_DECAY_PER_SEC = 0.3;
 export const MODE_COOLDOWN = 30;
@@ -110,11 +110,12 @@ export type PitIssue = (typeof PIT_ISSUES)[number];
 // Chance of a problem in any one stop; a better pit crew makes them rarer.
 export const pitIssueChance = (pitCrew: number) => Math.max(0.05, 0.25 - 0.01 * pitCrew);
 
-// A tap charges boost on track, and speeds up the crew while in the pits.
+// A tap charges boost on track, and speeds up the crew while in the pits. Tap Power also raises the boost ceiling above 1,
+// so each level keeps adding pace.
 export function tap(s: Strategy, tapPower: number): void {
   const power = 1 + 0.1 * tapPower;
   if (isPitting(s)) s.pitTapCredit += 1.5 * power;
-  else s.boost = Math.min(1, s.boost + 0.12 * power);
+  else s.boost = Math.min(power, s.boost + 0.12 * power);
 }
 
 export function setMode(s: Strategy, mode: Mode): boolean {

@@ -1,4 +1,4 @@
-import { UPGRADE_DEFS, carRating, formatNumber, incomePerSecond, handlingBonus, HANDLING_CAP } from './economy';
+import { UPGRADE_DEFS, carRating, formatNumber, incomePerSecond, handlingBonus } from './economy';
 import { FREE_LEVELS_PER_RESEARCH, FUNDING_BONUS, RESEARCH_DEFS, SEED_MONEY, researchCost } from './prestige';
 import { paceMultiplier, BREAKDOWN_SECONDS, DNF_SHARE, breakdownChance } from './race';
 import { pitDuration, pitIssueChance } from './strategy';
@@ -27,16 +27,17 @@ export function researchInfo(key: string, state: InfoState & { researchPoints: n
   let description = '';
   switch (key) {
     case 'topSpeed':
-      description = 'Makes the car faster on straights. The bonus has diminishing returns, so each level helps a little less.';
-      stats.push(`Pace on straights: +${pct(handlingBonus(l), 1)} (max +${pct(HANDLING_CAP)})`);
+      description = 'Makes the car faster on straights. Early levels help most, but it never stops growing.';
+      stats.push(`Pace on straights: +${pct(handlingBonus(l), 1)}`);
       break;
     case 'cornering':
-      description = 'Makes the car faster through corners. The bonus has diminishing returns, so each level helps a little less.';
-      stats.push(`Pace in tight corners: +${pct(handlingBonus(l), 1)} (max +${pct(HANDLING_CAP)})`);
+      description = 'Makes the car faster through corners. Early levels help most, but it never stops growing.';
+      stats.push(`Pace in tight corners: +${pct(handlingBonus(l), 1)}`);
       break;
     case 'tapPower':
-      description = 'Makes every tap stronger: more boost on track, and more time taken off a pit stop.';
+      description = 'Makes every tap stronger: more boost on track (and a higher boost ceiling), and more time taken off a pit stop.';
       stats.push(`Boost per tap: ${pct(0.12 * (1 + 0.1 * l), 1)} of the bar`);
+      stats.push(`Boost ceiling: ${pct(1 + 0.1 * l)} of the bar`);
       stats.push(`Pit time saved per tap: ${(1.5 * (1 + 0.1 * l)).toFixed(1)}s`);
       break;
     case 'tyreScience':

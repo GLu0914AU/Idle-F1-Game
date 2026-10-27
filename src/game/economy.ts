@@ -21,18 +21,21 @@ export const COST_GROWTH = 1.15;
 export const BASE_RATING = 25;
 const PRIZE_BASE = 100;
 
-// Max pace bonus (at infinite levels) from Top Speed on straights and Cornering in corners.
+// Pace bonus from Top Speed on straights and Cornering in corners: strong early returns, then a steady linear gain forever.
 const HANDLING_MAX = 0.3;
 const HANDLING_HALF = 25;
+const HANDLING_TAIL = 0.002;
 
 export interface Handling {
   topSpeed: number;
   cornering: number;
 }
 
-// Pace bonus (0..HANDLING_MAX) from one handling stat level, with diminishing returns.
-export const handlingBonus = (level: number) => HANDLING_MAX * (level / (level + HANDLING_HALF));
-export const HANDLING_CAP = HANDLING_MAX;
+// Pace bonus from one handling stat level. The first part flattens out; the tail keeps it growing without limit.
+export const handlingBonus = (level: number) => {
+  const l = Math.max(0, level);
+  return HANDLING_MAX * (l / (l + HANDLING_HALF)) + HANDLING_TAIL * l;
+};
 
 // Pace multiplier at a point of cornerness c (0 straight .. 1 tight corner). Diminishing returns per stat.
 export function handlingFactor(h: Handling, c: number): number {

@@ -63,6 +63,18 @@ describe('strategy', () => {
     expect(s.boost).toBe(0);
   });
 
+  it('Tap Power raises the boost ceiling above 1, with no limit', () => {
+    const plain = newStrategy();
+    const strong = newStrategy();
+    for (let i = 0; i < 40; i++) {
+      tap(plain, 0);
+      tap(strong, 30);
+    }
+    expect(plain.boost).toBe(1);
+    expect(strong.boost).toBe(4);
+    expect(paceFactor(strong)).toBeGreaterThan(paceFactor(plain));
+  });
+
   it('tyres are fitted only by the race when a car completes its stop, not on track', () => {
     const s = newStrategy();
     stepStrategy(s, 100, L);

@@ -593,7 +593,7 @@ export class GameScene extends Phaser.Scene {
   private renderStrategy() {
     const bar = (y: number, h: number, value: number, color: number) => {
       this.barGfx.fillStyle(0x1d2745).fillRect(W - 140, y, 128, h);
-      this.barGfx.fillStyle(color).fillRect(W - 140, y, 128 * value, h);
+      this.barGfx.fillStyle(color).fillRect(W - 140, y, 128 * Math.min(1, value), h);
     };
     this.barGfx.clear();
     this.strategies.forEach((s, i) => bar(VIEW.y + 44 + i * 9, 6, 1 - s.wear, s.wear > 0.7 ? 0xe03b2c : s.wear > 0.4 ? 0xe0b02c : 0x2cc07a));

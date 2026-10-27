@@ -38,7 +38,8 @@ describe('handling', () => {
     expect(handlingFactor({ topSpeed: 0, cornering: 0 }, 0.5)).toBe(1);
     const gain = (l: number) => handlingFactor({ topSpeed: l, cornering: 0 }, 0) - 1;
     expect(gain(20) - gain(10)).toBeLessThan(gain(10) - gain(0));
-    expect(gain(1e6)).toBeLessThan(0.3001);
+    expect(gain(1e6)).toBeGreaterThan(gain(1e3));
+    expect(gain(1000)).toBeGreaterThan(0.3);
   });
 
   it('handling upgrades make a player car faster than identical one without', () => {
