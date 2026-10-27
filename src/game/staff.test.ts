@@ -74,35 +74,33 @@ describe('staff wages', () => {
     hire(s, 'pit', { speed: 60, precision: 60 }, 500);
     s.money = 300;
     const r = payStaff(s);
-    expect(r.paid).toBe(100);
+    expect(r.paid).toBe(60);
     expect(s.staff.tyre).not.toBeNull();
+    expect(s.staff.pit).not.toBeNull();
+    s.money = 55;
+    expect(payStaff(s).quit).toEqual(['Test']);
     expect(s.staff.pit).toBeNull();
-    expect(r.quit).toEqual(['Test']);
   });
 
-  it('is taken in settleRace only after the final race of a season', () => {
+  it('is taken in settleRace after every race, one instalment at a time', () => {
     const run = (race: number) => {
       const s = newGame();
-      hire(s, 'wind', { insight: 50 }, 10);
+      hire(s, 'wind', { insight: 50 }, 100);
       s.money = 1000;
       s.race = race;
       const r = createRace({ season: 1, seed: 5, laps: 1 } as never);
       stepRace(r, 100000, 1);
       return settleRace(s, r.cars.slice().sort((a, b) => b.progress - a.progress), mulberry32(1));
     };
-    expect(run(3).wagesPaid).toBe(0);
-    expect(run(10).wagesPaid).toBeGreaterThanOrEqual(10);
+    expect(run(3).wagesPaid).toBe(10);
+    expect(run(10).wagesPaid).toBe(10);
   });
 
-  it('builds the Auto Buy reserve up across the season', () => {
+  it('keeps the next race\'s wages aside for Auto Buy', () => {
     const s = newGame();
     hire(s, 'wind', { insight: 50 }, 1000);
-    s.race = 1;
-    expect(payrollReserve(s)).toBe(100);
-    s.race = 5;
-    expect(payrollReserve(s)).toBe(500);
-    s.race = 10;
-    expect(payrollReserve(s)).toBe(1000);
+    s.drivers[0].salary = 200;
+    expect(payrollReserve(s)).toBe(100 + 20);
   });
 });
 

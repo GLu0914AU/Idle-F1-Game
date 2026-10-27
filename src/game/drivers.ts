@@ -1,4 +1,5 @@
 import { prize } from './economy';
+import { RACES_PER_SEASON } from './season';
 import type { GameState } from './save';
 import { PLAYER_DRIVERS } from './teams';
 
@@ -155,6 +156,9 @@ export const salaryMarket = (season: number) => Math.max(1, Math.round(prize(1, 
 
 export const payroll = (state: Pick<GameState, 'drivers'>) => state.drivers.reduce((sum, d) => sum + d.salary, 0);
 
+// A season's salary is paid in equal instalments after each race.
+export const wagePerRace = (salary: number) => (salary > 0 ? Math.max(1, Math.round(salary / RACES_PER_SEASON)) : 0);
+
 // What a candidate asks per race, from their quality in 0..1: `secret` is the least they accept, and lo..hi is the estimate the player sees.
 export function rollAsk(season: number, q: number, rng: () => number): { secret: number; lo: number; hi: number } {
   const secret = Math.max(1, Math.round(salaryMarket(season) * (SECRET_MIN + q * (SECRET_MAX - SECRET_MIN)) * (0.85 + rng() * 0.3)));
@@ -203,15 +207,16 @@ export function endDriverMeeting(state: Pick<GameState, 'driverMeeting'>): void 
   state.driverMeeting = null;
 }
 
-// Takes every salary at the end of a season. A driver the team can't pay walks out and is replaced by a free rookie.
+// Takes one race's instalment of every salary. A driver the team can't pay walks out and is replaced by a free rookie.
 export function payDrivers(state: DriverState): { paid: number; quit: string[] } {
   let paid = 0;
   const quit: string[] = [];
   state.drivers.forEach((d, i) => {
     if (d.salary <= 0) return;
-    if (state.money >= d.salary) {
-      state.money -= d.salary;
-      paid += d.salary;
+    const due = wagePerRace(d.salary);
+    if (state.money >= due) {
+      state.money -= due;
+      paid += due;
     } else {
       quit.push(state.driverNames[i]);
       state.drivers[i] = rookie();

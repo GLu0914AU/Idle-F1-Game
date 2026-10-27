@@ -1,4 +1,4 @@
-import { rollAsk } from './drivers';
+import { rollAsk, wagePerRace } from './drivers';
 import type { GameState } from './save';
 import { Strategy, COMPOUNDS, Compound, isPitting, setMode, togglePitRequest } from './strategy';
 import { autoCompound, shouldAutoPit } from './auto';
@@ -92,13 +92,14 @@ export function endEngineerMeeting(state: Pick<EngineerState, 'engineerMeeting'>
   state.engineerMeeting = null;
 }
 
-// Takes the salary at the end of a season. An engineer the team can't pay walks out and the team goes back to calling strategy by hand.
+// Takes one race's instalment of the salary. An engineer the team can't pay walks out and the team goes back to calling strategy by hand.
 export function payEngineer(state: EngineerState): { paid: number; quit: string[] } {
   const e = state.engineer;
   if (!e || e.salary <= 0) return { paid: 0, quit: [] };
-  if (state.money >= e.salary) {
-    state.money -= e.salary;
-    return { paid: e.salary, quit: [] };
+  const due = wagePerRace(e.salary);
+  if (state.money >= due) {
+    state.money -= due;
+    return { paid: due, quit: [] };
   }
   state.engineer = null;
   return { paid: 0, quit: [e.name] };

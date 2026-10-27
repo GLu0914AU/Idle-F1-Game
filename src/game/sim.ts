@@ -197,7 +197,7 @@ export function simulate(opts: SimOptions): SimResult {
       autoBuyTimer += dt;
       if (autoBuyTimer >= AUTO_BUY_EVERY) {
         autoBuyTimer = 0;
-        const def = pickAutoBuy(state.money, state.upgrades, payrollReserve(state));
+        const def = pickAutoBuy(state.money, state.upgrades, payrollReserve(state), state.autoItems);
         if (def && buyUpgrade(state, def)) applyRating();
       }
     }

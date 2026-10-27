@@ -65,11 +65,20 @@ describe('auto', () => {
       const def = pickAutoBuy(s.money, s.upgrades, payrollReserve(s));
       if (!def || !buyUpgrade(s, def)) break;
     }
-    expect(s.money).toBeGreaterThanOrEqual(2300);
+    expect(s.money).toBeGreaterThanOrEqual(230);
     const drivers = payDrivers(s);
     const engineer = payEngineer(s);
     const staff = payStaff(s);
     expect([...drivers.quit, ...engineer.quit, ...staff.quit]).toEqual([]);
+  });
+
+  it('skips upgrades the player has unticked', () => {
+    const all = pickAutoBuy(1e9, {});
+    expect(all?.key).toBeDefined();
+    const without = pickAutoBuy(1e9, {}, 0, { [all!.key]: false });
+    expect(without?.key).not.toBe(all!.key);
+    const none = Object.fromEntries(UPGRADE_DEFS.map((d) => [d.key, false]));
+    expect(pickAutoBuy(1e9, {}, 0, none)).toBeNull();
   });
 
   it('pits only when worn, not already pitting, and not near the end', () => {

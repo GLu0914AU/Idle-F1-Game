@@ -13,7 +13,7 @@ import {
   openingOffer,
   requestDriverMeeting,
 } from '../game/drivers';
-import { formatNumber } from '../game/economy';
+import { UPGRADE_DEFS, formatNumber } from '../game/economy';
 import {
   ENGINEER_MEETING_CLOUT,
   Engineer,
@@ -273,6 +273,7 @@ export class PanelHost {
     gems: Phaser.GameObjects.Text;
     unlock: Button;
     toggles: { key: AutoKey; button: Button; name: string }[];
+    items: { key: string; name: string; button: Button }[];
     gemBoost: Button;
   };
 
@@ -595,7 +596,7 @@ export class PanelHost {
         const role = this.staffRole;
         const def = STAFF_DEFS[role];
         r.tabs.forEach((b, i) => b.setState(true, STAFF_ROLES[i] === role ? COLORS.green : COLORS.panel));
-        r.info.setText(`Clout: ${s.clout} · ${def.blurb} Paid once a season; unpaid staff quit.`);
+        r.info.setText(`Clout: ${s.clout} · ${def.blurb} Paid in instalments after each race; unpaid staff quit.`);
         const m = s.staffMeetings[role];
         r.meet.setLabel(m ? 'NEGOTIATION IN PROGRESS' : `MEET A ${def.title.toUpperCase()}: ${STAFF_MEETING_CLOUT} CLOUT`);
         r.meet.setState(!m && s.clout >= STAFF_MEETING_CLOUT, COLORS.green);
@@ -1166,7 +1167,7 @@ export class PanelHost {
 
   private renderRecruit(s: GameState) {
     const r = this.recruit;
-    r.info.setText(`Clout: ${s.clout} · Win races, then run a Fan Event to earn clout. Drivers stay until you replace them, and are paid once a season: if you can't pay, they quit.`);
+    r.info.setText(`Clout: ${s.clout} · Win races, then run a Fan Event to earn clout. Drivers stay until you replace them, and are paid a tenth of their season salary after every race: if you can't pay, they quit.`);
     r.meet.setLabel(s.driverMeeting ? 'NEGOTIATION IN PROGRESS' : `MEET A DRIVER: ${DRIVER_MEETING_CLOUT} CLOUT`);
     r.meet.setState(!s.driverMeeting && s.clout >= DRIVER_MEETING_CLOUT, COLORS.green);
 
@@ -1339,10 +1340,29 @@ export class PanelHost {
         { size: 16, parent: c },
       ),
     }));
+    addText(this.scene, 30, 376, 'AUTO BUY CHECKLIST: tick what it may buy', 13, '#9aa7d0', c);
+    const cardW = (W - 60 - 12) / 2;
+    const items = UPGRADE_DEFS.map((def, i) => ({
+      key: def.key,
+      name: def.name,
+      button: addButton(
+        this.scene,
+        30 + (i % 2) * (cardW + 12),
+        400 + Math.floor(i / 2) * 46,
+        cardW,
+        38,
+        def.name,
+        () => {
+          const s = this.state();
+          s.autoItems[def.key] = s.autoItems[def.key] === false;
+        },
+        { size: 15, parent: c },
+      ),
+    }));
     addButton(
       this.scene,
       30,
-      390,
+      546,
       W - 60,
       48,
       `Watch ad: 2x speed for ${BOOST_SECONDS}s`,
@@ -1354,7 +1374,7 @@ export class PanelHost {
     const gemBoost = addButton(
       this.scene,
       30,
-      450,
+      606,
       W - 60,
       48,
       `${GEM_BOOST_COST} gems: 2x speed for ${GEM_BOOST_SECONDS / 60} min`,
@@ -1366,8 +1386,8 @@ export class PanelHost {
       },
       { size: 16, parent: c },
     );
-    addText(this.scene, W / 2, 530, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
-    this.shop = { gems, unlock, toggles, gemBoost };
+    addText(this.scene, W / 2, 680, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
+    this.shop = { gems, unlock, toggles, items, gemBoost };
   }
 
   render() {
@@ -1406,6 +1426,11 @@ export class PanelHost {
       for (const { key, name, button } of sh.toggles) {
         button.setLabel(`${name}: ${s[key] ? 'ON' : 'OFF'}`);
         button.setState(s.autoUnlocked, s[key] ? COLORS.green : COLORS.accent);
+      }
+      for (const { key, name, button } of sh.items) {
+        const on = s.autoItems[key] !== false;
+        button.setLabel(on ? `✓ ${name}` : name);
+        button.setState(s.autoUnlocked, on ? COLORS.green : COLORS.bg);
       }
       sh.gemBoost.setState(s.gems >= GEM_BOOST_COST);
     }

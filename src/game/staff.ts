@@ -1,5 +1,4 @@
-import { openingOffer, payroll, rollAsk } from './drivers';
-import { RACES_PER_SEASON } from './season';
+import { openingOffer, payroll, rollAsk, wagePerRace } from './drivers';
 import type { GameState } from './save';
 
 // Specialist staff beyond the race engineer. Each role is hired with clout and the same hidden-minimum-wage haggling, is paid once per
@@ -120,16 +119,17 @@ export function endStaffMeeting(state: Pick<StaffState, 'staffMeetings'>, role: 
   state.staffMeetings[role] = null;
 }
 
-// Takes every salary at the end of a season. Staff the team can't pay walk out.
+// Takes one race's instalment of every salary. Staff the team can't pay walk out.
 export function payStaff(state: StaffState): { paid: number; quit: string[] } {
   let paid = 0;
   const quit: string[] = [];
   for (const role of STAFF_ROLES) {
     const m = state.staff[role];
     if (!m || m.salary <= 0) continue;
-    if (state.money >= m.salary) {
-      state.money -= m.salary;
-      paid += m.salary;
+    const due = wagePerRace(m.salary);
+    if (state.money >= due) {
+      state.money -= due;
+      paid += due;
     } else {
       state.staff[role] = null;
       quit.push(m.name);
@@ -138,15 +138,21 @@ export function payStaff(state: StaffState): { paid: number; quit: string[] } {
   return { paid, quit };
 }
 
-// Everything the team owes at the end of a season: both drivers, the race engineer and the specialist staff.
+// Everything the team owes per season: both drivers, the race engineer and the specialist staff.
 export function totalPayroll(state: Pick<GameState, 'drivers' | 'engineer' | 'staff'>): number {
   const staff = STAFF_ROLES.reduce((sum, role) => sum + (state.staff?.[role]?.salary ?? 0), 0);
   return payroll(state) + (state.engineer?.salary ?? 0) + staff;
 }
 
-// How much of the season's wage bill Auto Buy should have set aside by now: it builds up race by race.
-export function payrollReserve(state: Pick<GameState, 'drivers' | 'engineer' | 'staff' | 'race'>): number {
-  return Math.ceil(totalPayroll(state) * Math.min(1, state.race / RACES_PER_SEASON));
+// What the whole team is paid after each race.
+export function wagesPerRace(state: Pick<GameState, 'drivers' | 'engineer' | 'staff'>): number {
+  const staff = STAFF_ROLES.reduce((sum, role) => sum + wagePerRace(state.staff?.[role]?.salary ?? 0), 0);
+  return state.drivers.reduce((sum, d) => sum + wagePerRace(d.salary), 0) + wagePerRace(state.engineer?.salary ?? 0) + staff;
+}
+
+// Money Auto Buy leaves untouched: the next race's wages, so nobody quits over a missed instalment.
+export function payrollReserve(state: Pick<GameState, 'drivers' | 'engineer' | 'staff'>): number {
+  return wagesPerRace(state);
 }
 
 export interface StaffEffects {

@@ -25,6 +25,8 @@ export interface GameState {
   autoUnlocked: boolean;
   teamNamed: boolean;
   autoBuy: boolean;
+  // Which car upgrades Auto Buy may buy; a missing key counts as ticked.
+  autoItems: Record<string, boolean>;
   autoTap: boolean;
   // Auto Buy for R&D (research points); part of the Auto unlock.
   autoResearch: boolean;
@@ -97,6 +99,7 @@ export function newGame(now = Date.now()): GameState {
     autoUnlocked: false,
     teamNamed: false,
     autoBuy: false,
+    autoItems: {},
     autoTap: false,
     autoResearch: false,
     boostSeconds: 0,
@@ -145,6 +148,7 @@ export function loadGame(store: Store = localStorage, now = Date.now()): GameSta
       ...data,
       upgrades: { ...fresh.upgrades, ...(data.upgrades ?? {}) },
       points: { ...(data.points ?? {}) },
+      autoItems: { ...(data.autoItems ?? {}) },
       driverPoints: { ...(data.driverPoints ?? {}) },
       research: { ...(data.research ?? {}) },
       sponsorList: [...(data.sponsorList ?? [])],

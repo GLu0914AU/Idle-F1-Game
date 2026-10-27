@@ -65,11 +65,11 @@ describe('engineer wages', () => {
   const e: Engineer = { name: 'X', pit: 90, tyre: 90, mode: 90, salary: 100 };
   it('pays when affordable', () => {
     const s = base({ engineer: e, money: 500 });
-    expect(payEngineer(s)).toEqual({ paid: 100, quit: [] });
-    expect(s.money).toBe(400);
+    expect(payEngineer(s)).toEqual({ paid: 10, quit: [] });
+    expect(s.money).toBe(490);
   });
-  it('quits when unpaid', () => {
-    const s = base({ engineer: e, money: 10 });
+  it('quits when the instalment cannot be paid', () => {
+    const s = base({ engineer: e, money: 5 });
     expect(payEngineer(s).quit).toEqual(['X']);
     expect(s.engineer).toBeNull();
   });
