@@ -6,7 +6,7 @@ const CURRENCY_SHORT: Record<Currency, string> = { gems: 'Gems', rp: 'RP', clout
 const AD_NAMES: Record<AdKind, string> = { money: 'Free cash', gems: 'Free gems', rp: 'Free RP', clout: 'Free clout' };
 import { GameState } from '../game/save';
 import { MIN_PRESTIGE_SEASON, RESEARCH_DEFS, ResearchDef, buyResearch, researchCost, researchPointsFor } from '../game/prestige';
-import { openingPitch, meetingCost, pitch, requestMeeting, sponsorIncome, walkAway } from '../game/sponsors';
+import { MAX_SPONSORS, openingPitch, meetingCost, pitch, requestMeeting, sponsorIncome, walkAway } from '../game/sponsors';
 import {
   DRIVER_MEETING_CLOUT,
   DriverStats,
@@ -471,9 +471,10 @@ export class PanelHost {
   private renderSponsors(s: GameState) {
     const p = this.sponsors;
     const cost = meetingCost(s.sponsorList.length);
-    p.info.setText(`Gems: ${s.gems} · Sponsors pay you at the start of each new season. Pitch too high and they walk away.`);
-    p.meet.setLabel(s.meeting ? 'MEETING IN PROGRESS' : `MEET A SPONSOR: ${cost} GEMS`);
-    p.meet.setState(!s.meeting && s.gems >= cost, COLORS.green);
+    const full = s.sponsorList.length >= MAX_SPONSORS;
+    p.info.setText(`Gems: ${s.gems} · Sponsors ${s.sponsorList.length}/${MAX_SPONSORS} pay you at the start of each season and stay through prestige. Pitch too high and they walk away.`);
+    p.meet.setLabel(s.meeting ? 'MEETING IN PROGRESS' : full ? 'SPONSOR SLOTS FULL' : `MEET A SPONSOR: ${cost} GEMS`);
+    p.meet.setState(!s.meeting && !full && s.gems >= cost, COLORS.green);
 
     const m = s.meeting;
     if (m !== this.pitchFor) {

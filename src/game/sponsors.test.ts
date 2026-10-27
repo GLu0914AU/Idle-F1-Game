@@ -3,6 +3,7 @@ import { prestige } from './prestige';
 import { loadGame, newGame, saveGame } from './save';
 import { mulberry32 } from './race';
 import {
+  MAX_SPONSORS,
   MEETING_BASE_GEMS,
   MEETING_GEM_STEP,
   marketValue,
@@ -112,7 +113,7 @@ describe('sponsors', () => {
     expect(names.size).toBe(10);
   });
 
-  it('prestige resets sponsors, and sponsors plus an open meeting survive a save', () => {
+  it('sponsors survive prestige, and sponsors plus an open meeting survive a save', () => {
     const s = rich();
     requestMeeting(s, mulberry32(7));
     pitch(s, 1);
@@ -125,6 +126,16 @@ describe('sponsors', () => {
     expect(loaded.meeting).toEqual(s.meeting);
     loaded.season = 5;
     prestige(loaded);
-    expect(loaded.sponsorList).toEqual([]);
+    expect(loaded.sponsorList).toHaveLength(1);
+  });
+
+  it('is capped at 15 sponsors', () => {
+    const s = rich();
+    for (let i = 0; i < MAX_SPONSORS; i++) {
+      expect(requestMeeting(s, mulberry32(i))).not.toBeNull();
+      pitch(s, 1);
+    }
+    expect(s.sponsorList).toHaveLength(MAX_SPONSORS);
+    expect(requestMeeting(s, mulberry32(99))).toBeNull();
   });
 });

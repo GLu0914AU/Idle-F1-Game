@@ -48,6 +48,8 @@ const NAMES = [
 // What a typical sponsor is worth at the start of a season; it grows with the season like prize money does.
 export const marketValue = (season: number) => Math.round(MARKET_BASE * MARKET_GROWTH ** (season - 1));
 
+export const MAX_SPONSORS = 15;
+
 // Each sponsor you have signed makes the next meeting cost more gems.
 export const meetingCost = (signed: number) => MEETING_BASE_GEMS + MEETING_GEM_STEP * signed;
 
@@ -59,7 +61,7 @@ export const openingPitch = (m: Meeting) => Math.round(Math.sqrt(m.lo * m.hi));
 // Pays for a meeting with gems and rolls a sponsor with a hidden budget. Returns null if one is already open or gems are short.
 export function requestMeeting(state: SponsorState, rng: () => number = Math.random): Meeting | null {
   const cost = meetingCost(state.sponsorList.length);
-  if (state.meeting || state.gems < cost) return null;
+  if (state.meeting || state.sponsorList.length >= MAX_SPONSORS || state.gems < cost) return null;
   state.gems -= cost;
   const taken = new Set(state.sponsorList.map((s) => s.name));
   const free = NAMES.filter((n) => !taken.has(n));
