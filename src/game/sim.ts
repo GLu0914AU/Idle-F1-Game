@@ -17,7 +17,7 @@ import { Race, createRace, mulberry32, standings, stepRace } from './race';
 import { GameState, newGame } from './save';
 import { settleRace } from './settle';
 import { RACES_PER_SEASON } from './season';
-import { STAFF_MEETING_CLOUT, STAFF_ROLES, endStaffMeeting, offerStaffContract, payrollReserve, requestStaffMeeting, staffEffects } from './staff';
+import { STAFF_MEETING_CLOUT, STAFF_ROLES, autoPayWages, endStaffMeeting, offerStaffContract, payrollReserve, requestStaffMeeting, staffEffects } from './staff';
 import { meetingCost, pitch, requestMeeting } from './sponsors';
 import { newStrategy, stepStrategy, tap, Strategy } from './strategy';
 import { pickTrack } from './tracks';
@@ -197,6 +197,7 @@ export function simulate(opts: SimOptions): SimResult {
       autoBuyTimer += dt;
       if (autoBuyTimer >= AUTO_BUY_EVERY) {
         autoBuyTimer = 0;
+        cur.wages += autoPayWages(state);
         const def = pickAutoBuy(state.money, state.upgrades, payrollReserve(state), state.autoItems);
         if (def && buyUpgrade(state, def)) applyRating();
       }

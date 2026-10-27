@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { pickAutoBuy } from '../game/auto';
 import { ENGINEER_REVIEW_SECONDS, reviewStrategy } from '../game/engineers';
-import { payrollReserve, staffEffects, wagesPerRace } from '../game/staff';
+import { autoPayWages, nextInstalment, owedInstalments, payInstalment, payrollReserve, staffEffects, totalPayroll, wagesOwed } from '../game/staff';
 import {
   UPGRADE_DEFS,
   UpgradeDef,
@@ -120,6 +120,7 @@ export class GameScene extends Phaser.Scene {
   private tyreBtns: Partial<Record<Compound, Button>>[] = [{}, {}];
   private pitBtns: Button[] = [];
   private speedBtn!: Button;
+  private payBtn!: Button;
   private autoBtn!: Button;
 
   constructor() {
@@ -608,31 +609,47 @@ export class GameScene extends Phaser.Scene {
 
   private drawStats() {
     const y = VIEW.y + VIEW.h + 6;
-    this.incomeText = addText(this, 16, y + 8, '', 16);
+    this.incomeText = addText(this, 16, y + 10, '', 13);
+    this.payBtn = addButton(
+      this,
+      206,
+      y,
+      92,
+      34,
+      '',
+      () => {
+        const paid = payInstalment(this.state);
+        if (paid > 0) {
+          playSound('buy');
+          this.floatText(W - 90, 96, `-$${formatNumber(paid)} wages`, '#ff8a80');
+        }
+      },
+      { size: 12, fill: COLORS.green },
+    );
     this.speedBtn = addButton(
       this,
-      300,
+      304,
       y,
-      110,
+      100,
       34,
       '',
       async () => {
         if (this.state.boostSeconds <= 0 && (await showRewardedAd())) this.state.boostSeconds += BOOST_SECONDS;
       },
-      { fill: COLORS.green },
+      { fill: COLORS.green, size: 14 },
     );
     this.autoBtn = addButton(
       this,
-      420,
+      410,
       y,
-      110,
+      120,
       34,
       '',
       () => {
         if (this.state.autoUnlocked) this.state.autoBuy = !this.state.autoBuy;
         else this.selectTab(TABS.indexOf('Shop'));
       },
-      { fill: COLORS.bg },
+      { fill: COLORS.bg, size: 14 },
     );
   }
 
@@ -711,8 +728,12 @@ export class GameScene extends Phaser.Scene {
     const s = this.state;
     const rating = carRating(this.eff());
     this.moneyText.setText(`$ ${formatNumber(s.money)}`);
-    const wages = wagesPerRace(s);
-    this.wageText.setText(wages > 0 ? `WAGES\n-$${formatNumber(wages)}/race` : '');
+    const wages = totalPayroll(s);
+    const owed = wagesOwed(s);
+    this.wageText.setText(wages > 0 ? (owed > 0 ? `WAGES OWED\n$${formatNumber(owed)}` : `WAGES\n$${formatNumber(nextInstalment(s))}/race`) : '');
+    if (owedInstalments(s) > 0) this.payBtn.setLabel(`PAY $${formatNumber(nextInstalment(s))}`);
+    else this.payBtn.setLabel(wages > 0 ? 'WAGES PAID' : 'NO WAGES');
+    this.payBtn.setState(owedInstalments(s) > 0 && s.money >= nextInstalment(s), COLORS.green);
     this.gemText.setText(String(s.gems));
     this.rpText.setText(`${s.researchPoints} RP`);
     this.cloutText.setText(String(s.clout));
@@ -878,6 +899,8 @@ export class GameScene extends Phaser.Scene {
       this.autoBuyTimer += dt;
       if (this.autoBuyTimer >= 0.5) {
         this.autoBuyTimer = 0;
+        const paid = autoPayWages(s);
+        if (paid > 0) this.floatText(W - 90, 96, `-$${formatNumber(paid)} wages`, '#ff8a80');
         const def = pickAutoBuy(s.money, s.upgrades, payrollReserve(s), s.autoItems);
         if (def && buyUpgrade(s, def)) this.applyRating();
       }

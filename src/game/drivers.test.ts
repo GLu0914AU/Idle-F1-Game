@@ -91,19 +91,26 @@ describe('wages', () => {
     s.money = 1000;
     s.drivers[0].salary = 100;
     s.drivers[1].salary = 250;
-    expect(payDrivers(s)).toEqual({ paid: 35, quit: [] });
-    expect(s.money).toBe(965);
+    expect(payDrivers(s)).toEqual({ paid: 350, quit: [] });
+    expect(s.money).toBe(650);
+  });
+
+  it('only charge what is left after early instalments', () => {
+    const s = state();
+    s.money = 1000;
+    s.drivers[0].salary = 100;
+    expect(payDrivers(s, 4)).toEqual({ paid: 60, quit: [] });
   });
 
   it('make a driver quit when unaffordable, replaced by a free rookie', () => {
     const s = state();
-    s.money = 12;
+    s.money = 120;
     s.driverNames[1] = 'Big Name';
     s.drivers[0].salary = 100;
     s.drivers[1] = { ...rookie(), skill: 20, salary: 500 };
     const r = payDrivers(s);
     expect(r.quit).toEqual(['Big Name']);
-    expect(s.money).toBe(2);
+    expect(s.money).toBe(20);
     expect(s.drivers[1]).toEqual(rookie());
     expect(s.driverNames[1]).toBe(PLAYER_DRIVERS[1]);
   });

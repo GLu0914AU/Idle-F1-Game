@@ -1,4 +1,4 @@
-import { openingOffer, payroll, rollAsk, wagePerRace } from './drivers';
+import { openingOffer, payroll, remainingSalary, rollAsk, wagePerRace } from './drivers';
 import type { GameState } from './save';
 
 // Specialist staff beyond the race engineer. Each role is hired with clout and the same hidden-minimum-wage haggling, is paid once per
@@ -119,14 +119,14 @@ export function endStaffMeeting(state: Pick<StaffState, 'staffMeetings'>, role: 
   state.staffMeetings[role] = null;
 }
 
-// Takes one race's instalment of every salary. Staff the team can't pay walk out.
-export function payStaff(state: StaffState): { paid: number; quit: string[] } {
+// Settles what is left of every salary at season's end. Staff the team can't pay walk out.
+export function payStaff(state: StaffState, instalments = 0): { paid: number; quit: string[] } {
   let paid = 0;
   const quit: string[] = [];
   for (const role of STAFF_ROLES) {
     const m = state.staff[role];
     if (!m || m.salary <= 0) continue;
-    const due = wagePerRace(m.salary);
+    const due = remainingSalary(m.salary, instalments);
     if (state.money >= due) {
       state.money -= due;
       paid += due;
@@ -144,15 +144,49 @@ export function totalPayroll(state: Pick<GameState, 'drivers' | 'engineer' | 'st
   return payroll(state) + (state.engineer?.salary ?? 0) + staff;
 }
 
-// What the whole team is paid after each race.
-export function wagesPerRace(state: Pick<GameState, 'drivers' | 'engineer' | 'staff'>): number {
-  const staff = STAFF_ROLES.reduce((sum, role) => sum + wagePerRace(state.staff?.[role]?.salary ?? 0), 0);
-  return state.drivers.reduce((sum, d) => sum + wagePerRace(d.salary), 0) + wagePerRace(state.engineer?.salary ?? 0) + staff;
+type WageState = Pick<GameState, 'drivers' | 'engineer' | 'staff' | 'race' | 'wageInstalments' | 'money'>;
+
+const salaries = (state: Pick<GameState, 'drivers' | 'engineer' | 'staff'>): number[] => [
+  ...state.drivers.map((d) => d.salary),
+  state.engineer?.salary ?? 0,
+  ...STAFF_ROLES.map((role) => state.staff?.[role]?.salary ?? 0),
+];
+
+// What one instalment (a tenth of every salary) comes to, never more than is still owed.
+export function nextInstalment(state: WageState): number {
+  return salaries(state).reduce((sum, s) => sum + Math.min(wagePerRace(s), remainingSalary(s, state.wageInstalments)), 0);
 }
 
-// Money Auto Buy leaves untouched: the next race's wages, so nobody quits over a missed instalment.
-export function payrollReserve(state: Pick<GameState, 'drivers' | 'engineer' | 'staff'>): number {
-  return wagesPerRace(state);
+// Instalments that have fallen due (one per finished race) but not been paid yet.
+export const owedInstalments = (state: Pick<GameState, 'race' | 'wageInstalments'>): number => Math.max(0, state.race - 1 - state.wageInstalments);
+
+// The wage bill that has fallen due so far.
+export const wagesOwed = (state: WageState): number => Math.min(owedInstalments(state) * nextInstalment(state), wagesRemaining(state));
+
+// Everything still unpaid for the season, including instalments not yet due.
+export const wagesRemaining = (state: WageState): number => salaries(state).reduce((sum, s) => sum + remainingSalary(s, state.wageInstalments), 0);
+
+// Pays one instalment early. Returns what was paid, or 0 if nothing is owed or the team can't afford it.
+export function payInstalment(state: WageState): number {
+  if (owedInstalments(state) <= 0) return 0;
+  const amount = nextInstalment(state);
+  if (amount <= 0 || state.money < amount) return 0;
+  state.money -= amount;
+  state.wageInstalments += 1;
+  return amount;
+}
+
+// Auto Buy's wage tick: pays every instalment that is owed and affordable. Returns the total paid.
+export function autoPayWages(state: WageState & Pick<GameState, 'autoItems'>): number {
+  if (state.autoItems?.wages === false) return 0;
+  let total = 0;
+  for (let paid = payInstalment(state); paid > 0; paid = payInstalment(state)) total += paid;
+  return total;
+}
+
+// Money Auto Buy leaves untouched: what is owed now plus the next instalment, so nobody quits at season's end.
+export function payrollReserve(state: WageState): number {
+  return Math.min(wagesRemaining(state), (owedInstalments(state) + 1) * nextInstalment(state));
 }
 
 export interface StaffEffects {

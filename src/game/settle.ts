@@ -40,9 +40,13 @@ export function settleRace(state: GameState, order: Car[], rng: () => number = M
     sponsorCash = sponsorIncome(state);
     state.money += sponsorCash;
   }
-  // Salaries are paid in instalments, one after every race.
-  const wages = payDrivers(state);
-  const engineerWage = payEngineer(state);
-  const staffWage = payStaff(state);
+  // Salaries are due at season's end; whatever the player hasn't already paid in instalments is settled now.
+  const none = { paid: 0, quit: [] as string[] };
+  const seasonOver = outcome.type !== 'next-race';
+  const done = state.wageInstalments;
+  const wages = seasonOver ? payDrivers(state, done) : none;
+  const engineerWage = seasonOver ? payEngineer(state, done) : none;
+  const staffWage = seasonOver ? payStaff(state, done) : none;
+  if (seasonOver) state.wageInstalments = 0;
   return { positions, payout, wagesPaid: wages.paid + engineerWage.paid + staffWage.paid, quit: [...wages.quit, ...engineerWage.quit, ...staffWage.quit], outcome, sponsorCash, development };
 }

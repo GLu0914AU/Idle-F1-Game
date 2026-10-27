@@ -98,6 +98,7 @@ export function prestige(state: GameState): number {
   state.bestSeason = Math.max(state.bestSeason, state.season);
   state.season = 1;
   state.race = 1;
+  state.wageInstalments = 0;
   state.points = {};
   state.driverPoints = {};
   state.upgrades = Object.fromEntries(UPGRADE_DEFS.map((d) => [d.key, 0]));

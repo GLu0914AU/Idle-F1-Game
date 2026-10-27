@@ -596,7 +596,7 @@ export class PanelHost {
         const role = this.staffRole;
         const def = STAFF_DEFS[role];
         r.tabs.forEach((b, i) => b.setState(true, STAFF_ROLES[i] === role ? COLORS.green : COLORS.panel));
-        r.info.setText(`Clout: ${s.clout} · ${def.blurb} Paid in instalments after each race; unpaid staff quit.`);
+        r.info.setText(`Clout: ${s.clout} · ${def.blurb} Paid by season's end (a tenth per race, or early with PAY WAGES); unpaid staff quit.`);
         const m = s.staffMeetings[role];
         r.meet.setLabel(m ? 'NEGOTIATION IN PROGRESS' : `MEET A ${def.title.toUpperCase()}: ${STAFF_MEETING_CLOUT} CLOUT`);
         r.meet.setState(!m && s.clout >= STAFF_MEETING_CLOUT, COLORS.green);
@@ -1167,7 +1167,7 @@ export class PanelHost {
 
   private renderRecruit(s: GameState) {
     const r = this.recruit;
-    r.info.setText(`Clout: ${s.clout} · Win races, then run a Fan Event to earn clout. Drivers stay until you replace them, and are paid a tenth of their season salary after every race: if you can't pay, they quit.`);
+    r.info.setText(`Clout: ${s.clout} · Win races, then run a Fan Event to earn clout. Drivers stay until you replace them, and are paid by the end of each season (use PAY WAGES on the Race tab to pay a tenth at a time): if you can't pay what's left, they quit.`);
     r.meet.setLabel(s.driverMeeting ? 'NEGOTIATION IN PROGRESS' : `MEET A DRIVER: ${DRIVER_MEETING_CLOUT} CLOUT`);
     r.meet.setState(!s.driverMeeting && s.clout >= DRIVER_MEETING_CLOUT, COLORS.green);
 
@@ -1340,9 +1340,9 @@ export class PanelHost {
         { size: 16, parent: c },
       ),
     }));
-    addText(this.scene, 30, 376, 'AUTO BUY CHECKLIST: tick what it may buy', 13, '#9aa7d0', c);
+    addText(this.scene, 30, 376, 'AUTO BUY CHECKLIST: tick what it may do', 13, '#9aa7d0', c);
     const cardW = (W - 60 - 12) / 2;
-    const items = UPGRADE_DEFS.map((def, i) => ({
+    const items = [...UPGRADE_DEFS.map((d) => ({ key: d.key, name: d.name })), { key: 'wages', name: 'Pay Wages' }].map((def, i) => ({
       key: def.key,
       name: def.name,
       button: addButton(
@@ -1362,7 +1362,7 @@ export class PanelHost {
     addButton(
       this.scene,
       30,
-      546,
+      592,
       W - 60,
       48,
       `Watch ad: 2x speed for ${BOOST_SECONDS}s`,
@@ -1374,7 +1374,7 @@ export class PanelHost {
     const gemBoost = addButton(
       this.scene,
       30,
-      606,
+      652,
       W - 60,
       48,
       `${GEM_BOOST_COST} gems: 2x speed for ${GEM_BOOST_SECONDS / 60} min`,
@@ -1386,7 +1386,7 @@ export class PanelHost {
       },
       { size: 16, parent: c },
     );
-    addText(this.scene, W / 2, 680, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
+    addText(this.scene, W / 2, 726, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
     this.shop = { gems, unlock, toggles, items, gemBoost };
   }
 

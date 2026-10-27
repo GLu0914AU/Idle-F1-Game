@@ -27,6 +27,8 @@ export interface GameState {
   autoBuy: boolean;
   // Which car upgrades Auto Buy may buy; a missing key counts as ticked.
   autoItems: Record<string, boolean>;
+  // Salary instalments paid so far this season; the rest is settled when it ends.
+  wageInstalments: number;
   autoTap: boolean;
   // Auto Buy for R&D (research points); part of the Auto unlock.
   autoResearch: boolean;
@@ -100,6 +102,7 @@ export function newGame(now = Date.now()): GameState {
     teamNamed: false,
     autoBuy: false,
     autoItems: {},
+    wageInstalments: 0,
     autoTap: false,
     autoResearch: false,
     boostSeconds: 0,
