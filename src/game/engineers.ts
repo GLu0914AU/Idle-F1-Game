@@ -110,6 +110,8 @@ export const ENGINEER_REVIEW_SECONDS = 4;
 export const BLUNDER_CHANCE = 0.04;
 // Game-laps from the flag inside which no stop is called.
 const NO_STOP_LAPS = 0.8;
+// Tyre wear from which the engineer takes a free stop under the safety car.
+export const SAFETY_CAR_STOP_WEAR = 0.3;
 
 // What the engineer does for one car. Called every few seconds of real time; each decision is right with the matching stat's probability,
 // and otherwise goes wrong: a pit call is missed (or made for no reason), a tyre is the wrong one, a mode change goes the wrong way.
@@ -120,11 +122,14 @@ export function reviewStrategy(
   totalLaps: number,
   wetness: number,
   rng: () => number,
+  safetyCar = false,
 ): void {
   const right = (pct: number) => rng() * 100 < pct;
   const left = totalLaps - progressLaps;
+  // A safety car makes a stop cheap, so a worn set is worth changing even before it is due.
+  const cheapStop = safetyCar && st.wear >= SAFETY_CAR_STOP_WEAR && left > NO_STOP_LAPS * 2 && !st.pitRequested && !isPitting(st);
 
-  if (shouldAutoPit(st, progressLaps, totalLaps, wetness)) {
+  if (shouldAutoPit(st, progressLaps, totalLaps, wetness) || cheapStop) {
     if (right(e.pit)) {
       // The player's own tyre choice always wins over the engineer's.
       if (!st.compoundChosen) {

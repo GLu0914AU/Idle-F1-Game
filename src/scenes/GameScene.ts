@@ -87,6 +87,7 @@ export class GameScene extends Phaser.Scene {
   private barGfx!: Phaser.GameObjects.Graphics;
   private compoundText!: Phaser.GameObjects.Text;
   private weatherText!: Phaser.GameObjects.Text;
+  private safetyCarText!: Phaser.GameObjects.Text;
   private wetShade!: Phaser.GameObjects.Rectangle;
   private rainGfx!: Phaser.GameObjects.Graphics;
   private towerRows: Phaser.GameObjects.Text[] = [];
@@ -243,6 +244,7 @@ export class GameScene extends Phaser.Scene {
     addText(this, W - 140, VIEW.y + 66, 'BOOST', 10, '#9aa7d0');
     this.compoundText = addText(this, W - 12, VIEW.y + 30, '', 10, '#9aa7d0').setOrigin(1, 0);
     this.weatherText = addText(this, W - 12, VIEW.y + 96, '', 12, '#9aa7d0').setOrigin(1, 0).setStroke('#050914', 3);
+    this.safetyCarText = addText(this, W / 2, VIEW.y + 8, 'SAFETY CAR: pitting is cheap', 20, '#ffd400').setOrigin(0.5, 0).setStroke('#050914', 4).setVisible(false);
   }
 
   // View position at a distance along the lap, optionally shifted sideways (used for the pit lane).
@@ -420,6 +422,8 @@ export class GameScene extends Phaser.Scene {
     const want = idealClass(w);
     this.weatherText.setText(describeWeather(this.race.weather, lap));
     this.weatherText.setColor(isDry(this.race.weather) ? '#ffd86b' : want === 'dry' ? '#9ec5ff' : '#4dc3ff');
+    const sc = this.race.safetyCarActive;
+    this.safetyCarText.setVisible(sc && !this.race.finished).setAlpha(0.65 + 0.35 * Math.sin(this.time.now / 200));
     this.wetShade.setAlpha(0.45 * w);
     this.rainGfx.clear();
     if (w <= 0.02) return;
@@ -748,7 +752,7 @@ export class GameScene extends Phaser.Scene {
     this.engineerTimer = 0;
     this.strategies.forEach((st, i) => {
       const car = this.race.cars.find((c) => c.id === `player-${i}`)!;
-      reviewStrategy(e, st, car.progress, RACE_LAPS, this.race.wetness, Math.random);
+      reviewStrategy(e, st, car.progress, RACE_LAPS, this.race.wetness, Math.random, this.race.safetyCarActive);
     });
   }
 

@@ -224,3 +224,50 @@ describe('race', () => {
     expect(rival(s5)).toBeGreaterThan(rival(s1));
   });
 });
+
+describe('safety car', () => {
+  const withSc = (seed0 = 1) => {
+    for (let seed = seed0; seed < 200; seed++) {
+      const r = createRace(config({ seed, laps: 5 }));
+      if (r.safetyCar) return r;
+    }
+    throw new Error('no safety car found');
+  };
+
+  it('occurs in roughly a quarter of races', () => {
+    let n = 0;
+    for (let seed = 1; seed <= 400; seed++) if (createRace(config({ seed })).safetyCar) n++;
+    expect(n / 400).toBeGreaterThan(0.15);
+    expect(n / 400).toBeLessThan(0.35);
+  });
+
+  it('bunches the field without any car passing another', () => {
+    const race = withSc();
+    let active = 0;
+    for (let i = 0; i < 100000 && !race.finished; i++) {
+      stepRace(race, 0.5);
+      if (race.safetyCarActive) {
+        active++;
+        const running = race.cars.filter((c) => !c.dnf && !c.pit && c.finishTime === null).sort((a, b) => b.progress - a.progress);
+        for (let k = 1; k < running.length; k++) expect(running[k - 1].progress - running[k].progress).toBeGreaterThanOrEqual(0);
+      }
+    }
+    expect(active).toBeGreaterThan(0);
+    expect(race.finished).toBe(true);
+  });
+
+  it('slows the leader to a crawl while it is out', () => {
+    const race = withSc();
+    let racing = 0;
+    let crawling = 0;
+    for (let i = 0; i < 100000 && !race.finished; i++) {
+      const before = Math.max(...race.cars.map((c) => c.progress));
+      stepRace(race, 0.5);
+      const gain = Math.max(...race.cars.map((c) => c.progress)) - before;
+      if (race.safetyCarActive) crawling = Math.max(crawling, gain);
+      else if (race.time > 5 && racing === 0) racing = gain;
+    }
+    expect(crawling).toBeGreaterThan(0);
+    expect(crawling).toBeLessThan(racing * 0.6);
+  });
+});

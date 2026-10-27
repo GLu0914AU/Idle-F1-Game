@@ -211,7 +211,7 @@ export function simulate(opts: SimOptions): SimResult {
         engineerTimer = 0;
         strategies.forEach((st, i) => {
           const car = race.cars.find((c) => c.id === `player-${i}`)!;
-          reviewStrategy(caller, st, car.progress, RACE_LAPS, race.wetness, rng);
+          reviewStrategy(caller, st, car.progress, RACE_LAPS, race.wetness, rng, race.safetyCarActive);
         });
       }
     }

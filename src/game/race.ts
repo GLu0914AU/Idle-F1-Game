@@ -75,7 +75,20 @@ export interface Race {
   weather: Weather;
   // Current track wetness, set from the leader's lap each step.
   wetness: number;
+  // Leader progress (laps) between which the safety car is out, or null when there isn't one this race.
+  safetyCar: { start: number; end: number } | null;
+  safetyCarActive: boolean;
 }
+
+// Chance a race has a safety car, how far the leader travels under it, and how fast the field crawls (a share of racing pace).
+export const SAFETY_CAR_CHANCE = 0.2;
+export const SAFETY_CAR_LAPS = 0.7;
+export const SAFETY_CAR_PACE = 0.4;
+// Gap behind the car ahead the field closes up to, and the catch-up multiplier while further back.
+export const SAFETY_CAR_GAP = 0.02;
+export const SAFETY_CAR_CATCHUP = 2.5;
+// Rivals box at this much less tyre wear than usual under the safety car.
+export const SAFETY_CAR_PIT_WEAR_DROP = 0.25;
 
 // Small deterministic PRNG so races are reproducible in tests.
 export function mulberry32(seed: number): () => number {
@@ -149,7 +162,11 @@ export function createRace(config: RaceConfig): Race {
       car.fault = { at: config.laps * (0.15 + 0.7 * frng()), dnf: frng() < DNF_SHARE, remaining: BREAKDOWN_SECONDS, started: false };
     }
   }
-  return { config, cars, time: 0, finished: false, rng, weather: config.weather ?? DRY, wetness: 0 };
+  // The safety car has its own random stream too.
+  const srng = mulberry32((config.seed ^ 0x5afe5afe) >>> 0);
+  const safetyCar = srng() < SAFETY_CAR_CHANCE ? { start: config.laps * (0.2 + 0.5 * srng()), end: 0 } : null;
+  if (safetyCar) safetyCar.end = safetyCar.start + SAFETY_CAR_LAPS;
+  return { config, cars, time: 0, finished: false, rng, weather: config.weather ?? DRY, wetness: 0, safetyCar, safetyCarActive: false };
 }
 
 // Share of rival tyre choices in the wet that are wrong, and how long (game-seconds) they take to react to a change.
@@ -190,7 +207,7 @@ function stepNpcTyres(race: Race, car: Car, dt: number): number {
   if (!wrong) car.reactAt = undefined;
   else if (canPit && car.reactAt === undefined) car.reactAt = race.time + RIVAL_REACT_MIN + race.rng() * RIVAL_REACT_SPREAD;
   const weatherCall = canPit && wrong && car.reactAt !== undefined && race.time >= car.reactAt;
-  if (canPit && (weatherCall || s.wear >= (car.pitWear ?? 0.7))) {
+  if (canPit && (weatherCall || s.wear >= (car.pitWear ?? 0.7) - (race.safetyCarActive ? SAFETY_CAR_PIT_WEAR_DROP : 0))) {
     s.pitRequested = true;
     s.pitRequestId += 1;
     s.nextCompound = chooseCompound(want, race.rng);
@@ -221,6 +238,17 @@ export function stepRace(race: Race, dt: number, playerBoost = 1, player?: Playe
   if (race.finished) return;
   const { laps, baseLapTime = 90 } = race.config;
   race.wetness = wetnessAt(race.weather, Math.max(...race.cars.map((c) => c.progress)));
+  const leader = Math.max(...race.cars.map((c) => c.progress));
+  race.safetyCarActive = !!race.safetyCar && leader >= race.safetyCar.start && leader < race.safetyCar.end;
+
+  // Under the safety car, cars close up behind the one in front and may not pass it.
+  const ahead = new Map<Car, number>();
+  if (race.safetyCarActive) {
+    const running = race.cars.filter((c) => !c.pit && !c.dnf && c.finishTime === null).sort((a, b) => b.progress - a.progress);
+    running.forEach((c, i) => {
+      if (i > 0) ahead.set(c, running[i - 1].progress);
+    });
+  }
 
   // Taps made during a stop shorten it for the car in the lane.
   for (const car of race.cars) {
@@ -265,8 +293,11 @@ export function stepRace(race: Race, dt: number, playerBoost = 1, player?: Playe
 
     const handling = car.isPlayer && player?.handling ? handlingFactor(player.handling, cornerness(race.config.track, car.progress)) : 1;
     const grip = weatherFactor(s?.compound ?? 'medium', race.wetness, car.raceCraft ?? RIVAL_WET_CRAFT);
-    const lapsPerSecond = (paceMultiplier(car.rating) * car.form * boost * handling * grip * raceCraftBonus(car.raceCraft ?? 0, car.progress) * (crawling ? BREAKDOWN_PACE : 1)) / baseLapTime;
+    const frontProgress = ahead.get(car);
+    const scFactor = race.safetyCarActive ? SAFETY_CAR_PACE * (frontProgress !== undefined && frontProgress - car.progress > SAFETY_CAR_GAP * 2 ? SAFETY_CAR_CATCHUP : 1) : 1;
+    const lapsPerSecond = (paceMultiplier(car.rating) * car.form * boost * handling * grip * raceCraftBonus(car.raceCraft ?? 0, car.progress) * (crawling ? BREAKDOWN_PACE : 1) * scFactor) / baseLapTime;
     car.progress += lapsPerSecond * dt;
+    if (frontProgress !== undefined) car.progress = Math.min(car.progress, Math.max(before, frontProgress - SAFETY_CAR_GAP));
     if (Math.floor(car.progress) > Math.floor(before)) car.form = rollForm(race.rng);
 
     // Peel off into the pit lane at the entrance, which sits just before the line; never so late the exit would pass the flag.

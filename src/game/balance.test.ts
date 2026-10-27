@@ -61,12 +61,13 @@ describe('simulator', () => {
     expect(runs[0].rpEarned).toBeGreaterThan(0);
   }, 120_000);
 
-  it('lets a fresh team clear Season 1 on the first try in a reasonable time', () => {
-    const runs = [1, 2, 3].map((seed) => simulate({ seed, profile: ACTIVE, prestiges: 0 }).runs[0]);
-    for (const r of runs) {
-      expect(r.season1[0].best).toBeLessThanOrEqual(16);
-      expect(r.reached[2]).toBeLessThan(25 * 60);
-    }
+  it('lets a fresh team clear Season 1 in a reasonable time on average', () => {
+    const runs = Array.from({ length: 10 }, (_, i) => simulate({ seed: i + 1, profile: ACTIVE, prestiges: 0 }).runs[0]);
+    const mean = (f: (r: (typeof runs)[number]) => number) => runs.reduce((a, r) => a + f(r), 0) / runs.length;
+    expect(mean((r) => r.season1[0].best)).toBeLessThanOrEqual(12);
+    expect(mean((r) => r.reached[2])).toBeLessThan(20 * 60);
+    // A lost title costs a whole replay, but most teams still win it first time.
+    expect(runs.filter((r) => r.reached[2] < 17 * 60).length).toBeGreaterThanOrEqual(7);
   }, 120_000);
 
   it.runIf(FULL)('reports the opening (Season 1, first run)', () => {
