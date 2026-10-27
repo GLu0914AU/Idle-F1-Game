@@ -23,6 +23,8 @@ export interface GameState {
   driverPoints: Record<string, number>;
   upgrades: Record<string, number>;
   autoUnlocked: boolean;
+  // Paid unlock: the rest of a race runs at 5x once both cars finish, and races run at 2x while catching up after a prestige.
+  fastRaces: boolean;
   teamNamed: boolean;
   autoBuy: boolean;
   // Which car upgrades Auto Buy may buy; a missing key counts as ticked.
@@ -101,6 +103,7 @@ export function newGame(now = Date.now()): GameState {
       pitCrew: 0,
     },
     autoUnlocked: false,
+    fastRaces: false,
     teamNamed: false,
     autoBuy: false,
     autoItems: {},

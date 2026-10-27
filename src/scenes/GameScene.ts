@@ -14,6 +14,7 @@ import {
 } from '../game/economy';
 import { showRewardedAd } from '../game/monetization';
 import { Race, createRace, standings, stepRace } from '../game/race';
+import { speedScale } from '../game/speed';
 import { FREE_LEVELS_PER_RESEARCH, buyResearch, canPrestige, effectiveUpgrades, pickAutoResearch, prestige, researchPointsFor } from '../game/prestige';
 import { driverRating } from '../game/drivers';
 import { TITLE_GEMS, settleRace } from '../game/settle';
@@ -964,7 +965,7 @@ export class GameScene extends Phaser.Scene {
     // Clamp so a backgrounded tab doesn't teleport the cars or the money.
     const dt = Math.min(delta, 100) / 1000;
     const s = this.state;
-    const scale = s.boostSeconds > 0 ? 2 : 1;
+    const scale = speedScale(s, this.race.cars.filter((c) => c.isPlayer).every((c) => c.dnf || c.finishTime !== null));
     s.boostSeconds = Math.max(0, s.boostSeconds - dt);
 
     const eff = this.eff();

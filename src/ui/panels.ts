@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { AUTO_PRICE_LABEL, purchaseAutoUnlock, showRewardedAd } from '../game/monetization';
+import { AUTO_PRICE_LABEL, FAST_RACES_PRICE_LABEL, purchaseAutoUnlock, purchaseFastRaces, showRewardedAd } from '../game/monetization';
 import { GameState } from '../game/save';
 import { MIN_PRESTIGE_SEASON, RESEARCH_DEFS, ResearchDef, buyResearch, researchCost, researchPointsFor } from '../game/prestige';
 import { openingPitch, meetingCost, pitch, requestMeeting, sponsorIncome, walkAway } from '../game/sponsors';
@@ -275,6 +275,7 @@ export class PanelHost {
     toggles: { key: AutoKey; button: Button; name: string }[];
     checklist: Button;
     gemBoost: Button;
+    fast: Button;
   };
   private autoOpen = false;
   private autoUi!: { box: Phaser.GameObjects.Container; items: { key: string; name: string; button: Button }[]; power: Button };
@@ -1374,8 +1375,24 @@ export class PanelHost {
       },
       { size: 16, parent: c },
     );
-    addText(this.scene, W / 2, 590, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
-    this.shop = { gems, unlock, toggles, checklist, gemBoost };
+    const fast = addButton(
+      this.scene,
+      30,
+      570,
+      W - 60,
+      54,
+      '',
+      async () => {
+        if (await purchaseFastRaces()) this.state().fastRaces = true;
+      },
+      { fill: COLORS.green, size: 16, parent: c },
+    );
+    addText(this.scene, W / 2, 628, 'Fast Races: once both your cars finish, the rest of the race runs at 5x. After a prestige, races run at 2x until you are back at your previous season.', 12, '#9aa7d0', c)
+      .setOrigin(0.5, 0)
+      .setWordWrapWidth(W - 60)
+      .setAlign('center');
+    addText(this.scene, W / 2, 700, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
+    this.shop = { gems, unlock, toggles, checklist, gemBoost, fast };
   }
 
   // The Auto Buy page: opens when Auto Buy is switched on, and lists what it may spend money on.
@@ -1477,6 +1494,8 @@ export class PanelHost {
       }
       sh.checklist.setState(s.autoUnlocked);
       sh.gemBoost.setState(s.gems >= GEM_BOOST_COST);
+      sh.fast.setLabel(s.fastRaces ? 'Fast Races unlocked ✓' : `Unlock Fast Races (one-time) ${FAST_RACES_PRICE_LABEL}`);
+      sh.fast.setState(!s.fastRaces, COLORS.green);
     }
   }
 }

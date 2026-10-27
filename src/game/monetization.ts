@@ -8,3 +8,9 @@ export async function showRewardedAd(): Promise<boolean> {
 }
 
 export const AUTO_PRICE_LABEL = '$4.99';
+
+export async function purchaseFastRaces(): Promise<boolean> {
+  return true;
+}
+
+export const FAST_RACES_PRICE_LABEL = '$2.50';
