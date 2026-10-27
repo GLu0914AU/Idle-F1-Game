@@ -25,13 +25,23 @@ export type StaffState = Pick<GameState, 'clout' | 'season' | 'bestSeason' | 'st
 
 export const STAFF_MEETING_CLOUT = 2;
 export const MIN_STAFF_STAT = 30;
-export const MAX_STAFF_STAT = 99;
+// Stats are open-ended. The effects below are what a rating of REFERENCE_STAT (the old maximum) gives.
+export const REFERENCE_STAT = 99;
+export const STAFF_SEASON_GROWTH = 1 / 20;
 
-// The most each stat can do at 99.
-export const TYRE_WEAR_CUT_MAX = 0.15;
-export const PIT_TIME_CUT_MAX = 0.15;
-export const PIT_ISSUE_CUT_MAX = 0.35;
-export const WIND_QUALITY_MAX = 0.4;
+export const TYRE_WEAR_CUT_AT_REF = 0.15;
+export const PIT_TIME_CUT_AT_REF = 0.15;
+export const PIT_ISSUE_CUT_AT_REF = 0.35;
+export const WIND_QUALITY_AT_REF = 0.4;
+
+// Cuts follow 1 - 1/(1 + stat/k), tuned to hit `atRef` at REFERENCE_STAT: they keep growing without ever reaching 100%.
+export const cutFor = (stat: number | undefined, atRef: number) => {
+  const k = (REFERENCE_STAT * (1 - atRef)) / atRef;
+  const s = Math.max(0, stat ?? 0);
+  return 1 - 1 / (1 + s / k);
+};
+// Development quality has no ceiling of its own (the odds squash it), so it is simply linear.
+export const windQualityFor = (stat: number | undefined) => (WIND_QUALITY_AT_REF * Math.max(0, stat ?? 0)) / REFERENCE_STAT;
 
 export interface StaffDef {
   role: StaffRole;
@@ -44,8 +54,7 @@ export interface StaffDef {
   summary: (stats: Record<string, number>) => string;
 }
 
-const share = (v: number | undefined) => (v ?? 0) / MAX_STAFF_STAT;
-const pct = (x: number) => `${Math.round(x * 100)}%`;
+const pct = (x: number) => `${(x * 100).toFixed(1).replace(/\.0$/, '')}%`;
 
 export const STAFF_DEFS: Record<StaffRole, StaffDef> = {
   tyre: {
@@ -55,7 +64,7 @@ export const STAFF_DEFS: Record<StaffRole, StaffDef> = {
     blurb: 'Cuts tyre wear on both cars, on top of driver tyre management and Tyre Science.',
     stats: ['care'],
     names: ['Mario Pirelli-Pie', 'Hiroshi Bridgestone-Brick', 'Anders Michelin-Man', 'Pietro Compound-Cola', 'Kasper Rubberstein', 'Lena Treadwell', 'Giorgio Grippa', 'Simone Slick-Sloan', 'Marcus Camber-Cam', 'Yuna Carcassa', 'Dieter Graining', 'Isabel Blistero'],
-    lines: (s) => [`Tyre care: ${s.care}/${MAX_STAFF_STAT} (${pct(TYRE_WEAR_CUT_MAX * share(s.care))} less tyre wear)`],
+    lines: (s) => [`Tyre care: ${s.care} (${pct(cutFor(s.care, TYRE_WEAR_CUT_AT_REF))} less tyre wear)`],
     summary: (s) => `Care ${s.care}`,
   },
   pit: {
@@ -66,8 +75,8 @@ export const STAFF_DEFS: Record<StaffRole, StaffDef> = {
     stats: ['speed', 'precision'],
     names: ['Hannah Wrenchley', 'Jack Jackson', 'Dmitri Lugnut', 'Carla Quickstop', 'Rui Airgun', 'Tomas Torque', 'Bianca Gantry', 'Olaf Nutbrown', 'Priya Pitwall', 'Ricky Rapido', 'Greta Tyrewall', 'Sven Stopwatch'],
     lines: (s) => [
-      `Pit speed: ${s.speed}/${MAX_STAFF_STAT} (stops ${pct(PIT_TIME_CUT_MAX * share(s.speed))} shorter)`,
-      `Precision: ${s.precision}/${MAX_STAFF_STAT} (${pct(PIT_ISSUE_CUT_MAX * share(s.precision))} fewer pit problems)`,
+      `Pit speed: ${s.speed} (stops ${pct(cutFor(s.speed, PIT_TIME_CUT_AT_REF))} shorter)`,
+      `Precision: ${s.precision} (${pct(cutFor(s.precision, PIT_ISSUE_CUT_AT_REF))} fewer pit problems)`,
     ],
     summary: (s) => `Speed ${s.speed} · Precision ${s.precision}`,
   },
@@ -78,7 +87,7 @@ export const STAFF_DEFS: Record<StaffRole, StaffDef> = {
     blurb: 'Makes car development packages more likely to be breakthroughs and less likely to flop.',
     stats: ['insight'],
     names: ['Adrian Newey-Knew', 'Willem Airflow', 'Beatrix Downforce', 'Sanjay Vortex', 'Elena Laminar', 'Frederik Drag-Coefficient', 'Mika Diffuser', 'Camila Slipstream', 'Gustav Turbulenz', 'Aiko Ground-Effect', 'Rolf Bernoulli-Burger', 'Noor Yawangle'],
-    lines: (s) => [`Wind tunnel insight: ${s.insight}/${MAX_STAFF_STAT} (better development odds)`],
+    lines: (s) => [`Wind tunnel insight: ${s.insight} (+${pct(windQualityFor(s.insight))} development quality)`],
     summary: (s) => `Insight ${s.insight}`,
   },
 };
@@ -94,7 +103,8 @@ export function requestStaffMeeting(state: StaffState, role: StaffRole, rng: () 
   const name = free[Math.floor(rng() * free.length) % free.length];
   // Quality in 0..1 drives the stats and the asking price together.
   const q = rng();
-  const stat = () => Math.max(MIN_STAFF_STAT, Math.min(MAX_STAFF_STAT, Math.round(MIN_STAFF_STAT + 70 * q * (0.6 + rng() * 0.8))));
+  const growth = 1 + (Math.max(1, state.season) - 1) * STAFF_SEASON_GROWTH;
+  const stat = () => Math.max(MIN_STAFF_STAT, Math.round(MIN_STAFF_STAT + 70 * growth * q * (0.6 + rng() * 0.8)));
   const stats = Object.fromEntries(def.stats.map((k) => [k, stat()]));
   const meeting: StaffCandidate = { name, stats, ...rollAsk(state.season, q, rng), career: rollCareer(rng) };
   state.staffMeetings[role] = meeting;
@@ -206,9 +216,9 @@ export interface StaffEffects {
 
 export function staffEffects(staff: Pick<GameState, 'staff'>['staff'] | undefined): StaffEffects {
   return {
-    tyreWearCut: TYRE_WEAR_CUT_MAX * share(staff?.tyre?.stats.care),
-    pitTimeCut: PIT_TIME_CUT_MAX * share(staff?.pit?.stats.speed),
-    pitIssueCut: PIT_ISSUE_CUT_MAX * share(staff?.pit?.stats.precision),
-    windQuality: WIND_QUALITY_MAX * share(staff?.wind?.stats.insight),
+    tyreWearCut: cutFor(staff?.tyre?.stats.care, TYRE_WEAR_CUT_AT_REF),
+    pitTimeCut: cutFor(staff?.pit?.stats.speed, PIT_TIME_CUT_AT_REF),
+    pitIssueCut: cutFor(staff?.pit?.stats.precision, PIT_ISSUE_CUT_AT_REF),
+    windQuality: windQualityFor(staff?.wind?.stats.insight),
   };
 }

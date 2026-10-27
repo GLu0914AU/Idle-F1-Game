@@ -3,7 +3,7 @@ import { developmentOdds, packageDef, teamQuality } from './development';
 import { createRace, mulberry32, stepRace } from './race';
 import { newGame, loadGame, saveGame } from './save';
 import { settleRace } from './settle';
-import { MAX_STAFF_STAT, STAFF_MEETING_CLOUT, STAFF_ROLES, StaffRole, autoPayWages, endStaffMeeting, offerStaffContract, owedInstalments, payInstalment, payStaff, payrollReserve, requestStaffMeeting, staffEffects, wagesOwed } from './staff';
+import { REFERENCE_STAT, STAFF_MEETING_CLOUT, STAFF_ROLES, StaffRole, autoPayWages, endStaffMeeting, offerStaffContract, owedInstalments, payInstalment, payStaff, payrollReserve, requestStaffMeeting, staffEffects, wagesOwed } from './staff';
 import { newStrategy, stepStrategy } from './strategy';
 
 const hire = (state: ReturnType<typeof newGame>, role: StaffRole, stats: Record<string, number>, salary = 100) => {
@@ -38,9 +38,14 @@ describe('staff negotiation', () => {
       expect(keys.length).toBe(role === 'pit' ? 2 : 1);
       for (const v of Object.values(c.stats)) {
         expect(v).toBeGreaterThanOrEqual(30);
-        expect(v).toBeLessThanOrEqual(MAX_STAFF_STAT);
       }
     }
+  });
+
+  it('later seasons recruit better staff', () => {
+    const early = requestStaffMeeting({ ...richGame(), season: 1 }, 'tyre', () => 1)!.stats.care;
+    const late = requestStaffMeeting({ ...richGame(), season: 101 }, 'tyre', () => 1)!.stats.care;
+    expect(late).toBeGreaterThan(early * 3);
   });
 
   it('signs at or above the hidden minimum and fails below it', () => {
@@ -138,18 +143,29 @@ describe('staff wages', () => {
 });
 
 describe('staff effects', () => {
-  it('do nothing without staff and stay modest at the maximum', () => {
+  it('do nothing without staff, match the old maxima at 99, and keep growing without reaching 100%', () => {
     const none = staffEffects(newGame().staff);
     expect(none).toEqual({ tyreWearCut: 0, pitTimeCut: 0, pitIssueCut: 0, windQuality: 0 });
     const s = newGame();
-    hire(s, 'tyre', { care: MAX_STAFF_STAT });
-    hire(s, 'pit', { speed: MAX_STAFF_STAT, precision: MAX_STAFF_STAT });
-    hire(s, 'wind', { insight: MAX_STAFF_STAT });
+    hire(s, 'tyre', { care: REFERENCE_STAT });
+    hire(s, 'pit', { speed: REFERENCE_STAT, precision: REFERENCE_STAT });
+    hire(s, 'wind', { insight: REFERENCE_STAT });
     const fx = staffEffects(s.staff);
     expect(fx.tyreWearCut).toBeCloseTo(0.15);
     expect(fx.pitTimeCut).toBeCloseTo(0.15);
     expect(fx.pitIssueCut).toBeCloseTo(0.35);
     expect(fx.windQuality).toBeCloseTo(0.4);
+
+    const big = newGame();
+    hire(big, 'tyre', { care: 5000 });
+    hire(big, 'pit', { speed: 5000, precision: 5000 });
+    hire(big, 'wind', { insight: 5000 });
+    const bfx = staffEffects(big.staff);
+    expect(bfx.tyreWearCut).toBeGreaterThan(fx.tyreWearCut);
+    expect(bfx.tyreWearCut).toBeLessThan(1);
+    expect(bfx.pitTimeCut).toBeLessThan(1);
+    expect(bfx.pitIssueCut).toBeLessThan(1);
+    expect(bfx.windQuality).toBeGreaterThan(fx.windQuality);
   });
 
   it('tyre care slows wear', () => {
@@ -165,7 +181,7 @@ describe('staff effects', () => {
   it('wind tunnel insight raises team quality and breakthrough odds', () => {
     const s = newGame();
     const base = teamQuality(s);
-    hire(s, 'wind', { insight: MAX_STAFF_STAT });
+    hire(s, 'wind', { insight: REFERENCE_STAT });
     expect(teamQuality(s)).toBeGreaterThan(base);
     const def = packageDef('aero')!;
     expect(developmentOdds(teamQuality(s), def).big).toBeGreaterThan(developmentOdds(base, def).big);
