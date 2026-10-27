@@ -40,7 +40,7 @@ describe('economy', () => {
     const s = { money: 5, upgrades: {} as Record<string, number> };
     expect(buyUpgrade(s, engine)).toBe(false);
     expect(s.money).toBe(5);
-    s.money = 250;
+    s.money = 150;
     expect(buyUpgrade(s, engine)).toBe(true);
     expect(s.money).toBe(50);
     expect(s.upgrades.engine).toBe(1);
