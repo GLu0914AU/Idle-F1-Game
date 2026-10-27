@@ -172,6 +172,7 @@ export class GameScene extends Phaser.Scene {
       .setInteractive()
       .on('pointerdown', (p: Phaser.Input.Pointer) => this.onTap(p.x, p.y));
     this.lapText = addText(this, W - 12, VIEW.y + 8, '', 14, '#9aa7d0').setOrigin(1, 0);
+    addBox(this, 4, VIEW.y + 3, 152, 355, 0x050914).setAlpha(0.85).setStrokeStyle(1, 0x2a365e);
     this.towerRows = Array.from({ length: 20 }, (_, i) => addText(this, 8, VIEW.y + 30 + i * 16, '', 11));
     this.towerPoints = Array.from({ length: 20 }, (_, i) => addText(this, 150, VIEW.y + 30 + i * 16, '', 11).setOrigin(1, 0));
     this.towerBtn = addButton(this, 8, VIEW.y + 6, 142, 20, '', () => (this.towerMode = this.towerMode === 'race' ? 'season' : 'race'), {
