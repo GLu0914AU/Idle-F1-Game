@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { carRating, incomePerSecond, sponsorMultiplier } from './economy';
 import { AUTO_OFFLINE_CAP_S, FREE_OFFLINE_CAP_S, offlineEarnings } from './offline';
 import { newGame } from './save';
-import { CALENDAR, pickTrack } from './tracks';
+import { CALENDAR, REAL_NAMES, pickTrack } from './tracks';
 import { Point, pointAt } from './track';
 
 describe('offline', () => {
@@ -52,13 +52,14 @@ describe('calendar', () => {
     expect(seen.size).toBeGreaterThan(20);
   });
 
-  it('no circuit crosses itself', () => {
+  it('no hand-drawn circuit crosses itself (real outlines like Suzuka legitimately do)', () => {
     const cross = (a: Point, b: Point, c: Point, d: Point) => {
       const o = (p: Point, q: Point, r: Point) => Math.sign((q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x));
       return o(a, b, c) !== o(a, b, d) && o(c, d, a) !== o(c, d, b);
     };
     const bad: string[] = [];
     for (const t of CALENDAR) {
+      if (REAL_NAMES.has(t.name)) continue;
       const pts = t.points.filter((_, i) => i % 2 === 0);
       const n = pts.length;
       outer: for (let i = 0; i < n; i++) {

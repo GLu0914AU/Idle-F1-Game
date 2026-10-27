@@ -7,6 +7,8 @@ export interface Track {
   name: string;
   // Dense closed polyline in the 0..1 unit square.
   points: Point[];
+  // Width/height of the real circuit. The unit square is drawn at this aspect. Omitted = fill the view.
+  aspect?: number;
   // Cumulative length at each point; last entry is the full lap length.
   cumulative: number[];
   length: number;
@@ -20,7 +22,7 @@ function catmullRom(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Poin
   return { x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y) };
 }
 
-export function buildTrack(name: string, control: Point[], steps = 24): Track {
+export function buildTrack(name: string, control: Point[], steps = 24, aspect?: number): Track {
   const n = control.length;
   const points: Point[] = [];
   for (let i = 0; i < n; i++) {
@@ -34,9 +36,9 @@ export function buildTrack(name: string, control: Point[], steps = 24): Track {
   for (let i = 1; i <= points.length; i++) {
     const a = points[i - 1];
     const b = points[i % points.length];
-    cumulative.push(cumulative[i - 1] + Math.hypot(b.x - a.x, b.y - a.y));
+    cumulative.push(cumulative[i - 1] + Math.hypot((b.x - a.x) * (aspect ?? 1), b.y - a.y));
   }
-  return { name, points, cumulative, length: cumulative[cumulative.length - 1] };
+  return { name, points, aspect, cumulative, length: cumulative[cumulative.length - 1] };
 }
 
 // Position on the lap for a distance along the track (wraps each lap).

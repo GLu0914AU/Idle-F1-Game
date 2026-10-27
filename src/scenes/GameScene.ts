@@ -124,7 +124,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   private toView(p: Point): Point {
-    return { x: VIEW.padX + p.x * (W - VIEW.padX * 2), y: VIEW.y + VIEW.padY + p.y * (VIEW.h - VIEW.padY * 2) };
+    const areaW = W - VIEW.padX * 2;
+    const areaH = VIEW.h - VIEW.padY * 2;
+    const aspect = this.track.aspect;
+    let w = areaW;
+    let h = areaH;
+    if (aspect !== undefined) {
+      w = Math.min(areaW, areaH * aspect);
+      h = w / aspect;
+    }
+    return { x: VIEW.padX + (areaW - w) / 2 + p.x * w, y: VIEW.y + VIEW.padY + (areaH - h) / 2 + p.y * h };
   }
 
   private drawTrack() {
@@ -152,8 +161,17 @@ export class GameScene extends Phaser.Scene {
       return new Phaser.Math.Vector2(v.x, v.y);
     });
     this.trackGfx.clear();
-    this.trackGfx.lineStyle(16, 0x3a4468).strokePoints(pts, true, true);
-    this.trackGfx.lineStyle(2, 0x6b78a8).strokePoints(pts, true, true);
+    this.trackGfx.lineStyle(15, 0xc9d1f0).strokePoints(pts, true, true);
+    this.trackGfx.lineStyle(11, 0x2b3350).strokePoints(pts, true, true);
+    this.trackGfx.lineStyle(1, 0x4a5580, 0.8).strokePoints(pts, true, true);
+
+    // Start/finish line across the track at the first point.
+    const a = pts[0];
+    const b = pts[Math.min(3, pts.length - 1)];
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const nx = -(b.y - a.y) / len;
+    const ny = (b.x - a.x) / len;
+    this.trackGfx.lineStyle(3, 0xffffff).lineBetween(a.x - nx * 9, a.y - ny * 9, a.x + nx * 9, a.y + ny * 9);
   }
 
   private onTap(x: number, y: number) {
