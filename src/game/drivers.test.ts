@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DRIVER_MEETING_CLOUT,
   DriverState,
+  NAMES,
   endDriverMeeting,
   offerContract,
   openingOffer,
@@ -14,7 +15,7 @@ import { newGame } from './save';
 import { createRace, stepRace, breakdownChance } from './race';
 import { runFanEvent } from './career';
 import { prestige } from './prestige';
-import { PLAYER_DRIVERS } from './teams';
+import { PLAYER_DRIVERS, RIVAL_TEAMS } from './teams';
 import { CALENDAR } from './tracks';
 
 const state = (): DriverState & ReturnType<typeof newGame> => ({ ...newGame(), clout: 5 });
@@ -73,6 +74,14 @@ describe('driver negotiations', () => {
     endDriverMeeting(s);
     expect(s.driverMeeting).toBeNull();
     expect(s.clout).toBe(5 - DRIVER_MEETING_CLOUT);
+  });
+});
+
+describe('driver pool', () => {
+  it('has no duplicate names and none that match a rival driver', () => {
+    expect(new Set(NAMES).size).toBe(NAMES.length);
+    const rivals = RIVAL_TEAMS.flatMap((t) => t.drivers);
+    expect(NAMES.filter((n) => rivals.includes(n))).toEqual([]);
   });
 });
 
