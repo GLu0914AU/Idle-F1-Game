@@ -21,6 +21,7 @@ import { describeWeather, idealClass, isDry, rollWeather } from '../game/weather
 import { GameState, loadGame, saveGame } from '../game/save';
 import { RACES_PER_SEASON, driversTable } from '../game/season';
 import { packageDef } from '../game/development';
+import { achievementDef, claimableCount, readyAchievements, recordEvent, recordRaceResult } from '../game/goals';
 import { GAME_H, GAME_W, RES } from '../resolution';
 import {
   COMPOUNDS,
@@ -90,6 +91,10 @@ export class GameScene extends Phaser.Scene {
   private barGfx!: Phaser.GameObjects.Graphics;
   private compoundText!: Phaser.GameObjects.Text;
   private weatherText!: Phaser.GameObjects.Text;
+  private goalsDot!: Phaser.GameObjects.Arc;
+  private seenReady = new Set<string>();
+  private seenReadyArmed = false;
+  private countedPits = new WeakSet<object>();
   private safetyCarText!: Phaser.GameObjects.Text;
   private gridText?: Phaser.GameObjects.Text;
   private wetShade!: Phaser.GameObjects.Rectangle;
@@ -249,6 +254,8 @@ export class GameScene extends Phaser.Scene {
     addText(this, W - 140, VIEW.y + 66, 'BOOST', 10, '#9aa7d0');
     this.compoundText = addText(this, W - 12, VIEW.y + 30, '', 10, '#9aa7d0').setOrigin(1, 0);
     this.weatherText = addText(this, W - 12, VIEW.y + 96, '', 12, '#9aa7d0').setOrigin(1, 0).setStroke('#050914', 3);
+    addButton(this, W - 108, VIEW.y + 118, 96, 24, 'GOALS', () => this.panels.openGoals(true), { fill: 0x1d2745, size: 12 });
+    this.goalsDot = this.add.circle(W - 14, VIEW.y + 120, 6, COLORS.red).setStrokeStyle(2, 0xffffff).setVisible(false);
     this.safetyCarText = addText(this, W / 2, VIEW.y + 8, 'SAFETY CAR: incident, pitting is cheap', 20, '#ffd400').setOrigin(0.5, 0).setStroke('#050914', 4).setVisible(false);
   }
 
@@ -304,6 +311,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onTap(x: number, y: number) {
+    recordEvent(this.state, 'tap');
     this.tapBoth();
     this.spawnBurst(x, y, [0xffffff, COLORS.gold, COLORS.red], 6);
     const ring = this.add.circle(x, y, 8, 0xffffff, 0.35);
@@ -618,6 +626,9 @@ export class GameScene extends Phaser.Scene {
   private finishRace() {
     const order = standings(this.race);
     const { positions, payout, wagesPaid, quit, outcome, sponsorCash, development } = settleRace(this.state, order);
+    recordRaceResult(this.state, positions, !isDry(this.race.weather));
+    if (development?.outcome === 'big') recordEvent(this.state, 'breakthrough');
+    if (development?.outcome === 'flop') recordEvent(this.state, 'flop');
     this.floatText(W - 90, 70, `+$${formatNumber(payout)}`, '#ffc933');
     if (development) {
       const def = packageDef(development.key);
@@ -774,6 +785,17 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  // Dot on the Goals button, plus a one-off float when an achievement becomes ready.
+  private updateGoalsDot() {
+    this.goalsDot.setVisible(claimableCount(this.state) > 0);
+    for (const a of readyAchievements(this.state)) {
+      if (this.seenReady.has(a.id)) continue;
+      this.seenReady.add(a.id);
+      if (this.seenReadyArmed) this.floatText(W / 2, 270, `ACHIEVEMENT READY: ${achievementDef(a.id)?.name}`, '#ffd400');
+    }
+    this.seenReadyArmed = true;
+  }
+
   update(_time: number, delta: number) {
     // Clamp so a backgrounded tab doesn't teleport the cars or the money.
     const dt = Math.min(delta, 100) / 1000;
@@ -805,10 +827,17 @@ export class GameScene extends Phaser.Scene {
       pitIssueCut: fx.pitIssueCut,
       handling: { topSpeed: eff.topSpeed ?? 0, cornering: eff.cornering ?? 0 },
     });
+    for (const car of this.race.cars) {
+      if (car.isPlayer && car.pit && !this.countedPits.has(car.pit)) {
+        this.countedPits.add(car.pit);
+        recordEvent(this.state, 'pit');
+      }
+    }
     if (this.race.finished && !this.paid) {
       this.paid = true;
       this.finishRace();
     }
+    this.updateGoalsDot();
     this.renderRace();
     this.renderStrategy();
     this.renderEconomy();

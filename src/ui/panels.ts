@@ -35,6 +35,25 @@ import {
 } from '../game/staff';
 import { DEV_PACKAGES, DevPackage, DevOutcome, developmentCost, developmentOdds, fitsSeason, packageDef, startDevelopment, teamQuality } from '../game/development';
 import { RACES_PER_SEASON } from '../game/season';
+import {
+  ACHIEVEMENTS,
+  AchievementDef,
+  achievementClaimed,
+  achievementReady,
+  achievementValue,
+  canClaimBonus,
+  claimAchievement,
+  claimDaily,
+  claimDailyBonus,
+  dailyBonusReward,
+  dailyDef,
+  dailyDone,
+  ensureToday,
+  msUntilReset,
+  recordEvent,
+  rewardLabel,
+  streakCount,
+} from '../game/goals';
 import { FANS_PER_WIN, FanCurrency, canRunFanEvent, fanChance, fansFor, runFanEvent } from '../game/career';
 import { Button, COLORS, W, addBox, addButton, addText } from './widgets';
 
@@ -69,6 +88,19 @@ const describeEngineer = (e: Engineer | null) =>
 export const GEM_BOOST_COST = 10;
 export const BOOST_SECONDS = 60;
 export const GEM_BOOST_SECONDS = 300;
+
+const GOAL_BAR_W = 330;
+const ACH_ROWS = 7;
+
+interface GoalRow {
+  parts: Phaser.GameObjects.GameObject[];
+  name: Phaser.GameObjects.Text;
+  desc: Phaser.GameObjects.Text;
+  bar: Phaser.GameObjects.Rectangle;
+  value: Phaser.GameObjects.Text;
+  btn: Button;
+  onClaim: () => void;
+}
 
 export interface PanelHooks {
   rename(): void;
@@ -150,6 +182,19 @@ export class PanelHost {
     current: Phaser.GameObjects.Text;
   };
   private developmentOpen = false;
+  private goalsOpen = false;
+  private goalsTab: 'daily' | 'achievements' = 'daily';
+  private goalsPage = 0;
+  private goalsUi!: {
+    box: Phaser.GameObjects.Container;
+    dailyTab: Button;
+    achTab: Button;
+    info: Phaser.GameObjects.Text;
+    rows: GoalRow[];
+    prev: Button;
+    next: Button;
+    page: Phaser.GameObjects.Text;
+  };
   private staffOpen = false;
   private staffRole: StaffRole = 'tyre';
   private staffMessage = '';
@@ -216,6 +261,7 @@ export class PanelHost {
     this.buildTeam();
     this.buildPrestige();
     this.buildShop();
+    this.buildGoals();
     this.show('Race');
   }
 
@@ -227,7 +273,9 @@ export class PanelHost {
       this.engineerOpen = false;
       this.developmentOpen = false;
       this.staffOpen = false;
+      this.goalsOpen = false;
     }
+    this.goalsUi?.box.setVisible(this.goalsOpen && tab === 'Race');
     this.recruit?.box.setVisible(this.recruitOpen && tab === 'Team');
     this.engineerRecruit?.box.setVisible(this.engineerOpen && tab === 'Team');
     this.developmentUi?.box.setVisible(this.developmentOpen && tab === 'Team');
@@ -543,6 +591,148 @@ export class PanelHost {
         r.current.setText(holder ? `${holder.name}\n${def.lines(holder.stats).join('\n')}\n$${formatNumber(holder.salary)}/race` : `No ${def.title.toLowerCase()} hired`);
       }
 
+  openGoals(open: boolean) {
+    this.goalsOpen = open;
+    if (open) this.goalsPage = 0;
+    this.goalsUi.box.setVisible(open && this.current === 'Race');
+  }
+
+  private buildGoals() {
+    const c = this.scene.add.container(0, 0).setVisible(false);
+    c.add(addBox(this.scene, 0, 70, W, 810, COLORS.bg).setInteractive());
+    c.add(this.scene.add.rectangle(W / 2, 84, 120, 3, COLORS.red));
+    c.add(addText(this.scene, W / 2, 90, 'GOALS', 24).setOrigin(0.5, 0));
+    const dailyTab = addButton(this.scene, 30, 124, (W - 64) / 2, 32, 'DAILY', () => {
+      this.goalsTab = 'daily';
+    }, { size: 14, parent: c });
+    const achTab = addButton(this.scene, 34 + (W - 64) / 2, 124, (W - 64) / 2, 32, 'ACHIEVEMENTS', () => {
+      this.goalsTab = 'achievements';
+      this.goalsPage = 0;
+    }, { size: 14, parent: c });
+    const info = addText(this.scene, W / 2, 164, '', 13, '#9aa7d0', c).setOrigin(0.5, 0).setWordWrapWidth(W - 60).setAlign('center');
+    const rows: GoalRow[] = [];
+    for (let i = 0; i < ACH_ROWS; i++) {
+      const y = 196 + i * 80;
+      const row = {} as GoalRow;
+      row.onClaim = () => undefined;
+      const box = addBox(this.scene, 20, y, W - 40, 72, COLORS.panel, c);
+      row.name = addText(this.scene, 32, y + 6, '', 16, '#ffffff', c);
+      row.desc = addText(this.scene, 32, y + 28, '', 12, '#9aa7d0', c).setWordWrapWidth(W - 180);
+      const track = this.scene.add.rectangle(32, y + 54, GOAL_BAR_W, 8, COLORS.bg).setOrigin(0, 0.5);
+      row.bar = this.scene.add.rectangle(32, y + 54, GOAL_BAR_W, 8, COLORS.green).setOrigin(0, 0.5);
+      c.add([track, row.bar]);
+      row.value = addText(this.scene, 32 + GOAL_BAR_W + 8, y + 48, '', 12, '#cfd6ee', c);
+      row.btn = addButton(this.scene, W - 124, y + 14, 92, 40, 'CLAIM', () => row.onClaim(), { fill: COLORS.green, size: 14, parent: c });
+      row.parts = [box, row.name, row.desc, track, row.bar, row.value, row.btn.rect, row.btn.label];
+      rows.push(row);
+    }
+    const prev = addButton(this.scene, 30, 764, 120, 34, 'PREV', () => {
+      this.goalsPage = Math.max(0, this.goalsPage - 1);
+    }, { size: 14, parent: c });
+    const next = addButton(this.scene, W - 150, 764, 120, 34, 'NEXT', () => {
+      this.goalsPage += 1;
+    }, { size: 14, parent: c });
+    const page = addText(this.scene, W / 2, 772, '', 14, '#cfd6ee', c).setOrigin(0.5, 0);
+    addButton(this.scene, 30, 812, W - 60, 44, 'BACK TO RACE', () => this.openGoals(false), { size: 16, parent: c });
+    this.goalsUi = { box: c, dailyTab, achTab, info, rows, prev, next, page };
+  }
+
+  private setGoalRow(
+    row: GoalRow | undefined,
+    d: { name: string; desc: string; frac: number; value: string; claimed: boolean; ready: boolean; onClaim: () => void } | null,
+  ) {
+    if (!row) return;
+    for (const p of row.parts) (p as Phaser.GameObjects.Components.Visible & Phaser.GameObjects.GameObject).setVisible(!!d);
+    if (!d) return;
+    row.name.setText(d.name);
+    row.desc.setText(d.desc);
+    row.bar.setSize(Math.max(1, GOAL_BAR_W * Math.min(1, d.frac)), 8);
+    row.bar.setFillStyle(d.claimed ? COLORS.border : COLORS.green);
+    row.value.setText(d.value);
+    row.btn.setLabel(d.claimed ? 'CLAIMED' : 'CLAIM');
+    row.btn.setState(d.ready && !d.claimed, COLORS.green);
+    row.onClaim = d.onClaim;
+  }
+
+  private renderGoals(s: GameState) {
+    const r = this.goalsUi;
+    const now = new Date();
+    ensureToday(s, now);
+    const daily = this.goalsTab === 'daily';
+    r.dailyTab.setState(true, daily ? COLORS.green : COLORS.panel);
+    r.achTab.setState(true, daily ? COLORS.panel : COLORS.green);
+    const save = () => this.hooks.save();
+    if (daily) {
+      const mins = Math.ceil(msUntilReset(now) / 60000);
+      const streak = streakCount(s, now);
+      r.info.setText(`Daily streak: ${streak} day${streak === 1 ? '' : 's'} · New goals in ${Math.floor(mins / 60)}h ${mins % 60}m`);
+      r.rows.forEach((row, i) => {
+        const g = s.goals.daily.goals[i];
+        const def = g && dailyDef(g.id);
+        if (i < s.goals.daily.goals.length && g && def) {
+          this.setGoalRow(row, {
+            name: def.label,
+            desc: `Reward: ${rewardLabel(def.reward)}`,
+            frac: g.progress / def.target,
+            value: `${Math.min(g.progress, def.target)}/${def.target}`,
+            claimed: g.claimed,
+            ready: dailyDone(g),
+            onClaim: () => {
+              if (claimDaily(s, i, now)) save();
+            },
+          });
+        } else if (i === s.goals.daily.goals.length) {
+          const done = s.goals.daily.goals.filter((x) => x.claimed).length;
+          this.setGoalRow(row, {
+            name: 'Daily bonus',
+            desc: `Claim every goal today · Reward: ${rewardLabel(dailyBonusReward(s, now))}`,
+            frac: done / Math.max(1, s.goals.daily.goals.length),
+            value: `${done}/${s.goals.daily.goals.length}`,
+            claimed: s.goals.daily.bonusClaimed,
+            ready: canClaimBonus(s),
+            onClaim: () => {
+              if (claimDailyBonus(s, now)) save();
+            },
+          });
+        } else {
+          this.setGoalRow(row, null);
+        }
+      });
+      for (const b of [r.prev, r.next]) for (const p of [b.rect, b.label]) p.setVisible(false);
+      r.page.setVisible(false);
+      return;
+    }
+    const order = (a: AchievementDef) => (achievementReady(s, a) ? 0 : achievementClaimed(s, a) ? 2 : 1);
+    const list = [...ACHIEVEMENTS].sort((a, b) => order(a) - order(b));
+    const pages = Math.max(1, Math.ceil(list.length / ACH_ROWS));
+    this.goalsPage = Math.min(this.goalsPage, pages - 1);
+    const claimedCount = list.filter((a) => achievementClaimed(s, a)).length;
+    r.info.setText(`${claimedCount}/${list.length} achievements collected`);
+    r.rows.forEach((row, i) => {
+      const a = list[this.goalsPage * ACH_ROWS + i];
+      this.setGoalRow(
+        row,
+        a
+          ? {
+              name: a.name,
+              desc: `${a.desc} · ${rewardLabel(a.reward)}`,
+              frac: achievementValue(s, a) / a.target,
+              value: `${achievementValue(s, a)}/${a.target}`,
+              claimed: achievementClaimed(s, a),
+              ready: achievementReady(s, a),
+              onClaim: () => {
+                if (claimAchievement(s, a.id)) save();
+              },
+            }
+          : null,
+      );
+    });
+    for (const b of [r.prev, r.next]) for (const p of [b.rect, b.label]) p.setVisible(true);
+    r.page.setVisible(true).setText(`${this.goalsPage + 1} / ${pages}`);
+    r.prev.setState(this.goalsPage > 0, COLORS.accent);
+    r.next.setState(this.goalsPage < pages - 1, COLORS.accent);
+  }
+
   private openRecruit(open: boolean) {
     this.recruitOpen = open;
     this.recruit.box.setVisible(open && this.current === 'Team');
@@ -573,7 +763,11 @@ export class PanelHost {
       addText(this.scene, 32, y + 34, `${def.blurb} · ${def.races} races`, 12, '#9aa7d0', c);
       const odds = addText(this.scene, 32, y + 54, '', 12, '#cfd6ee', c).setWordWrapWidth(W - 64);
       const button = addButton(this.scene, 32, y + 80, W - 64, 32, '', () => {
-        if (startDevelopment(this.state(), def.key, RACES_PER_SEASON)) this.hooks.save();
+        const st = this.state();
+        if (startDevelopment(st, def.key, RACES_PER_SEASON)) {
+          recordEvent(st, 'devStart');
+          this.hooks.save();
+        }
       }, { fill: COLORS.green, size: 15, parent: c });
       return { def, odds, button };
     });
@@ -954,6 +1148,7 @@ export class PanelHost {
 
   render() {
     const s = this.state();
+    if (this.goalsOpen && this.current === 'Race') this.renderGoals(s);
     if (this.current === 'Sponsors') {
       this.renderSponsors(s);
     } else if (this.current === 'Team') {

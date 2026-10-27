@@ -1,5 +1,6 @@
 import { CareerStats } from './career';
 import { Development, newDevelopment } from './development';
+import { GoalsState, mergeGoals, newGoals } from './goals';
 import { Candidate, Driver, rookie } from './drivers';
 import type { Engineer, EngineerCandidate } from './engineers';
 import { newStaff, newStaffMeetings } from './staff';
@@ -56,6 +57,8 @@ export interface GameState {
   staffMeetings: Record<StaffRole, StaffCandidate | null>;
   // Mid-season car development; it resets every season.
   development: Development;
+  // Achievements, daily goals and the streak; they survive prestige.
+  goals: GoalsState;
 }
 
 export const SAVE_VERSION = 1;
@@ -107,6 +110,7 @@ export function newGame(now = Date.now()): GameState {
     staff: newStaff(),
     staffMeetings: newStaffMeetings(),
     development: newDevelopment(),
+    goals: newGoals(),
   };
 }
 
@@ -136,6 +140,7 @@ export function loadGame(store: Store = localStorage, now = Date.now()): GameSta
       development: { ...fresh.development, ...(data.development ?? {}), rivalDrift: { ...(data.development?.rivalDrift ?? {}) } },
       staff: { ...fresh.staff, ...(data.staff ?? {}) },
       staffMeetings: { ...fresh.staffMeetings, ...(data.staffMeetings ?? {}) },
+      goals: mergeGoals(data.goals),
       version: SAVE_VERSION,
     };
   } catch {
