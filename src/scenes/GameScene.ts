@@ -88,6 +88,7 @@ export class GameScene extends Phaser.Scene {
   private compoundText!: Phaser.GameObjects.Text;
   private weatherText!: Phaser.GameObjects.Text;
   private safetyCarText!: Phaser.GameObjects.Text;
+  private gridText?: Phaser.GameObjects.Text;
   private wetShade!: Phaser.GameObjects.Rectangle;
   private rainGfx!: Phaser.GameObjects.Graphics;
   private towerRows: Phaser.GameObjects.Text[] = [];
@@ -349,6 +350,10 @@ export class GameScene extends Phaser.Scene {
     this.restartAt = 0;
     this.paid = false;
     this.banner?.setVisible(false);
+    const slots = this.race.cars.filter((c) => c.isPlayer).map((c) => this.race.grid.indexOf(c.id) + 1).sort((a, b) => a - b);
+    this.gridText?.destroy();
+    this.gridText = addText(this, W / 2, VIEW.y + 34, `QUALIFIED P${slots[0]} & P${slots[1]}`, 16, '#ffffff').setOrigin(0.5, 0).setStroke('#050914', 4).setDepth(50);
+    this.tweens.add({ targets: this.gridText, alpha: 0, delay: 4000, duration: 1500 });
   }
 
   // Top-down F1 car about 10px long (the road is 11px wide), nose pointing along `angle`.

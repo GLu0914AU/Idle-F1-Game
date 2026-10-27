@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PIT_HALF_LENGTH, newStrategy, selectCompound, togglePitRequest } from './strategy';
-import { breakdownChance, createRace, lapTime, paceMultiplier, standings, stepRace } from './race';
+import { breakdownChance, createRace, GRID_GAP, lapTime, paceMultiplier, standings, stepRace } from './race';
 import { pointAt } from './track';
 import { CALENDAR } from './tracks';
 
@@ -269,5 +269,19 @@ describe('safety car', () => {
     }
     expect(crawling).toBeGreaterThan(0);
     expect(crawling).toBeLessThan(racing * 0.6);
+  });
+});
+
+describe('qualifying', () => {
+  it('sets a grid that covers every car once and starts them behind the line in order', () => {
+    const race = createRace(config({ seed: 3 }));
+    expect(new Set(race.grid).size).toBe(race.cars.length);
+    race.grid.forEach((id, i) => expect(race.cars.find((c) => c.id === id)!.progress).toBeCloseTo(-i * GRID_GAP, 9));
+  });
+
+  it('puts a much faster car near the front on average', () => {
+    let total = 0;
+    for (let seed = 1; seed <= 100; seed++) total += createRace(config({ seed, playerRating: 500 })).grid.indexOf('player-0');
+    expect(total / 100).toBeLessThan(3);
   });
 });

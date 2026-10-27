@@ -78,7 +78,13 @@ export interface Race {
   // Leader progress (laps) between which the safety car is out, or null when there isn't one this race.
   safetyCar: { start: number; end: number } | null;
   safetyCarActive: boolean;
+  // Car ids in starting order, from qualifying.
+  grid: string[];
 }
+
+// Random spread on a qualifying lap (a share of pace), and the gap between neighbouring grid slots in laps.
+export const QUALIFYING_NOISE = 0.05;
+export const GRID_GAP = 0.0015;
 
 // Chance a race has a safety car, how far the leader travels under it, and how fast the field crawls (a share of racing pace).
 export const SAFETY_CAR_CHANCE = 0.2;
@@ -166,7 +172,15 @@ export function createRace(config: RaceConfig): Race {
   const srng = mulberry32((config.seed ^ 0x5afe5afe) >>> 0);
   const safetyCar = srng() < SAFETY_CAR_CHANCE ? { start: config.laps * (0.2 + 0.5 * srng()), end: 0 } : null;
   if (safetyCar) safetyCar.end = safetyCar.start + SAFETY_CAR_LAPS;
-  return { config, cars, time: 0, finished: false, rng, weather: config.weather ?? DRY, wetness: 0, safetyCar, safetyCarActive: false };
+
+  // Qualifying: one flying lap each, so a faster car usually starts further forward but not always.
+  const qrng = mulberry32((config.seed ^ 0x9a1f9a1f) >>> 0);
+  const grid = cars
+    .map((car) => ({ car, score: paceMultiplier(car.rating) * (1 + (qrng() - 0.5) * 2 * QUALIFYING_NOISE) }))
+    .sort((a, b) => b.score - a.score)
+    .map((e) => e.car);
+  grid.forEach((car, i) => (car.progress = -i * GRID_GAP));
+  return { config, cars, time: 0, finished: false, rng, weather: config.weather ?? DRY, wetness: 0, safetyCar, safetyCarActive: false, grid: grid.map((c) => c.id) };
 }
 
 // Share of rival tyre choices in the wet that are wrong, and how long (game-seconds) they take to react to a change.
