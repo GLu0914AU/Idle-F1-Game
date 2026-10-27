@@ -75,7 +75,7 @@ describe('sponsors', () => {
     expect(s.sponsorList).toEqual([{ name: m.name, amount: m.secret }]);
     expect(s.meeting).toBeNull();
     expect(sponsorIncome(s)).toBe(m.secret);
-    s.stats.racesWon = 100;
+    s.stats.    racesWon = 400;
     expect(fanMultiplier(s)).toBeCloseTo(2);
     expect(sponsorIncome(s)).toBe(m.secret * 2);
   });

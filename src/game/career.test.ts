@@ -29,8 +29,9 @@ describe('career stats', () => {
 });
 
 describe('fan event', () => {
-  it('is unavailable without fans', () => {
+  it('is unavailable below the fan threshold', () => {
     const s = fresh();
+    s.stats.racesWon = 19;
     expect(canRunFanEvent(s)).toBe(false);
     expect(runFanEvent(s, 10)).toBeNull();
   });
@@ -57,7 +58,7 @@ describe('fan event', () => {
 
   it('can drop nothing when the rolls are bad', () => {
     const s = fresh();
-    s.stats.racesWon = 1;
+    s.stats.racesWon = 20;
     expect(runFanEvent(s, 10, () => 0.99)).toEqual({ money: 0, gems: 0, researchPoints: 0, clout: 0 });
     expect(s.fanEventUsed).toBe(true);
   });
@@ -65,11 +66,11 @@ describe('fan event', () => {
   it('resets on prestige while stats stay', () => {
     const s = fresh();
     s.season = 5;
-    s.stats.racesWon = 4;
+    s.stats.racesWon = 20;
     s.fanEventUsed = true;
     prestige(s);
     expect(s.fanEventUsed).toBe(false);
-    expect(s.stats.racesWon).toBe(4);
+    expect(s.stats.racesWon).toBe(20);
   });
 });
 

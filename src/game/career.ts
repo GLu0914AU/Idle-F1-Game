@@ -8,7 +8,10 @@ export interface CareerStats {
   wcc: number;
 }
 
-export const FANS_PER_WIN = 100;
+export const FANS_PER_WIN = 25;
+
+// Fans needed before the fan event opens.
+export const FAN_EVENT_MIN_FANS = 500;
 
 // Fans come only from race wins, and are never lost on prestige.
 export const fansFor = (stats: Pick<CareerStats, 'racesWon'>) => stats.racesWon * FANS_PER_WIN;
@@ -43,7 +46,7 @@ export interface FanDrops {
 }
 
 export const canRunFanEvent = (state: Pick<GameState, 'stats' | 'fanEventUsed'>) =>
-  !state.fanEventUsed && fansFor(state.stats) > 0;
+  !state.fanEventUsed && fansFor(state.stats) >= FAN_EVENT_MIN_FANS;
 
 // Once per prestige. Each currency rolls separately; bigger crowds also mean bigger drops.
 export function runFanEvent(

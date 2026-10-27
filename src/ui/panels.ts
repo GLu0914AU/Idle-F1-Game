@@ -62,7 +62,7 @@ import {
   rewardLabel,
   streakCount,
 } from '../game/goals';
-import { FANS_PER_WIN, FanCurrency, canRunFanEvent, fanChance, fansFor, runFanEvent } from '../game/career';
+import { FANS_PER_WIN, FAN_EVENT_MIN_FANS, FanCurrency, canRunFanEvent, fanChance, fansFor, runFanEvent } from '../game/career';
 import { Button, COLORS, W, addBox, addButton, addText } from './widgets';
 import { playSound } from '../game/audio';
 
@@ -1321,8 +1321,8 @@ export class PanelHost {
     t.fanInfo.setText(
       `Every race win brings ${FANS_PER_WIN} fans. Run a Fan Event once per prestige: each currency has its own chance to drop, and more fans means better odds and bigger drops.\nChances: money ${pct('money')} · gems ${pct('gems')} · research ${pct('researchPoints')} · clout ${pct('clout')}`,
     );
-    t.fanButton.setLabel(!isUnlocked(s, 'fanEvent') ? lockLabel('fanEvent') : s.fanEventUsed ? 'FAN EVENT USED (PRESTIGE TO RESET)' : fans > 0 ? 'RUN FAN EVENT' : 'WIN A RACE TO GET FANS');
-    t.fanButton.setState(isUnlocked(s, 'fanEvent') && canRunFanEvent(s));
+    t.fanButton.setLabel(    s.fanEventUsed ? 'FAN EVENT USED (PRESTIGE TO RESET)' : fans >= FAN_EVENT_MIN_FANS ? 'RUN FAN EVENT' : `UNLOCKS AT ${FAN_EVENT_MIN_FANS} FANS`);
+        t.fanButton.setState(canRunFanEvent(s));
     t.fanResult.setText(s.fanEventUsed ? this.fanMessage : '');
   }
 

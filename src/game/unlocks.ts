@@ -3,7 +3,6 @@ import type { GameState } from './save';
 // Features that stay locked until the team first reaches a season, so a new player isn't shown everything at once.
 export const UNLOCK_SEASONS = {
   sponsors: 2,
-  fanEvent: 2,
   engineer: 3,
   driver: 5,
   development: 10,

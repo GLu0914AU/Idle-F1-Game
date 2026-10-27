@@ -12,7 +12,6 @@ describe('feature unlocks', () => {
   it('unlocks at the chosen seasons', () => {
     const at = (season: number) => ({ season, bestSeason: 1 });
     expect(isUnlocked(at(2), 'sponsors')).toBe(true);
-    expect(isUnlocked(at(2), 'fanEvent')).toBe(true);
     expect(isUnlocked(at(3), 'engineer')).toBe(true);
     expect(isUnlocked(at(4), 'driver')).toBe(false);
     expect(isUnlocked(at(5), 'driver')).toBe(true);
