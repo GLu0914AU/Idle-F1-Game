@@ -4,7 +4,7 @@ import { createRace, lapTime, paceMultiplier, standings, stepRace } from './race
 import { pointAt } from './track';
 import { CALENDAR } from './tracks';
 
-const TEST_TRACK = CALENDAR.find((t) => t.name === 'Monaco')!;
+const TEST_TRACK = CALENDAR.find((t) => t.name === 'Monaco MON')!;
 
 function config(over = {}) {
   return { track: TEST_TRACK, laps: 3, season: 1, playerRating: 10, playerTeamName: 'Me', seed: 1, ...over };

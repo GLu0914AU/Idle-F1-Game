@@ -9,15 +9,15 @@ export interface Team {
 
 // 9 real rivals give 18 rival cars; the player's own team is the 10th.
 export const RIVAL_TEAMS: Team[] = [
-  { id: 'redbull', name: 'Red Bull Racing', color: 0x3671c6, drivers: ['Max Verstopping', 'Yuki Tsunami'], rating: 62 },
-  { id: 'ferrari', name: 'Ferrari', color: 0xe8002d, drivers: ['Charles Clerk', 'Lewis Hammerton'], rating: 60 },
-  { id: 'mclaren', name: 'McLaren', color: 0xff8000, drivers: ['Lando Chorus', 'Oscar Pastry'], rating: 64 },
-  { id: 'mercedes', name: 'Mercedes', color: 0x27f4d2, drivers: ['George Rustle', 'Kimi Antelope'], rating: 58 },
-  { id: 'astonmartin', name: 'Aston Martin', color: 0x229971, drivers: ['Fernando Alone-So', 'Lance Scroll'], rating: 46 },
-  { id: 'alpine', name: 'Alpine', color: 0x2293d1, drivers: ['Pierre Ghastly', 'Franco Colapint'], rating: 38 },
-  { id: 'williams', name: 'Williams', color: 0x64c4ff, drivers: ['Alex Album', 'Carlos Signs'], rating: 40 },
-  { id: 'racingbulls', name: 'Racing Bulls', color: 0x6692ff, drivers: ['Liam Lawsuit', 'Isack Hedger'], rating: 34 },
-  { id: 'haas', name: 'Haas', color: 0xb6babd, drivers: ['Esteban Icon', 'Oliver Barman'], rating: 30 },
+  { id: 'redbull', name: 'Red Bowl Racing', color: 0x3671c6, drivers: ['Max Verstopping', 'Yuki Tsunami'], rating: 62 },
+  { id: 'ferrari', name: 'Furrari', color: 0xe8002d, drivers: ['Charles Clerk', 'Lewis Hammerton'], rating: 60 },
+  { id: 'mclaren', name: 'McLearn', color: 0xff8000, drivers: ['Lando Chorus', 'Oscar Pastry'], rating: 64 },
+  { id: 'mercedes', name: 'Mercadies', color: 0x27f4d2, drivers: ['George Rustle', 'Kimi Antelope'], rating: 58 },
+  { id: 'astonmartin', name: 'Aston Marlin', color: 0x229971, drivers: ['Fernando Alone-So', 'Lance Scroll'], rating: 46 },
+  { id: 'alpine', name: 'Alpyne', color: 0x2293d1, drivers: ['Pierre Ghastly', 'Franco Colapint'], rating: 38 },
+  { id: 'williams', name: 'Williamson', color: 0x64c4ff, drivers: ['Alex Album', 'Carlos Signs'], rating: 40 },
+  { id: 'racingbulls', name: 'Racing Bills', color: 0x6692ff, drivers: ['Liam Lawsuit', 'Isack Hedger'], rating: 34 },
+  { id: 'haas', name: 'Hoss', color: 0xb6babd, drivers: ['Esteban Icon', 'Oliver Barman'], rating: 30 },
 ];
 
 export const PLAYER_TEAM_ID = 'player';
