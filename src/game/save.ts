@@ -52,6 +52,8 @@ export interface GameState {
 
 export const SAVE_VERSION = 1;
 export const SAVE_KEY = 'idle-f1-save';
+// A new team can open a driver or engineer meeting right away (each costs 2 clout).
+export const STARTING_CLOUT = 10;
 
 export function newGame(now = Date.now()): GameState {
   return {
@@ -89,7 +91,7 @@ export function newGame(now = Date.now()): GameState {
     teamColor: PLAYER_COLOR,
     stats: { racesWon: 0, wdc: 0, wcc: 0 },
     fanEventUsed: false,
-    clout: 0,
+    clout: STARTING_CLOUT,
     drivers: [rookie(), rookie()],
     driverMeeting: null,
     engineer: null,

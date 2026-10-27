@@ -245,7 +245,7 @@ export class GameScene extends Phaser.Scene {
     addText(this, W - 140, VIEW.y + 66, 'BOOST', 10, '#9aa7d0');
     this.compoundText = addText(this, W - 12, VIEW.y + 30, '', 10, '#9aa7d0').setOrigin(1, 0);
     this.weatherText = addText(this, W - 12, VIEW.y + 96, '', 12, '#9aa7d0').setOrigin(1, 0).setStroke('#050914', 3);
-    this.safetyCarText = addText(this, W / 2, VIEW.y + 8, 'SAFETY CAR: pitting is cheap', 20, '#ffd400').setOrigin(0.5, 0).setStroke('#050914', 4).setVisible(false);
+    this.safetyCarText = addText(this, W / 2, VIEW.y + 8, 'SAFETY CAR: incident, pitting is cheap', 20, '#ffd400').setOrigin(0.5, 0).setStroke('#050914', 4).setVisible(false);
   }
 
   // View position at a distance along the lap, optionally shifted sideways (used for the pit lane).

@@ -241,6 +241,15 @@ describe('safety car', () => {
     expect(n / 400).toBeLessThan(0.35);
   });
 
+  it('only comes out when a car has retired, starting where it stopped', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const r = createRace(config({ seed }));
+      const stops = r.cars.filter((c) => c.fault?.dnf).map((c) => c.fault!.at);
+      if (stops.length) expect(r.safetyCar?.start).toBeCloseTo(Math.min(...stops), 9);
+      else expect(r.safetyCar).toBeNull();
+    }
+  });
+
   it('bunches the field without any car passing another', () => {
     const race = withSc();
     let active = 0;

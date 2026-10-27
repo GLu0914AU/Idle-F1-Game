@@ -86,8 +86,7 @@ export interface Race {
 export const QUALIFYING_NOISE = 0.05;
 export const GRID_GAP = 0.0015;
 
-// Chance a race has a safety car, how far the leader travels under it, and how fast the field crawls (a share of racing pace).
-export const SAFETY_CAR_CHANCE = 0.2;
+// How far the leader travels under the safety car, and how fast the field crawls (a share of racing pace).
 export const SAFETY_CAR_LAPS = 0.7;
 export const SAFETY_CAR_PACE = 0.4;
 // Gap behind the car ahead the field closes up to, and the catch-up multiplier while further back.
@@ -168,9 +167,9 @@ export function createRace(config: RaceConfig): Race {
       car.fault = { at: config.laps * (0.15 + 0.7 * frng()), dnf: frng() < DNF_SHARE, remaining: BREAKDOWN_SECONDS, started: false };
     }
   }
-  // The safety car has its own random stream too.
-  const srng = mulberry32((config.seed ^ 0x5afe5afe) >>> 0);
-  const safetyCar = srng() < SAFETY_CAR_CHANCE ? { start: config.laps * (0.2 + 0.5 * srng()), end: 0 } : null;
+  // The safety car comes out for an incident: the earliest car to retire on track.
+  const incidents = cars.flatMap((c) => (c.fault?.dnf ? [c.fault.at] : []));
+  const safetyCar = incidents.length ? { start: Math.min(...incidents), end: 0 } : null;
   if (safetyCar) safetyCar.end = safetyCar.start + SAFETY_CAR_LAPS;
 
   // Qualifying: one flying lap each, so a faster car usually starts further forward but not always.
