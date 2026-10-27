@@ -31,6 +31,8 @@ export interface Strategy {
   mode: Mode;
   compound: Compound;
   nextCompound: Compound;
+  // True once the player has picked the next compound; Auto leaves it alone until that stop has been made.
+  compoundChosen: boolean;
   // 0 fresh, 1 fully worn.
   wear: number;
   // 0..1 energy from tapping.
@@ -56,13 +58,14 @@ export interface StrategyLevels {
   energyRecovery?: number;
 }
 
-export function newStrategy(prev?: Pick<Strategy, 'mode' | 'compound' | 'nextCompound'>): Strategy {
+export function newStrategy(prev?: Pick<Strategy, 'mode' | 'compound' | 'nextCompound' | 'compoundChosen'>): Strategy {
   // A new race starts on the tyres last fitted; a compound chosen for the next stop stays chosen.
   const compound = prev?.compound ?? 'medium';
   return {
     mode: prev?.mode ?? 'normal',
     compound,
     nextCompound: prev?.nextCompound ?? compound,
+    compoundChosen: prev?.compoundChosen ?? false,
     wear: 0,
     boost: 0,
     pitRemaining: 0,
@@ -101,6 +104,7 @@ export function cycleMode(s: Strategy): boolean {
 // Tyres are only ever changed in the pit lane, so this just picks the set to fit at the next stop.
 export function selectCompound(s: Strategy, compound: Compound): void {
   s.nextCompound = compound;
+  s.compoundChosen = true;
 }
 
 // Call the car in (or cancel the call). Each car then peels off at the next pit entrance it reaches.

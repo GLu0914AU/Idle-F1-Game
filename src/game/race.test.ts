@@ -163,6 +163,7 @@ describe('race', () => {
     const team = { strategies: [a, newStrategy()] as [typeof a, ReturnType<typeof newStrategy>], pitCrew: 0 };
     while (!race.finished) stepRace(race, 0.5, 1, team);
     expect(a.compound).toBe('soft');
+    expect(a.compoundChosen).toBe(false);
   });
 
   it('a push-mode car outpaces a conserve-mode car', () => {

@@ -22,6 +22,11 @@ export function shouldAutoPit(s: Strategy, progressLaps: number, totalLaps: numb
   return !isPitting(s) && !s.pitRequested && s.wear >= 0.7 && totalLaps - progressLaps > 0.8;
 }
 
+// Auto picks tyres for the next stop only when the player hasn't chosen any.
+export function autoSelectCompound(s: Strategy, progressLaps: number, totalLaps: number): void {
+  if (!s.compoundChosen) s.nextCompound = autoCompound(progressLaps, totalLaps);
+}
+
 // Fresh tyres should last to the flag: grippy softs for a short run, durable hards for a long one.
 export function autoCompound(progressLaps: number, totalLaps: number): Compound {
   const left = totalLaps - progressLaps;

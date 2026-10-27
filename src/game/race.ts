@@ -180,6 +180,7 @@ export function stepRace(race: Race, dt: number, playerBoost = 1, player?: Playe
         if (s?.pendingFit) {
           s.wear = 0;
           s.compound = s.nextCompound;
+          s.compoundChosen = false;
           s.pendingFit = false;
         }
       }

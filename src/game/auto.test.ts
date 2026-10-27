@@ -1,9 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { autoCompound, pickAutoBuy, shouldAutoPit } from './auto';
+import { autoCompound, autoSelectCompound, pickAutoBuy, shouldAutoPit } from './auto';
 import { upgradeCost, UPGRADE_DEFS } from './economy';
-import { newStrategy } from './strategy';
+import { newStrategy, selectCompound } from './strategy';
 
 describe('auto', () => {
+  it("never overrides the player's chosen compound, which persists until fitted", () => {
+    const s = newStrategy();
+    selectCompound(s, 'soft');
+    autoSelectCompound(s, 1, 5); // Auto alone would choose hard here
+    expect(s.nextCompound).toBe('soft');
+    expect(newStrategy(s).nextCompound).toBe('soft');
+    expect(newStrategy(s).compoundChosen).toBe(true);
+  });
+
+  it('chooses the compound itself when the player has not', () => {
+    const s = newStrategy();
+    autoSelectCompound(s, 1, 5);
+    expect(s.nextCompound).toBe('hard');
+  });
+
   it('buys nothing when broke', () => {
     expect(pickAutoBuy(0, {})).toBeNull();
   });

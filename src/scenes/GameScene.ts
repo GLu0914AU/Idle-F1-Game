@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { autoCompound, pickAutoBuy, shouldAutoPit } from '../game/auto';
+import { autoSelectCompound, pickAutoBuy, shouldAutoPit } from '../game/auto';
 import {
   UPGRADE_DEFS,
   UpgradeDef,
@@ -493,7 +493,8 @@ export class GameScene extends Phaser.Scene {
       this.strategies.forEach((st, i) => {
         const car = this.race.cars.find((c) => c.id === `player-${i}`)!;
         if (shouldAutoPit(st, car.progress, RACE_LAPS)) {
-          selectCompound(st, autoCompound(car.progress, RACE_LAPS));
+          // The player's own tyre choice always wins over Auto's.
+          autoSelectCompound(st, car.progress, RACE_LAPS);
           togglePitRequest(st);
         }
         if (st.wear < 0.35 && st.mode !== 'push') setMode(st, 'push');
