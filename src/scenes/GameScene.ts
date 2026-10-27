@@ -452,7 +452,7 @@ export class GameScene extends Phaser.Scene {
   private speedText!: Phaser.GameObjects.Text;
 
   private drawStrategyStrip() {
-    this.speedText = addText(this, 528, VIEW.y + VIEW.h - 2 * STRIP_H - 28, '1x', 13, '#9aa7d0').setOrigin(1, 0).setDepth(5);
+    this.speedText = addText(this, 528, VIEW.y + VIEW.h - 2 * STRIP_H - 28, '1x', 13, '#9aa7d0').setOrigin(1, 0);
     for (let i = 0; i < 2; i++) {
       const y = VIEW.y + VIEW.h - 2 * STRIP_H - 10 + i * (STRIP_H + 2);
       const s = () => this.strategies[i];

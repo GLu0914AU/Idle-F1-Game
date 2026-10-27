@@ -1362,7 +1362,7 @@ export class PanelHost {
       button: addButton(
         this.scene,
         30,
-        250 + i * 60,
+        400 + i * 56,
         W - 60,
         48,
         name,
@@ -1374,11 +1374,11 @@ export class PanelHost {
         { size: 16, parent: c },
       ),
     }));
-    const checklist = addButton(this.scene, 30, 380, W - 60, 44, 'AUTO BUY CHECKLIST', () => this.openAuto(true), { size: 15, parent: c });
+    const checklist = addButton(this.scene, 30, 512, W - 60, 44, 'AUTO BUY CHECKLIST', () => this.openAuto(true), { size: 15, parent: c });
     addButton(
       this.scene,
       30,
-      450,
+      580,
       W - 60,
       48,
       `Watch ad: 2x speed for ${BOOST_SECONDS}s`,
@@ -1390,7 +1390,7 @@ export class PanelHost {
     const gemBoost = addButton(
       this.scene,
       30,
-      510,
+      640,
       W - 60,
       48,
       `${GEM_BOOST_COST} gems: 2x speed for ${GEM_BOOST_SECONDS / 60} min`,
@@ -1405,7 +1405,7 @@ export class PanelHost {
     const fast = addButton(
       this.scene,
       30,
-      570,
+      234,
       W - 60,
       54,
       '',
@@ -1414,12 +1414,12 @@ export class PanelHost {
       },
       { fill: COLORS.green, size: 16, parent: c },
     );
-    addText(this.scene, W / 2, 628, 'Fast Races: once both your cars finish, the rest of the race runs at 5x. After a prestige, races run at 2x until you are back at your previous season.', 12, '#9aa7d0', c)
+    addText(this.scene, W / 2, 292, 'Fast Races: once both your cars finish, the rest of the race runs at 5x. After a prestige, races run at 2x until you are back at your previous season.', 12, '#9aa7d0', c)
       .setOrigin(0.5, 0)
       .setWordWrapWidth(W - 60)
       .setAlign('center');
-    const store = addButton(this.scene, 30, 660, W - 60, 48, 'BUY GEMS, RP & CLOUT', () => this.openStore(true), { fill: COLORS.gold, size: 17, parent: c });
-    addText(this.scene, W / 2, 716, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
+    const store = addButton(this.scene, 30, 334, W - 60, 48, 'BUY GEMS, RP & CLOUT', () => this.openStore(true), { fill: COLORS.gold, size: 17, parent: c });
+    addText(this.scene, W / 2, 710, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
     this.shop = { gems, unlock, toggles, checklist, gemBoost, fast, store };
   }
 
