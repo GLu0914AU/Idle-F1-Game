@@ -29,6 +29,7 @@ export interface PanelHooks {
   save(): void;
   // Research changes the car's rating, so the live race needs refreshing.
   onResearch(): void;
+  onInfo(key: string): void;
 }
 
 // Full-screen panels shown over the race view for every tab except Race.
@@ -366,6 +367,7 @@ export class PanelHost {
       addBox(this.scene, 20, y, W - 40, 43, COLORS.panel, c);
       addText(this.scene, 32, y + 4, def.name, 15, '#ffffff', c);
       const level = addText(this.scene, 32, y + 25, '', 11, '#9aa7d0', c);
+      addButton(this.scene, W - 182, y + 10, 24, 24, 'i', () => this.hooks.onInfo(def.key), { size: 13, fill: 0x1d2745, parent: c });
       const button = addButton(
         this.scene,
         W - 150,

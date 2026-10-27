@@ -28,10 +28,13 @@ export interface Handling {
   cornering: number;
 }
 
+// Pace bonus (0..HANDLING_MAX) from one handling stat level, with diminishing returns.
+export const handlingBonus = (level: number) => HANDLING_MAX * (level / (level + HANDLING_HALF));
+export const HANDLING_CAP = HANDLING_MAX;
+
 // Pace multiplier at a point of cornerness c (0 straight .. 1 tight corner). Diminishing returns per stat.
 export function handlingFactor(h: Handling, c: number): number {
-  const bonus = (level: number) => HANDLING_MAX * (level / (level + HANDLING_HALF));
-  return 1 + bonus(h.topSpeed) * (1 - c) + bonus(h.cornering) * c;
+  return 1 + handlingBonus(h.topSpeed) * (1 - c) + handlingBonus(h.cornering) * c;
 }
 
 // Permanent sponsors multiplier, plus 25% per Funding research level.

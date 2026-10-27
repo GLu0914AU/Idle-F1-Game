@@ -37,7 +37,7 @@ import { pickTrack } from '../game/tracks';
 import { PanelHost, BOOST_SECONDS, TABS } from '../ui/panels';
 import { askTeamName, askText } from '../ui/teamName';
 import { drawScenery, themeFor } from '../ui/scenery';
-import { upgradeInfo } from '../game/upgradeInfo';
+import { researchInfo, upgradeInfo } from '../game/upgradeInfo';
 import { recordRace, recordSeason } from '../game/career';
 import { Button, COLORS, W, addBox, addButton, addSlant, addText, fillPoly } from '../ui/widgets';
 
@@ -91,7 +91,7 @@ export class GameScene extends Phaser.Scene {
   private tabHighlight!: Phaser.GameObjects.Rectangle;
   private stripChips: Phaser.GameObjects.Rectangle[] = [];
   private cards: { def: UpgradeDef; level: Phaser.GameObjects.Text; button: Button }[] = [];
-  private info!: { box: Phaser.GameObjects.Container; title: Phaser.GameObjects.Text; body: Phaser.GameObjects.Text; key: string | null };
+  private info!: { box: Phaser.GameObjects.Container; title: Phaser.GameObjects.Text; body: Phaser.GameObjects.Text; key: string | null; research: boolean };
   private modeBtns: Button[] = [];
   private tyreBtns: Partial<Record<Compound, Button>>[] = [{}, {}];
   private pitBtns: Button[] = [];
@@ -123,6 +123,7 @@ export class GameScene extends Phaser.Scene {
       prestige: () => this.doPrestige(),
       save: () => saveGame(this.state),
       onResearch: () => this.applyRating(),
+      onInfo: (key) => this.openInfo(key, true),
     });
     this.drawTabs();
     this.buildInfoPopup();
@@ -481,15 +482,16 @@ export class GameScene extends Phaser.Scene {
     const c = this.add.container(0, 0).setDepth(1000).setVisible(false);
     const dim = this.add.rectangle(0, 0, W, 960, 0x000000, 0.6).setOrigin(0).setInteractive().on('pointerdown', () => this.closeInfo());
     c.add(dim);
-    c.add(addBox(this, 30, 250, W - 60, 330, 0x0b1020).setStrokeStyle(2, COLORS.red));
-    const title = addText(this, 48, 266, '', 24, '#ffffff', c);
-    const body = addText(this, 48, 306, '', 14, '#cfd6ee', c).setWordWrapWidth(W - 96).setLineSpacing(6);
-    addButton(this, W / 2 - 60, 524, 120, 40, 'CLOSE', () => this.closeInfo(), { size: 16, parent: c });
-    this.info = { box: c, title, body, key: null };
+    c.add(addBox(this, 30, 220, W - 60, 420, 0x0b1020).setStrokeStyle(2, COLORS.red));
+    const title = addText(this, 48, 236, '', 24, '#ffffff', c);
+    const body = addText(this, 48, 276, '', 14, '#cfd6ee', c).setWordWrapWidth(W - 96).setLineSpacing(6);
+    addButton(this, W / 2 - 60, 582, 120, 40, 'CLOSE', () => this.closeInfo(), { size: 16, parent: c });
+    this.info = { box: c, title, body, key: null, research: false };
   }
 
-  private openInfo(key: string) {
+  private openInfo(key: string, research = false) {
     this.info.key = key;
+    this.info.research = research;
     this.info.box.setVisible(true);
     this.renderInfo();
   }
@@ -503,7 +505,8 @@ export class GameScene extends Phaser.Scene {
   private renderInfo() {
     if (!this.info.key) return;
     const s = this.state;
-    const data = upgradeInfo(this.info.key, { upgrades: s.upgrades, research: s.research, sponsors: sponsorMultiplier(s) }, this.eff());
+    const st = { upgrades: s.upgrades, research: s.research, sponsors: sponsorMultiplier(s), researchPoints: s.researchPoints };
+    const data = this.info.research ? researchInfo(this.info.key, st, this.eff()) : upgradeInfo(this.info.key, st, this.eff());
     if (!data) return;
     this.info.title.setText(data.title.toUpperCase());
     this.info.body.setText([data.description, '', ...data.stats.map((t) => `• ${t}`)].join('\n'));
