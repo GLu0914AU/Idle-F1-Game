@@ -27,7 +27,9 @@ import {
   stepStrategy,
   tap,
 } from '../game/strategy';
+import { offlineEarnings } from '../game/offline';
 import { DEFAULT_TRACK, Point, Track, pointAt } from '../game/track';
+import { trackForRace } from '../game/tracks';
 import { PanelHost, BOOST_SECONDS, TABS } from '../ui/panels';
 import { askTeamName } from '../ui/teamName';
 import { Button, COLORS, W, addBox, addButton, addText } from '../ui/widgets';
@@ -91,6 +93,13 @@ export class GameScene extends Phaser.Scene {
     this.panels = new PanelHost(this, () => this.state, { rename: () => void this.rename(true) });
     this.drawTabs();
     this.startRace();
+
+    const away = offlineEarnings(this.state, Date.now());
+    if (away.earned > 0) {
+      this.state.money += away.earned;
+      this.banner.setText(`Welcome back!\nEarned $${formatNumber(away.earned)}\nwhile away ${Math.round(away.seconds / 60)} min`).setVisible(true);
+      this.time.delayedCall(4000, () => this.banner.setVisible(false));
+    }
 
     this.time.addEvent({ delay: 5000, loop: true, callback: () => saveGame(this.state) });
     window.addEventListener('beforeunload', () => saveGame(this.state));
@@ -163,7 +172,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private startRace() {
-    this.track = DEFAULT_TRACK;
+    this.track = trackForRace(this.state.race);
     this.drawCircuit();
     this.race = createRace({
       track: this.track,

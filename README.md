@@ -17,7 +17,16 @@ See [docs/SPEC.md](docs/SPEC.md) for the full v1 spec and [docs/ROADMAP.md](docs
 
 ## Status
 
-Planning. No code yet.
+v1 playable: all six roadmap steps are implemented. Purchases and ads are stubs (see `src/game/monetization.ts`).
+
+## Run
+
+```
+npm install
+npm run dev     # local dev server
+npm test        # unit tests
+npm run build   # production build
+```
 
 ## Contributing
 
