@@ -67,6 +67,8 @@ export interface StrategyLevels {
   energyRecovery?: number;
   // The driver's Tyre Management trait.
   driverTyre?: number;
+  // Tyre specialist: share of wear removed.
+  tyreWearCut?: number;
   // Current track wetness; intermediates and wets wear fast on a dry track.
   wetness?: number;
 }
@@ -147,7 +149,7 @@ export function stepStrategy(s: Strategy, dt: number, levels: StrategyLevels): v
   if (isPitting(s)) return;
   const rate =
     (BASE_WEAR_PER_SEC * MODE_FX[s.mode].wear * COMPOUND_FX[s.compound].wear * dryWearFactor(s.compound, levels.wetness ?? 0)) /
-    ((1 + 0.05 * levels.tyres) * (1 + 0.04 * (levels.tyreScience ?? 0)) * (1 + 0.04 * (levels.driverTyre ?? 0)));
+    ((1 + 0.05 * levels.tyres) * (1 + 0.04 * (levels.tyreScience ?? 0)) * (1 + 0.04 * (levels.driverTyre ?? 0)) / (1 - (levels.tyreWearCut ?? 0)));
   s.wear = Math.min(1, s.wear + rate * dt);
 }
 

@@ -17,6 +17,7 @@ import { Race, createRace, mulberry32, standings, stepRace } from './race';
 import { GameState, newGame } from './save';
 import { settleRace } from './settle';
 import { RACES_PER_SEASON } from './season';
+import { STAFF_MEETING_CLOUT, STAFF_ROLES, endStaffMeeting, offerStaffContract, requestStaffMeeting, staffEffects } from './staff';
 import { meetingCost, pitch, requestMeeting } from './sponsors';
 import { newStrategy, stepStrategy, tap, Strategy } from './strategy';
 import { pickTrack } from './tracks';
@@ -226,8 +227,9 @@ export function simulate(opts: SimOptions): SimResult {
     const e = eff();
     const gameDt = dt * RACE_SPEED;
     const levels = { tapPower: e.tapPower ?? 0, pitCrew: e.pitCrew ?? 0, tyres: e.tyres ?? 0, tyreScience: e.tyreScience ?? 0, energyRecovery: e.energyRecovery ?? 0, wetness: race.wetness };
-    strategies.forEach((st, i) => stepStrategy(st, gameDt, { ...levels, driverTyre: state.drivers[i].tyreMgmt }));
-    stepRace(race, gameDt, 1, { strategies, pitCrew: e.pitCrew ?? 0, handling: { topSpeed: e.topSpeed ?? 0, cornering: e.cornering ?? 0 } });
+    const fx = staffEffects(state.staff);
+    strategies.forEach((st, i) => stepStrategy(st, gameDt, { ...levels, driverTyre: state.drivers[i].tyreMgmt, tyreWearCut: fx.tyreWearCut }));
+    stepRace(race, gameDt, 1, { strategies, pitCrew: e.pitCrew ?? 0, pitTimeCut: fx.pitTimeCut, pitIssueCut: fx.pitIssueCut, handling: { topSpeed: e.topSpeed ?? 0, cornering: e.cornering ?? 0 } });
     for (const car of race.cars) {
       if (car.isPlayer && car.pit && !seenPits.has(car.pit)) {
         seenPits.add(car.pit);
@@ -310,6 +312,18 @@ export function simulate(opts: SimOptions): SimResult {
           const better = !state.engineer || engineerRating(c.stats) > engineerRating(state.engineer);
           if (better && state.money > c.hi * 10) offerEngineerContract(state, c.hi);
           else endEngineerMeeting(state);
+        }
+      }
+      if (p.recruit) {
+        for (const role of STAFF_ROLES) {
+          while (!state.staffMeetings[role] && state.clout >= STAFF_MEETING_CLOUT) {
+            const c = requestStaffMeeting(state, role, rng);
+            if (!c) break;
+            const total = (stats: Record<string, number>) => Object.values(stats).reduce((a, b) => a + b, 0);
+            const cur2 = state.staff[role];
+            if ((!cur2 || total(c.stats) > total(cur2.stats)) && state.money > c.hi * 10) offerStaffContract(state, role, c.hi);
+            else endStaffMeeting(state, role);
+          }
         }
       }
 

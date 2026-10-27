@@ -3,6 +3,7 @@ import { recordRace, recordSeason } from './career';
 import { DevResult, resetDevelopment, tickDevelopment } from './development';
 import { payDrivers } from './drivers';
 import { payEngineer } from './engineers';
+import { payStaff } from './staff';
 import { racePayout, sponsorMultiplier } from './economy';
 import { GameState } from './save';
 import { SeasonOutcome, advanceSeason, awardPoints } from './season';
@@ -29,6 +30,7 @@ export function settleRace(state: GameState, order: Car[], rng: () => number = M
   state.money += payout;
   const wages = payDrivers(state);
   const engineerWage = payEngineer(state);
+  const staffWage = payStaff(state);
   awardPoints(state, order);
   recordRace(state, order[0].isPlayer);
   const development = tickDevelopment(state, rng);
@@ -41,5 +43,5 @@ export function settleRace(state: GameState, order: Car[], rng: () => number = M
     sponsorCash = sponsorIncome(state);
     state.money += sponsorCash;
   }
-  return { positions, payout, wagesPaid: wages.paid + engineerWage.paid, quit: [...wages.quit, ...engineerWage.quit], outcome, sponsorCash, development };
+  return { positions, payout, wagesPaid: wages.paid + engineerWage.paid + staffWage.paid, quit: [...wages.quit, ...engineerWage.quit, ...staffWage.quit], outcome, sponsorCash, development };
 }

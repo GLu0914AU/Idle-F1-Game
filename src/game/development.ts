@@ -1,6 +1,7 @@
 import { carRating, incomePerSecond, sponsorMultiplier } from './economy';
 import { MAX_SKILL } from './drivers';
 import { engineerRating } from './engineers';
+import { staffEffects } from './staff';
 import { effectiveUpgrades } from './prestige';
 import { RIVAL_TEAMS } from './teams';
 import type { GameState } from './save';
@@ -54,7 +55,7 @@ export const RIVAL_DRIFT_MAX = 0.015;
 const BASE_BIG = 0.1;
 const BASE_FLOP = 0.3;
 
-type DevState = Pick<GameState, 'money' | 'season' | 'race' | 'upgrades' | 'research' | 'sponsors' | 'drivers' | 'engineer' | 'development'>;
+type DevState = Pick<GameState, 'money' | 'season' | 'race' | 'upgrades' | 'research' | 'sponsors' | 'drivers' | 'engineer' | 'staff' | 'development'>;
 
 export const packageDef = (key: string) => DEV_PACKAGES.find((p) => p.key === key);
 
@@ -63,11 +64,11 @@ export function developmentCost(state: DevState, def: DevPackage): number {
   return Math.ceil(income * def.costSeconds);
 }
 
-// 0..1: how good the drivers (technical feedback) and the engineer are. A team without an engineer only has its drivers.
-export function teamQuality(state: Pick<GameState, 'drivers' | 'engineer'>): number {
+// 0..1: how good the drivers (technical feedback), the engineer and the wind tunnel engineer are.
+export function teamQuality(state: Pick<GameState, 'drivers' | 'engineer'> & Partial<Pick<GameState, 'staff'>>): number {
   const driverPart = (state.drivers[0].skill + state.drivers[1].skill) / 2 / MAX_SKILL;
   const engineerPart = state.engineer ? engineerRating(state.engineer) / 100 : 0;
-  return Math.min(1, 0.5 * driverPart + 0.5 * engineerPart);
+  return Math.min(1, 0.5 * driverPart + 0.5 * engineerPart + staffEffects(state.staff).windQuality);
 }
 
 export function developmentOdds(quality: number, def: DevPackage): { big: number; solid: number; flop: number } {

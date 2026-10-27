@@ -23,6 +23,16 @@ import {
   requestEngineerMeeting,
 } from '../game/engineers';
 import { PLAYER_COLOR } from '../game/teams';
+import {
+  STAFF_DEFS,
+  STAFF_MEETING_CLOUT,
+  STAFF_ROLES,
+  StaffCandidate,
+  StaffRole,
+  endStaffMeeting,
+  offerStaffContract,
+  requestStaffMeeting,
+} from '../game/staff';
 import { DEV_PACKAGES, DevPackage, DevOutcome, developmentCost, developmentOdds, fitsSeason, packageDef, startDevelopment, teamQuality } from '../game/development';
 import { RACES_PER_SEASON } from '../game/season';
 import { FANS_PER_WIN, FanCurrency, canRunFanEvent, fanChance, fansFor, runFanEvent } from '../game/career';
@@ -140,6 +150,29 @@ export class PanelHost {
     current: Phaser.GameObjects.Text;
   };
   private developmentOpen = false;
+  private staffOpen = false;
+  private staffRole: StaffRole = 'tyre';
+  private staffMessage = '';
+  private staffMessageGood = false;
+  private staffOffer = 0;
+  private staffOfferFor: StaffCandidate | null = null;
+  private staffUi!: {
+    box: Phaser.GameObjects.Container;
+    tabs: Button[];
+    info: Phaser.GameObjects.Text;
+    meet: Button;
+    name: Phaser.GameObjects.Text;
+    estimate: Phaser.GameObjects.Text;
+    traits: Phaser.GameObjects.Text;
+    amount: Phaser.GameObjects.Text;
+    caption: Phaser.GameObjects.Text;
+    stepBtns: Button[];
+    sign: Button;
+    walkBtn: Button;
+    idle: Phaser.GameObjects.Text;
+    currentTitle: Phaser.GameObjects.Text;
+    current: Phaser.GameObjects.Text;
+  };
   private developmentUi!: {
     box: Phaser.GameObjects.Container;
     info: Phaser.GameObjects.Text;
@@ -153,6 +186,7 @@ export class PanelHost {
     engineerRow: { name: Phaser.GameObjects.Text; chip: Phaser.GameObjects.Rectangle; detail: Phaser.GameObjects.Text };
     engineerBtn: Button;
     developmentBtn: Button;
+    staffBtn: Button;
     stats: Phaser.GameObjects.Text[];
     fans: Phaser.GameObjects.Text;
     fanInfo: Phaser.GameObjects.Text;
@@ -192,10 +226,12 @@ export class PanelHost {
       this.recruitOpen = false;
       this.engineerOpen = false;
       this.developmentOpen = false;
+      this.staffOpen = false;
     }
     this.recruit?.box.setVisible(this.recruitOpen && tab === 'Team');
     this.engineerRecruit?.box.setVisible(this.engineerOpen && tab === 'Team');
     this.developmentUi?.box.setVisible(this.developmentOpen && tab === 'Team');
+    this.staffUi?.box.setVisible(this.staffOpen && tab === 'Team');
     for (const [name, c] of this.panels) {
       c.setVisible(name === tab);
       if (name === tab && changed) {
@@ -381,8 +417,10 @@ export class PanelHost {
     const engineerRow = rowBox(442, '');
     const engineerBtn = addButton(this.scene, 30, 496, W - 60, 32, 'RECRUIT A RACE ENGINEER', () => this.openEngineer(true), { parent: c, size: 15, fill: COLORS.green });
 
-    section(538, 'Car development');
-    const developmentBtn = addButton(this.scene, 30, 558, W - 60, 32, 'CAR DEVELOPMENT', () => this.openDevelopment(true), { parent: c, size: 15, fill: COLORS.green });
+    section(538, 'Car development & staff');
+    const half = (W - 68) / 2;
+    const developmentBtn = addButton(this.scene, 30, 558, half, 32, 'CAR DEVELOPMENT', () => this.openDevelopment(true), { parent: c, size: 13, fill: COLORS.green });
+    const staffBtn = addButton(this.scene, 38 + half, 558, half, 32, 'SPECIALIST STAFF', () => this.openStaff(true), { parent: c, size: 13, fill: COLORS.green });
 
     section(600, 'Career');
     const stats = STAT_LABELS.map((label, i) => {
@@ -400,11 +438,110 @@ export class PanelHost {
     const fanInfo = addText(this.scene, 52, 740, '', 11, '#9aa7d0', c).setWordWrapWidth(W - 120);
     const fanButton = addButton(this.scene, 52, 800, W - 104, 36, '', () => this.runFanEvent(), { parent: c, size: 16, fill: COLORS.green });
     const fanResult = addText(this.scene, W / 2, 848, '', 14, '#ffc933', c).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 80);
-    this.team = { swatches, driverRows, recruitBtn, engineerRow, engineerBtn, developmentBtn, stats, fans, fanInfo, fanButton, fanResult };
+    this.team = { swatches, driverRows, recruitBtn, engineerRow,     engineerBtn, developmentBtn, staffBtn, stats, fans, fanInfo, fanButton, fanResult };
     this.buildRecruit();
     this.buildEngineerRecruit();
     this.buildDevelopment();
-  }
+        this.buildStaff();
+      }
+
+      private openStaff(open: boolean) {
+        this.staffOpen = open;
+        this.staffUi.box.setVisible(open && this.current === 'Team');
+      }
+
+      private buildStaff() {
+        const c = this.scene.add.container(0, 0).setVisible(false);
+        c.add(addBox(this.scene, 0, 70, W, 810, COLORS.bg).setInteractive());
+        c.add(this.scene.add.rectangle(W / 2, 84, 120, 3, COLORS.red));
+        c.add(addText(this.scene, W / 2, 90, 'SPECIALIST STAFF', 24).setOrigin(0.5, 0));
+        const tabW = (W - 68) / 3;
+        const tabs = STAFF_ROLES.map((role, i) =>
+          addButton(this.scene, 30 + i * (tabW + 4), 124, tabW, 32, STAFF_DEFS[role].title.replace(' engineer', '').replace(' specialist', '').toUpperCase(), () => {
+            this.staffRole = role;
+          }, { size: 12, parent: c }),
+        );
+        const info = addText(this.scene, W / 2, 164, '', 13, '#9aa7d0', c).setOrigin(0.5, 0).setWordWrapWidth(W - 60).setAlign('center');
+        const meet = addButton(this.scene, 30, 214, W - 60, 40, '', () => {
+          if (requestStaffMeeting(this.state(), this.staffRole)) {
+            this.staffMessage = '';
+            this.hooks.save();
+          }
+        }, { fill: COLORS.green, size: 15, parent: c });
+
+        addBox(this.scene, 20, 262, W - 40, 350, COLORS.panel, c);
+        const name = addText(this.scene, W / 2, 272, '', 22, '#ffd400', c).setOrigin(0.5, 0);
+        const estimate = addText(this.scene, W / 2, 304, '', 14, '#9aa7d0', c).setOrigin(0.5, 0);
+        const traits = addText(this.scene, W / 2, 334, '', 14, '#cfd6ee', c).setOrigin(0.5, 0).setAlign('center').setLineSpacing(4).setWordWrapWidth(W - 70);
+        const amount = addText(this.scene, W / 2, 414, '', 30, '#ffffff', c).setOrigin(0.5, 0);
+        const caption = addText(this.scene, W / 2, 452, 'per race, paid after every race', 12, '#9aa7d0', c).setOrigin(0.5, 0);
+        const steps: [string, number][] = [['-25%', 0.75], ['-5%', 0.95], ['+5%', 1.05], ['+25%', 1.25]];
+        const stepBtns = steps.map(([label, mult], i) =>
+          addButton(this.scene, 34 + i * 118, 478, 108, 36, label, () => {
+            this.staffOffer = Math.max(1, Math.round(this.staffOffer * mult));
+          }, { size: 16, parent: c }),
+        );
+        const sign = addButton(this.scene, 34, 524, W - 68, 40, '', () => {
+          const s = this.state();
+          const role = this.staffRole;
+          const m = s.staffMeetings[role];
+          if (!m) return;
+          const result = offerStaffContract(s, role, this.staffOffer);
+          this.staffMessage =
+            result.outcome === 'signed'
+              ? `${result.name} signed for $${formatNumber(this.staffOffer)} a race${result.replaced ? `, replacing ${result.replaced}` : ''}.`
+              : `${m.name} turned the offer down and left.`;
+          this.staffMessageGood = result.outcome === 'signed';
+          this.hooks.save();
+        }, { fill: COLORS.green, size: 14, parent: c });
+        const walkBtn = addButton(this.scene, 34, 572, W - 68, 30, 'WALK AWAY', () => {
+          const s = this.state();
+          const m = s.staffMeetings[this.staffRole];
+          if (!m) return;
+          this.staffMessage = `You ended talks with ${m.name}.`;
+          this.staffMessageGood = false;
+          endStaffMeeting(s, this.staffRole);
+          this.hooks.save();
+        }, { size: 14, parent: c });
+        const idle = addText(this.scene, W / 2, 340, '', 15, '#9aa7d0', c).setOrigin(0.5, 0).setWordWrapWidth(W - 90).setAlign('center');
+
+        const currentTitle = addText(this.scene, 30, 628, '', 16, '#ffffff', c);
+        const current = addText(this.scene, 36, 656, '', 13, '#cfd6ee', c).setWordWrapWidth(W - 72).setLineSpacing(4);
+        addButton(this.scene, 30, 800, W - 60, 44, 'BACK TO TEAM', () => this.openStaff(false), { size: 16, parent: c });
+        this.staffUi = { box: c, tabs, info, meet, name, estimate, traits, amount, caption, stepBtns, sign, walkBtn, idle, currentTitle, current };
+      }
+
+      private renderStaff(s: GameState) {
+        const r = this.staffUi;
+        const role = this.staffRole;
+        const def = STAFF_DEFS[role];
+        r.tabs.forEach((b, i) => b.setState(true, STAFF_ROLES[i] === role ? COLORS.green : COLORS.panel));
+        r.info.setText(`Clout: ${s.clout} · ${def.blurb} Paid every race; unpaid staff quit.`);
+        const m = s.staffMeetings[role];
+        r.meet.setLabel(m ? 'NEGOTIATION IN PROGRESS' : `MEET A ${def.title.toUpperCase()}: ${STAFF_MEETING_CLOUT} CLOUT`);
+        r.meet.setState(!m && s.clout >= STAFF_MEETING_CLOUT, COLORS.green);
+        if (m !== this.staffOfferFor) {
+          this.staffOfferFor = m;
+          if (m) this.staffOffer = openingOffer(m);
+        }
+        for (const b of [r.name, r.estimate, r.traits, r.amount, r.caption, ...r.stepBtns.flatMap((x) => [x.rect, x.label]), r.sign.rect, r.sign.label, r.walkBtn.rect, r.walkBtn.label]) {
+          b.setVisible(!!m);
+        }
+        r.idle.setVisible(!m);
+        const holder = s.staff[role];
+        if (m) {
+          r.name.setText(m.name);
+          r.estimate.setText(`They want roughly $${formatNumber(m.lo)} to $${formatNumber(m.hi)} a race`);
+          r.traits.setText(def.lines(m.stats).join('\n'));
+          r.amount.setText(`$${formatNumber(this.staffOffer)}`);
+          r.sign.setLabel(holder ? `SIGN, REPLACING ${holder.name.toUpperCase()}` : `SIGN AS ${def.title.toUpperCase()}`);
+        } else {
+          r.idle.setText(this.staffMessage || `Spend clout to meet a ${def.title.toLowerCase()}. Each has a hidden minimum wage: offer at least that and they sign, offer less and they walk.`);
+          r.idle.setColor(this.staffMessage ? (this.staffMessageGood ? '#14b87a' : '#e08a1f') : '#9aa7d0');
+        }
+        r.currentTitle.setText(`Current ${def.title.toLowerCase()}`);
+        r.current.setText(holder ? `${holder.name}\n${def.lines(holder.stats).join('\n')}\n$${formatNumber(holder.salary)}/race` : `No ${def.title.toLowerCase()} hired`);
+      }
 
   private openRecruit(open: boolean) {
     this.recruitOpen = open;
@@ -673,6 +810,8 @@ export class PanelHost {
     if (this.engineerOpen) this.renderEngineerRecruit(s);
     t.developmentBtn.setLabel(s.development.active ? `CAR DEVELOPMENT (${s.development.active.racesLeft} RACES LEFT)` : 'CAR DEVELOPMENT');
     if (this.developmentOpen) this.renderDevelopment(s);
+    t.staffBtn.setLabel(`SPECIALIST STAFF (${STAFF_ROLES.filter((r) => s.staff[r]).length}/${STAFF_ROLES.length})`);
+    if (this.staffOpen) this.renderStaff(s);
     [s.stats.racesWon, s.stats.wdc, s.stats.wcc].forEach((v, i) => t.stats[i].setText(String(v)));
     const fans = fansFor(s.stats);
     t.fans.setText(`${formatNumber(fans)} FANS`);

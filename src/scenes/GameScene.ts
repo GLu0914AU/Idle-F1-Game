@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { pickAutoBuy } from '../game/auto';
 import { ENGINEER_REVIEW_SECONDS, reviewStrategy } from '../game/engineers';
+import { staffEffects } from '../game/staff';
 import {
   UPGRADE_DEFS,
   UpgradeDef,
@@ -791,10 +792,13 @@ export class GameScene extends Phaser.Scene {
       energyRecovery: eff.energyRecovery ?? 0,
       wetness: this.race.wetness,
     };
-    this.strategies.forEach((st, i) => stepStrategy(st, gameDt, { ...levels, driverTyre: this.state.drivers[i].tyreMgmt }));
+    const fx = staffEffects(this.state.staff);
+    this.strategies.forEach((st, i) => stepStrategy(st, gameDt, { ...levels, driverTyre: this.state.drivers[i].tyreMgmt, tyreWearCut: fx.tyreWearCut }));
     stepRace(this.race, gameDt, 1, {
       strategies: this.strategies,
       pitCrew: eff.pitCrew ?? 0,
+      pitTimeCut: fx.pitTimeCut,
+      pitIssueCut: fx.pitIssueCut,
       handling: { topSpeed: eff.topSpeed ?? 0, cornering: eff.cornering ?? 0 },
     });
     if (this.race.finished && !this.paid) {

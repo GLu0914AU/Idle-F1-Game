@@ -235,6 +235,9 @@ export interface PlayerTeam {
   // One strategy per player car, in the same order as PLAYER_DRIVERS.
   strategies: [Strategy, Strategy];
   pitCrew: number;
+  // Pit crew chief: share of stop time removed and of pit problems avoided.
+  pitTimeCut?: number;
+  pitIssueCut?: number;
   handling?: Handling;
 }
 
@@ -319,9 +322,10 @@ export function stepRace(race: Race, dt: number, playerBoost = 1, player?: Playe
     if (s?.pitRequested && car.lastPitId !== s.pitRequestId) {
       const lap = Math.floor(car.progress + PIT_HALF_LENGTH);
       if (lap > Math.floor(before + PIT_HALF_LENGTH) && lap >= 1 && lap < laps) {
-        const base = pitDuration(crew);
+        const base = pitDuration(crew) * (car.isPlayer ? 1 - (player?.pitTimeCut ?? 0) : 1);
         const roll = race.rng();
-        const issue = roll < pitIssueChance(crew) ? PIT_ISSUES[Math.floor(race.rng() * PIT_ISSUES.length)] : undefined;
+        const issueChance = pitIssueChance(crew) * (car.isPlayer ? 1 - (player?.pitIssueCut ?? 0) : 1);
+        const issue = roll < issueChance ? PIT_ISSUES[Math.floor(race.rng() * PIT_ISSUES.length)] : undefined;
         const total = base + (issue?.extra ?? 0);
         car.pit = { start: lap - PIT_HALF_LENGTH, remaining: total, total, issue: issue?.name };
         car.progress = car.pit.start;
