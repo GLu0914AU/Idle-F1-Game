@@ -15,8 +15,8 @@ const engine = UPGRADE_DEFS[0];
 
 describe('economy', () => {
   it('cost grows by 1.15 per level', () => {
-    expect(upgradeCost(engine, 0)).toBe(200);
-    expect(upgradeCost(engine, 10)).toBe(Math.ceil(200 * 1.15 ** 10));
+    expect(upgradeCost(engine, 0)).toBe(100);
+    expect(upgradeCost(engine, 10)).toBe(Math.ceil(100 * 1.15 ** 10));
     expect(upgradeCost(engine, 11)).toBeGreaterThan(upgradeCost(engine, 10));
   });
 
