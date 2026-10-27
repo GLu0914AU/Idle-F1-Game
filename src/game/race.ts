@@ -1,3 +1,4 @@
+import { COMPOUNDS, Strategy, enterPitLane, isPitting, newStrategy, paceFactor, stepStrategy } from './strategy';
 import { PLAYER_COLOR, PLAYER_DRIVERS, RIVAL_TEAMS, rivalRating } from './teams';
 import { Track } from './track';
 
@@ -14,6 +15,10 @@ export interface Car {
   // Per-lap pace variation, redrawn each lap.
   form: number;
   finishTime: number | null;
+  // Tyre and pit state for NPC cars. The player cars are driven by the player's own Strategy instead.
+  tyres?: Strategy;
+  // Wear level at which this NPC calls itself in.
+  pitWear?: number;
 }
 
 export interface RaceConfig {
@@ -79,7 +84,7 @@ export function createRace(config: RaceConfig): Race {
     }),
   );
   for (const team of RIVAL_TEAMS) {
-    team.drivers.forEach((driver, i) =>
+    team.drivers.forEach((driver, i) => {
       add({
         id: `${team.id}-${i}`,
         teamId: team.id,
@@ -89,10 +94,32 @@ export function createRace(config: RaceConfig): Race {
         isPlayer: false,
         // Second driver is slightly slower to spread the field.
         rating: rivalRating(team.rating, config.season) * (i === 0 ? 1 : 0.97),
-      }),
-    );
+      });
+      const car = cars[cars.length - 1];
+      car.tyres = newStrategy();
+      car.tyres.compound = randomCompound(rng);
+      car.pitWear = 0.5 + rng() * 0.3;
+    });
   }
   return { config, cars, time: 0, finished: false, rng };
+}
+
+function randomCompound(rng: () => number) {
+  return COMPOUNDS[Math.floor(rng() * COMPOUNDS.length) % COMPOUNDS.length];
+}
+
+const NO_UPGRADES = { tapPower: 0, pitCrew: 0, tyres: 0 };
+
+// NPC tyre logic: call the car in when worn (with a random fresh compound), stop at the line.
+function stepNpcTyres(race: Race, car: Car, dt: number): number {
+  const s = car.tyres;
+  if (!s) return 1;
+  stepStrategy(s, dt, NO_UPGRADES);
+  if (!isPitting(s) && !s.pitRequested && s.wear >= (car.pitWear ?? 0.7) && race.config.laps - car.progress > 1) {
+    s.pitRequested = true;
+    s.nextCompound = randomCompound(race.rng);
+  }
+  return paceFactor(s);
 }
 
 // Advance the race by dt seconds. speedBoost multiplies the player cars only (taps/strategy later).
@@ -101,11 +128,14 @@ export function stepRace(race: Race, dt: number, playerBoost = 1): void {
   const { laps, baseLapTime = 90 } = race.config;
   for (const car of race.cars) {
     if (car.finishTime !== null) continue;
-    const boost = car.isPlayer ? playerBoost : 1;
+    const boost = car.isPlayer ? playerBoost : stepNpcTyres(race, car, dt);
     const lapsPerSecond = (paceMultiplier(car.rating) * car.form * boost) / baseLapTime;
     const before = car.progress;
     car.progress += lapsPerSecond * dt;
-    if (Math.floor(car.progress) > Math.floor(before)) car.form = rollForm(race.rng);
+    if (Math.floor(car.progress) > Math.floor(before)) {
+      car.form = rollForm(race.rng);
+      if (car.tyres && car.progress < laps) enterPitLane(car.tyres, 0);
+    }
     if (car.progress >= laps) {
       // Interpolate the exact crossing time within this step.
       const over = (car.progress - laps) / lapsPerSecond;

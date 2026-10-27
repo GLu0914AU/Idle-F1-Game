@@ -247,14 +247,17 @@ export class GameScene extends Phaser.Scene {
     for (const car of [...this.race.cars].reverse()) {
       const dist = car.progress * this.track.length;
       const frac = car.progress - Math.floor(car.progress);
-      const inLane = car.isPlayer && isPitting(this.strategy) && Math.min(frac, 1 - frac) <= PIT_HALF_LENGTH;
+      const inPitLane = car.isPlayer ? isPitting(this.strategy) : !!car.tyres && isPitting(car.tyres);
+      const inLane = inPitLane && Math.min(frac, 1 - frac) <= PIT_HALF_LENGTH;
       const p = this.trackPos(dist, inLane ? PIT_OFFSET : 0);
       this.carGfx.fillStyle(car.color).fillCircle(p.x, p.y, car.isPlayer ? 7 : 5);
       if (car.isPlayer) this.carGfx.lineStyle(2, 0xffffff).strokeCircle(p.x, p.y, 8);
     }
     order.forEach((car, i) => {
       const row = this.towerRows[i];
-      row.setText(`${String(i + 1).padStart(2)} ${car.isPlayer ? car.driver : car.driver.split(' ').pop()?.slice(0, 10)}`);
+      const compound = car.isPlayer ? this.strategy.compound : car.tyres?.compound;
+      const tyre = compound ? COMPOUND_LETTERS[compound] : ' ';
+      row.setText(`${String(i + 1).padStart(2)} ${tyre} ${car.isPlayer ? car.driver : car.driver.split(' ').pop()?.slice(0, 10)}`);
       row.setColor(car.isPlayer ? '#ffd400' : '#cfd6ee');
     });
     const lap = Math.min(RACE_LAPS, Math.floor(order[0].progress) + 1);

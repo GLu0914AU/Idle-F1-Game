@@ -66,6 +66,41 @@ describe('race', () => {
     expect(standings(race)[0].isPlayer).toBe(false);
   });
 
+  it('NPC cars wear tyres, pit in the pit lane at the line, and fit fresh random tyres', () => {
+    const race = createRace(config({ laps: 8 }));
+    const npc = race.cars.filter((c) => !c.isPlayer);
+    expect(npc.every((c) => c.tyres)).toBe(true);
+    const stops = new Map<string, number>();
+    const compounds = new Set<string>();
+    let wasPitting = new Set<string>();
+    for (let i = 0; i < 100000 && !race.finished; i++) {
+      stepRace(race, 0.5);
+      const now = new Set<string>();
+      for (const c of npc) {
+        if (c.tyres!.pitRemaining > 0) {
+          now.add(c.id);
+          // A stop only ever starts right after the line, so the car is near progress = integer.
+          if (!wasPitting.has(c.id)) {
+            stops.set(c.id, (stops.get(c.id) ?? 0) + 1);
+            expect(c.progress - Math.floor(c.progress)).toBeLessThan(0.1);
+          }
+        } else if (wasPitting.has(c.id)) {
+          expect(c.tyres!.wear).toBe(0);
+          compounds.add(c.tyres!.compound);
+        }
+      }
+      wasPitting = now;
+    }
+    expect(stops.size).toBeGreaterThan(10);
+    expect(compounds.size).toBeGreaterThan(1);
+  });
+
+  it('NPCs never start a stop on the final lap', () => {
+    const race = createRace(config({ laps: 3 }));
+    runToEnd(race);
+    for (const c of race.cars.filter((x) => !x.isPlayer)) expect(c.tyres!.pitRemaining).toBe(0);
+  });
+
   it('rivals get stronger in later seasons', () => {
     const s1 = createRace(config({ season: 1 }));
     const s5 = createRace(config({ season: 5 }));
