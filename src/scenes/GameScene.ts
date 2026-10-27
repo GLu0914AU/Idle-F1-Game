@@ -15,6 +15,7 @@ import { showRewardedAd } from '../game/monetization';
 import { Race, createRace, standings, stepRace } from '../game/race';
 import { FREE_LEVELS_PER_RESEARCH, buyResearch, canPrestige, effectiveUpgrades, pickAutoResearch, prestige, researchPointsFor } from '../game/prestige';
 import { sponsorIncome } from '../game/sponsors';
+import { driverRating, payDrivers } from '../game/drivers';
 import { GameState, loadGame, saveGame } from '../game/save';
 import { RACES_PER_SEASON, advanceSeason, awardPoints, driversTable } from '../game/season';
 import {
@@ -74,6 +75,7 @@ export class GameScene extends Phaser.Scene {
   private moneyText!: Phaser.GameObjects.Text;
   private gemText!: Phaser.GameObjects.Text;
   private rpText!: Phaser.GameObjects.Text;
+  private cloutText!: Phaser.GameObjects.Text;
   private seasonText!: Phaser.GameObjects.Text;
   private incomeText!: Phaser.GameObjects.Text;
   private lapText!: Phaser.GameObjects.Text;
@@ -123,6 +125,10 @@ export class GameScene extends Phaser.Scene {
       prestige: () => this.doPrestige(),
       save: () => saveGame(this.state),
       onResearch: () => this.applyRating(),
+      onDriversChanged: () => {
+        this.applyIdentity();
+        this.applyRating();
+      },
       onInfo: (key) => this.openInfo(key, true),
     });
     this.drawTabs();
@@ -183,12 +189,22 @@ export class GameScene extends Phaser.Scene {
     const gx = W - 196;
     g.fillStyle(0x4de3ff);
     fillPoly(g, [{ x: gx + 6, y: 49 }, { x: gx + 12, y: 55 }, { x: gx + 6, y: 63 }, { x: gx, y: 55 }]);
-    const hx = W - 96;
+    const hx = W - 146;
     const hex = Array.from({ length: 6 }, (_, i) => ({ x: hx + 6 + Math.cos((i * Math.PI) / 3) * 7, y: 56 + Math.sin((i * Math.PI) / 3) * 7 }));
     g.fillStyle(0xb48cff);
     fillPoly(g, hex);
+    // Clout: an orange star.
+    const cx = W - 84;
+    const star = Array.from({ length: 10 }, (_, i) => {
+      const r = i % 2 ? 3.5 : 8;
+      const a = -Math.PI / 2 + (i * Math.PI) / 5;
+      return { x: cx + 6 + Math.cos(a) * r, y: 56 + Math.sin(a) * r };
+    });
+    g.fillStyle(0xff9a3d);
+    fillPoly(g, star);
     this.gemText = addText(this, gx + 18, 47, '', 14, '#cfe9ff');
     this.rpText = addText(this, hx + 18, 47, '', 14, '#e0ccff');
+    this.cloutText = addText(this, cx + 18, 47, '', 14, '#ffc489');
   }
 
   private toView(p: Point): Point {
@@ -323,6 +339,7 @@ export class GameScene extends Phaser.Scene {
       playerDrivers: this.state.driverNames,
       playerColor: this.state.teamColor,
       playerReliability: this.eff().reliability ?? 0,
+      playerDriverStats: this.state.drivers,
       seed: Date.now() & 0x7fffffff,
     });
     this.strategies = [newStrategy(this.strategies[0]), newStrategy(this.strategies[1])];
@@ -519,7 +536,12 @@ export class GameScene extends Phaser.Scene {
 
   private applyRating() {
     const rating = carRating(this.eff());
-    for (const car of this.race.cars) if (car.isPlayer) car.rating = rating;
+    this.race.cars.forEach((car) => {
+      if (!car.isPlayer) return;
+      const d = this.state.drivers[car.id === 'player-0' ? 0 : 1];
+      car.rating = driverRating(rating, d);
+      car.raceCraft = d.raceCraft;
+    });
   }
 
   private renderEconomy() {
@@ -528,6 +550,7 @@ export class GameScene extends Phaser.Scene {
     this.moneyText.setText(`$ ${formatNumber(s.money)}`);
     this.gemText.setText(String(s.gems));
     this.rpText.setText(`${s.researchPoints} RP`);
+    this.cloutText.setText(String(s.clout));
     this.seasonText.setText(`Season ${s.season} · Race ${s.race}/${RACES_PER_SEASON}`);
     this.incomeText.setText(`${formatNumber(incomePerSecond(rating, sponsorMultiplier(s)))} $/s · Rating ${Math.round(rating)}`);
     for (const { def, level, button } of this.cards) {
@@ -560,6 +583,13 @@ export class GameScene extends Phaser.Scene {
     const payout = racePayout(positions, this.state.season, sponsorMultiplier(this.state));
     this.state.money += payout;
     this.floatText(W - 90, 70, `+$${formatNumber(payout)}`, '#ffc933');
+    const wages = payDrivers(this.state);
+    if (wages.paid > 0) this.floatText(W - 90, 96, `-$${formatNumber(wages.paid)} wages`, '#ff8a80');
+    if (wages.quit.length > 0) {
+      this.applyIdentity();
+      this.applyRating();
+      this.floatText(W / 2, 300, `${wages.quit.join(' & ')} quit: unpaid wages`, '#ff8a80');
+    }
     awardPoints(this.state, order);
     recordRace(this.state, order[0].isPlayer);
 
@@ -730,7 +760,7 @@ export class GameScene extends Phaser.Scene {
       tyreScience: eff.tyreScience ?? 0,
       energyRecovery: eff.energyRecovery ?? 0,
     };
-    for (const st of this.strategies) stepStrategy(st, gameDt, levels);
+    this.strategies.forEach((st, i) => stepStrategy(st, gameDt, { ...levels, driverTyre: this.state.drivers[i].tyreMgmt }));
     stepRace(this.race, gameDt, 1, {
       strategies: this.strategies,
       pitCrew: eff.pitCrew ?? 0,

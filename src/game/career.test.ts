@@ -58,7 +58,7 @@ describe('fan event', () => {
   it('can drop nothing when the rolls are bad', () => {
     const s = fresh();
     s.stats.racesWon = 1;
-    expect(runFanEvent(s, 10, () => 0.99)).toEqual({ money: 0, gems: 0, researchPoints: 0 });
+    expect(runFanEvent(s, 10, () => 0.99)).toEqual({ money: 0, gems: 0, researchPoints: 0, clout: 0 });
     expect(s.fanEventUsed).toBe(true);
   });
 

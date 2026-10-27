@@ -3,6 +3,16 @@ import { AUTO_PRICE_LABEL, purchaseAutoUnlock, showRewardedAd } from '../game/mo
 import { GameState } from '../game/save';
 import { MIN_PRESTIGE_SEASON, RESEARCH_DEFS, ResearchDef, buyResearch, researchCost, researchPointsFor } from '../game/prestige';
 import { openingPitch, meetingCost, pitch, requestMeeting, sponsorIncome, walkAway } from '../game/sponsors';
+import {
+  DRIVER_MEETING_CLOUT,
+  DriverStats,
+  MAX_TRAIT,
+  Driver,
+  endDriverMeeting,
+  offerContract,
+  openingOffer,
+  requestDriverMeeting,
+} from '../game/drivers';
 import { formatNumber } from '../game/economy';
 import { PLAYER_COLOR } from '../game/teams';
 import { FANS_PER_WIN, FanCurrency, canRunFanEvent, fanChance, fansFor, runFanEvent } from '../game/career';
@@ -13,6 +23,16 @@ const TEAM_COLORS = [0xffd400, 0xff7a1a, 0xe10600, 0xff4fa3, 0xb48cff, 0x2f6bff,
 const STAT_LABELS = ['RACES WON', "DRIVERS' TITLES", "CONSTRUCTORS' TITLES"];
 type TabName = (typeof TABS)[number];
 type AutoKey = 'autoBuy' | 'autoStrategy' | 'autoTap';
+
+const driverLines = (d: DriverStats) => [
+  `Skill: +${d.skill}% car rating`,
+  `Tyre management: ${d.tyreMgmt}/${MAX_TRAIT}`,
+  `Consistency: ${d.consistency}/${MAX_TRAIT}`,
+  `Race craft: ${d.raceCraft}/${MAX_TRAIT}`,
+];
+
+const describeDriver = (d: Driver) =>
+  `Skill +${d.skill}% · Tyres ${d.tyreMgmt} · Consistency ${d.consistency} · Race craft ${d.raceCraft} · ${d.salary > 0 ? `$${formatNumber(d.salary)}/race` : 'no wage'}`;
 
 export const GEM_BOOST_COST = 10;
 export const BOOST_SECONDS = 60;
@@ -29,6 +49,8 @@ export interface PanelHooks {
   save(): void;
   // Research changes the car's rating, so the live race needs refreshing.
   onResearch(): void;
+  // A driver was signed, so the live race needs their name, rating and traits.
+  onDriversChanged(): void;
   onInfo(key: string): void;
 }
 
@@ -55,10 +77,31 @@ export class PanelHost {
     rows: { name: Phaser.GameObjects.Text; amount: Phaser.GameObjects.Text }[];
   };
   private teamName!: Phaser.GameObjects.Text;
+  private recruitOpen = false;
+  private driverMessage = '';
+  private driverMessageGood = false;
+  private driverOffer = 0;
+  private offerFor: GameState['driverMeeting'] = null;
+  private recruit!: {
+    box: Phaser.GameObjects.Container;
+    info: Phaser.GameObjects.Text;
+    meet: Button;
+    name: Phaser.GameObjects.Text;
+    estimate: Phaser.GameObjects.Text;
+    traits: Phaser.GameObjects.Text;
+    amount: Phaser.GameObjects.Text;
+    caption: Phaser.GameObjects.Text;
+    stepBtns: Button[];
+    sign: Button[];
+    walkBtn: Button;
+    idle: Phaser.GameObjects.Text;
+    current: Phaser.GameObjects.Text[];
+  };
   private fanMessage = '';
   private team!: {
     swatches: { sw: Phaser.GameObjects.Rectangle; color: number }[];
-    driverRows: { name: Phaser.GameObjects.Text; chip: Phaser.GameObjects.Rectangle }[];
+    driverRows: { name: Phaser.GameObjects.Text; chip: Phaser.GameObjects.Rectangle; detail: Phaser.GameObjects.Text }[];
+    recruitBtn: Button;
     stats: Phaser.GameObjects.Text[];
     fans: Phaser.GameObjects.Text;
     fanInfo: Phaser.GameObjects.Text;
@@ -94,6 +137,8 @@ export class PanelHost {
   show(tab: TabName) {
     const changed = tab !== this.current;
     this.current = tab;
+    if (changed) this.recruitOpen = false;
+    this.recruit?.box.setVisible(this.recruitOpen && tab === 'Team');
     for (const [name, c] of this.panels) {
       c.setVisible(name === tab);
       if (name === tab && changed) {
@@ -264,31 +309,123 @@ export class PanelHost {
 
     section(256, 'Drivers');
     const driverRows = [0, 1].map((i) => {
-      const y = 280 + i * 42;
-      addBox(this.scene, 30, y, W - 60, 36, COLORS.panel, c);
-      const chip = addBox(this.scene, 30, y, 8, 36, PLAYER_COLOR, c).setStrokeStyle(0);
-      const name = addText(this.scene, 52, y + 6, '', 20, '#ffffff', c);
-      addButton(this.scene, W - 150, y + 5, 110, 26, 'CHANGE NAME', () => this.hooks.renameDriver(i), { parent: c, size: 12 });
-      return { name, chip };
+      const y = 280 + i * 60;
+      addBox(this.scene, 30, y, W - 60, 54, COLORS.panel, c);
+      const chip = addBox(this.scene, 30, y, 8, 54, PLAYER_COLOR, c).setStrokeStyle(0);
+      const name = addText(this.scene, 52, y + 5, '', 19, '#ffffff', c);
+      const detail = addText(this.scene, 52, y + 32, '', 12, '#9aa7d0', c);
+      addButton(this.scene, W - 150, y + 5, 110, 24, 'CHANGE NAME', () => this.hooks.renameDriver(i), { parent: c, size: 12 });
+      return { name, chip, detail };
     });
+    const recruitBtn = addButton(this.scene, 30, 402, W - 60, 36, 'RECRUIT A DRIVER', () => this.openRecruit(true), { parent: c, size: 15, fill: COLORS.green });
 
-    section(376, 'Career');
+    section(450, 'Career');
     const stats = STAT_LABELS.map((label, i) => {
       const x = 30 + i * 156;
-      addBox(this.scene, x, 400, 144, 66, COLORS.panel, c);
-      const value = addText(this.scene, x + 72, 408, '', 28, '#ffc933', c).setOrigin(0.5, 0);
-      addText(this.scene, x + 72, 444, label, 12, '#9aa7d0', c).setOrigin(0.5, 0);
+      addBox(this.scene, x, 474, 144, 66, COLORS.panel, c);
+      const value = addText(this.scene, x + 72, 482, '', 28, '#ffc933', c).setOrigin(0.5, 0);
+      addText(this.scene, x + 72, 518, label, 12, '#9aa7d0', c).setOrigin(0.5, 0);
       return value;
     });
 
-    section(486, 'Fans');
-    addBox(this.scene, 30, 510, W - 60, 190, COLORS.panel, c);
-    addBox(this.scene, 30, 510, 5, 190, COLORS.red, c).setStrokeStyle(0);
-    const fans = addText(this.scene, 52, 520, '', 30, '#ffffff', c);
-    const fanInfo = addText(this.scene, 52, 560, '', 13, '#9aa7d0', c).setWordWrapWidth(W - 120);
-    const fanButton = addButton(this.scene, 52, 626, W - 104, 40, '', () => this.runFanEvent(), { parent: c, size: 16, fill: COLORS.green });
-    const fanResult = addText(this.scene, W / 2, 712, '', 16, '#ffc933', c).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 80);
-    this.team = { swatches, driverRows, stats, fans, fanInfo, fanButton, fanResult };
+    section(556, 'Fans');
+    addBox(this.scene, 30, 580, W - 60, 190, COLORS.panel, c);
+    addBox(this.scene, 30, 580, 5, 190, COLORS.red, c).setStrokeStyle(0);
+    const fans = addText(this.scene, 52, 590, '', 30, '#ffffff', c);
+    const fanInfo = addText(this.scene, 52, 628, '', 12, '#9aa7d0', c).setWordWrapWidth(W - 120);
+    const fanButton = addButton(this.scene, 52, 722, W - 104, 40, '', () => this.runFanEvent(), { parent: c, size: 16, fill: COLORS.green });
+    const fanResult = addText(this.scene, W / 2, 780, '', 16, '#ffc933', c).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 80);
+    this.team = { swatches, driverRows, recruitBtn, stats, fans, fanInfo, fanButton, fanResult };
+    this.buildRecruit();
+  }
+
+  private openRecruit(open: boolean) {
+    this.recruitOpen = open;
+    this.recruit.box.setVisible(open && this.current === 'Team');
+  }
+
+  private buildRecruit() {
+    const c = this.scene.add.container(0, 0).setVisible(false);
+    c.add(addBox(this.scene, 0, 70, W, 810, COLORS.bg).setInteractive());
+    c.add(this.scene.add.rectangle(W / 2, 84, 120, 3, COLORS.red));
+    c.add(addText(this.scene, W / 2, 90, 'RECRUIT A DRIVER', 24).setOrigin(0.5, 0));
+    const info = addText(this.scene, W / 2, 124, '', 14, '#9aa7d0', c).setOrigin(0.5, 0).setWordWrapWidth(W - 60).setAlign('center');
+    const meet = addButton(this.scene, 30, 170, W - 60, 44, '', () => {
+      if (requestDriverMeeting(this.state())) {
+        this.driverMessage = '';
+        this.hooks.save();
+      }
+    }, { fill: COLORS.green, size: 16, parent: c });
+
+    addBox(this.scene, 20, 226, W - 40, 370, COLORS.panel, c);
+    const name = addText(this.scene, W / 2, 238, '', 22, '#ffd400', c).setOrigin(0.5, 0);
+    const estimate = addText(this.scene, W / 2, 272, '', 14, '#9aa7d0', c).setOrigin(0.5, 0);
+    const traits = addText(this.scene, W / 2, 300, '', 15, '#cfd6ee', c).setOrigin(0.5, 0).setAlign('center').setLineSpacing(4);
+    const amount = addText(this.scene, W / 2, 398, '', 30, '#ffffff', c).setOrigin(0.5, 0);
+    const caption = addText(this.scene, W / 2, 438, 'per race, paid after every race', 12, '#9aa7d0', c).setOrigin(0.5, 0);
+    const steps: [string, number][] = [['-25%', 0.75], ['-5%', 0.95], ['+5%', 1.05], ['+25%', 1.25]];
+    const stepBtns = steps.map(([label, mult], i) =>
+      addButton(this.scene, 34 + i * 118, 466, 108, 38, label, () => {
+        this.driverOffer = Math.max(1, Math.round(this.driverOffer * mult));
+      }, { size: 16, parent: c }),
+    );
+    const sign = ([0, 1] as const).map((slot) =>
+      addButton(this.scene, 34 + slot * 238, 514, 230, 40, '', () => {
+        const s = this.state();
+        const m = s.driverMeeting;
+        if (!m) return;
+        const result = offerContract(s, slot, this.driverOffer);
+        this.driverMessage =
+          result.outcome === 'signed'
+            ? `${result.name} signed for $${formatNumber(this.driverOffer)} a race, replacing ${result.replaced}.`
+            : `${m.name} turned the offer down and left.`;
+        this.driverMessageGood = result.outcome === 'signed';
+        if (result.outcome === 'signed') this.hooks.onDriversChanged();
+        this.hooks.save();
+      }, { fill: COLORS.green, size: 13, parent: c }),
+    );
+    const walkBtn = addButton(this.scene, 34, 558, W - 68, 30, 'WALK AWAY', () => {
+      const s = this.state();
+      if (!s.driverMeeting) return;
+      this.driverMessage = `You ended talks with ${s.driverMeeting.name}.`;
+      this.driverMessageGood = false;
+      endDriverMeeting(s);
+      this.hooks.save();
+    }, { size: 14, parent: c });
+    const idle = addText(this.scene, W / 2, 320, '', 15, '#9aa7d0', c).setOrigin(0.5, 0).setWordWrapWidth(W - 90).setAlign('center');
+
+    addText(this.scene, 30, 612, 'Current drivers', 16, '#ffffff', c);
+    const current = [0, 1].map((i) => addText(this.scene, 36, 642 + i * 44, '', 13, '#cfd6ee', c).setWordWrapWidth(W - 72));
+    addButton(this.scene, 30, 800, W - 60, 44, 'BACK TO TEAM', () => this.openRecruit(false), { size: 16, parent: c });
+    this.recruit = { box: c, info, meet, name, estimate, traits, amount, caption, stepBtns, sign, walkBtn, idle, current };
+  }
+
+  private renderRecruit(s: GameState) {
+    const r = this.recruit;
+    r.info.setText(`Clout: ${s.clout} · Win races, then run a Fan Event to earn clout. Drivers stay until you replace them, and are paid after every race: if you can't pay, they quit.`);
+    r.meet.setLabel(s.driverMeeting ? 'NEGOTIATION IN PROGRESS' : `MEET A DRIVER: ${DRIVER_MEETING_CLOUT} CLOUT`);
+    r.meet.setState(!s.driverMeeting && s.clout >= DRIVER_MEETING_CLOUT, COLORS.green);
+
+    const m = s.driverMeeting;
+    if (m !== this.offerFor) {
+      this.offerFor = m;
+      if (m) this.driverOffer = openingOffer(m);
+    }
+    for (const b of [r.name, r.estimate, r.traits, r.amount, r.caption, ...r.stepBtns.flatMap((x) => [x.rect, x.label]), ...r.sign.flatMap((x) => [x.rect, x.label]), r.walkBtn.rect, r.walkBtn.label]) {
+      b.setVisible(!!m);
+    }
+    r.idle.setVisible(!m);
+    if (m) {
+      r.name.setText(m.name);
+      r.estimate.setText(`They want roughly $${formatNumber(m.lo)} to $${formatNumber(m.hi)} a race`);
+      r.traits.setText(driverLines(m.stats).join('\n'));
+      r.amount.setText(`$${formatNumber(this.driverOffer)}`);
+      r.sign.forEach((b, i) => b.setLabel(`SIGN AS DRIVER ${i + 1}`));
+    } else {
+      r.idle.setText(this.driverMessage || 'Spend clout to meet a driver. Each one has a hidden minimum wage: offer at least that and they sign into the seat you choose, offer less and they walk. A better driver costs more.');
+      r.idle.setColor(this.driverMessage ? (this.driverMessageGood ? '#14b87a' : '#e08a1f') : '#9aa7d0');
+    }
+    r.current.forEach((t, i) => t.setText(`Driver ${i + 1}: ${s.driverNames[i]}\n${describeDriver(s.drivers[i])}`));
   }
 
   private runFanEvent() {
@@ -299,6 +436,7 @@ export class PanelHost {
       drops.money > 0 && `$${formatNumber(drops.money)}`,
       drops.gems > 0 && `${drops.gems} gems`,
       drops.researchPoints > 0 && `${drops.researchPoints} RP`,
+      drops.clout > 0 && `${drops.clout} clout`,
     ].filter(Boolean);
     this.fanMessage = parts.length > 0 ? `The fans came through!\n+ ${parts.join('  + ')}` : 'The fans cheered, but nothing dropped this time.';
     this.hooks.save();
@@ -309,15 +447,18 @@ export class PanelHost {
     this.teamName.setText(s.teamName.toUpperCase());
     t.swatches.forEach(({ sw, color }) => sw.setStrokeStyle(color === s.teamColor ? 4 : 2, color === s.teamColor ? 0xffffff : COLORS.border));
     t.driverRows.forEach((row, i) => {
-      row.name.setText(s.driverNames[i]);
+      row.name.setText(`${s.driverNames[i]}${s.drivers[i].salary > 0 ? '' : '  (rookie)'}`);
+      row.detail.setText(describeDriver(s.drivers[i]));
       row.chip.setFillStyle(s.teamColor);
     });
+    t.recruitBtn.setLabel(`RECRUIT A DRIVER (${s.clout} CLOUT)`);
+    if (this.recruitOpen) this.renderRecruit(s);
     [s.stats.racesWon, s.stats.wdc, s.stats.wcc].forEach((v, i) => t.stats[i].setText(String(v)));
     const fans = fansFor(s.stats);
     t.fans.setText(`${formatNumber(fans)} FANS`);
     const pct = (cur: FanCurrency) => `${Math.round(fanChance(fans, cur) * 100)}%`;
     t.fanInfo.setText(
-      `Every race win brings ${FANS_PER_WIN} fans. Run a Fan Event once per prestige: each currency has its own chance to drop, and more fans means better odds and bigger drops.\nChances: money ${pct('money')} · gems ${pct('gems')} · research ${pct('researchPoints')}`,
+      `Every race win brings ${FANS_PER_WIN} fans. Run a Fan Event once per prestige: each currency has its own chance to drop, and more fans means better odds and bigger drops.\nChances: money ${pct('money')} · gems ${pct('gems')} · research ${pct('researchPoints')} · clout ${pct('clout')}`,
     );
     t.fanButton.setLabel(s.fanEventUsed ? 'FAN EVENT USED (PRESTIGE TO RESET)' : fans > 0 ? 'RUN FAN EVENT' : 'WIN A RACE TO GET FANS');
     t.fanButton.setState(canRunFanEvent(s));

@@ -59,6 +59,8 @@ export interface StrategyLevels {
   tyres: number;
   tyreScience?: number;
   energyRecovery?: number;
+  // The driver's Tyre Management trait.
+  driverTyre?: number;
 }
 
 export function newStrategy(prev?: Pick<Strategy, 'mode' | 'compound' | 'nextCompound' | 'compoundChosen'>): Strategy {
@@ -137,7 +139,7 @@ export function stepStrategy(s: Strategy, dt: number, levels: StrategyLevels): v
   if (isPitting(s)) return;
   const rate =
     (BASE_WEAR_PER_SEC * MODE_FX[s.mode].wear * COMPOUND_FX[s.compound].wear) /
-    ((1 + 0.05 * levels.tyres) * (1 + 0.04 * (levels.tyreScience ?? 0)));
+    ((1 + 0.05 * levels.tyres) * (1 + 0.04 * (levels.tyreScience ?? 0)) * (1 + 0.04 * (levels.driverTyre ?? 0)));
   s.wear = Math.min(1, s.wear + rate * dt);
 }
 

@@ -11,6 +11,7 @@ import {
 } from './strategy';
 import { PLAYER_COLOR, PLAYER_DRIVERS, RIVAL_TEAMS, rivalRating } from './teams';
 import { Handling, handlingFactor } from './economy';
+import { DriverStats, consistencyFactor, driverRating, raceCraftBonus } from './drivers';
 import { Track, cornerness } from './track';
 
 export interface Car {
@@ -35,6 +36,8 @@ export interface Car {
   // A breakdown decided at the start of the race: it strikes when the car reaches `at`, then either slows it for a while or retires it.
   fault?: { at: number; dnf: boolean; remaining: number; started: boolean; announced?: boolean };
   dnf?: boolean;
+  // The driver's Race Craft trait (player cars only).
+  raceCraft?: number;
   lastPitId?: number;
 }
 
@@ -49,6 +52,8 @@ export interface RaceConfig {
   playerColor?: number;
   // Reliability level (including R&D); it lowers the player cars' breakdown chance.
   playerReliability?: number;
+  // Stats of the two player drivers; skill raises the car's rating, the traits do the rest.
+  playerDriverStats?: readonly [DriverStats, DriverStats];
   seed: number;
   // Seconds a rating-0 car takes for one lap.
   baseLapTime?: number;
@@ -102,7 +107,8 @@ export function createRace(config: RaceConfig): Race {
       driver: config.playerDrivers?.[i] ?? fallback,
       color: config.playerColor ?? PLAYER_COLOR,
       isPlayer: true,
-      rating: config.playerRating,
+      rating: driverRating(config.playerRating, config.playerDriverStats?.[i] ?? { skill: 0 }),
+      raceCraft: config.playerDriverStats?.[i]?.raceCraft ?? 0,
     }),
   );
   for (const team of RIVAL_TEAMS) {
@@ -125,8 +131,9 @@ export function createRace(config: RaceConfig): Race {
   }
   // Breakdowns use their own random stream so they don't disturb the rest of the race.
   const frng = mulberry32((config.seed ^ 0x9e3779b9) >>> 0);
-  for (const car of cars) {
-    const chance = car.isPlayer ? breakdownChance(config.playerReliability ?? 0) : RIVAL_BREAKDOWN_CHANCE;
+  for (const [idx, car] of cars.entries()) {
+    const consistency = car.isPlayer ? (config.playerDriverStats?.[idx]?.consistency ?? 0) : 0;
+    const chance = car.isPlayer ? breakdownChance(config.playerReliability ?? 0) * consistencyFactor(consistency) : RIVAL_BREAKDOWN_CHANCE;
     if (frng() < chance) {
       car.fault = { at: config.laps * (0.15 + 0.7 * frng()), dnf: frng() < DNF_SHARE, remaining: BREAKDOWN_SECONDS, started: false };
     }
@@ -226,7 +233,7 @@ export function stepRace(race: Race, dt: number, playerBoost = 1, player?: Playe
     if (crawling) f.remaining -= dt;
 
     const handling = car.isPlayer && player?.handling ? handlingFactor(player.handling, cornerness(race.config.track, car.progress)) : 1;
-    const lapsPerSecond = (paceMultiplier(car.rating) * car.form * boost * handling * (crawling ? BREAKDOWN_PACE : 1)) / baseLapTime;
+    const lapsPerSecond = (paceMultiplier(car.rating) * car.form * boost * handling * raceCraftBonus(car.raceCraft ?? 0, car.progress) * (crawling ? BREAKDOWN_PACE : 1)) / baseLapTime;
     car.progress += lapsPerSecond * dt;
     if (Math.floor(car.progress) > Math.floor(before)) car.form = rollForm(race.rng);
 

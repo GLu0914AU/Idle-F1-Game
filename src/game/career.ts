@@ -24,10 +24,10 @@ export function recordSeason(state: Pick<GameState, 'stats'>, outcome: SeasonOut
   if (outcome.constructors) state.stats.wcc += 1;
 }
 
-export type FanCurrency = 'money' | 'gems' | 'researchPoints';
+export type FanCurrency = 'money' | 'gems' | 'researchPoints' | 'clout';
 
 // Fans/(fans+scale): rises quickly at first, never certain. Rarer currencies have a bigger scale.
-const CHANCE_SCALE: Record<FanCurrency, number> = { money: 300, gems: 1000, researchPoints: 2000 };
+const CHANCE_SCALE: Record<FanCurrency, number> = { money: 300, gems: 1000, researchPoints: 2000, clout: 1500 };
 export const MAX_FAN_CHANCE = 0.95;
 
 export function fanChance(fans: number, currency: FanCurrency): number {
@@ -39,6 +39,7 @@ export interface FanDrops {
   money: number;
   gems: number;
   researchPoints: number;
+  clout: number;
 }
 
 export const canRunFanEvent = (state: Pick<GameState, 'stats' | 'fanEventUsed'>) =>
@@ -46,19 +47,21 @@ export const canRunFanEvent = (state: Pick<GameState, 'stats' | 'fanEventUsed'>)
 
 // Once per prestige. Each currency rolls separately; bigger crowds also mean bigger drops.
 export function runFanEvent(
-  state: Pick<GameState, 'stats' | 'fanEventUsed' | 'money' | 'gems' | 'researchPoints'>,
+  state: Pick<GameState, 'stats' | 'fanEventUsed' | 'money' | 'gems' | 'researchPoints' | 'clout'>,
   incomePerSecond: number,
   rng: () => number = Math.random,
 ): FanDrops | null {
   if (!canRunFanEvent(state)) return null;
   const fans = fansFor(state.stats);
   state.fanEventUsed = true;
-  const drops: FanDrops = { money: 0, gems: 0, researchPoints: 0 };
+  const drops: FanDrops = { money: 0, gems: 0, researchPoints: 0, clout: 0 };
   if (rng() < fanChance(fans, 'money')) drops.money = Math.floor(Math.max(100, incomePerSecond * 300) * (1 + fans / 1000));
   if (rng() < fanChance(fans, 'gems')) drops.gems = 1 + Math.floor(fans / 400);
   if (rng() < fanChance(fans, 'researchPoints')) drops.researchPoints = 1 + Math.floor(fans / 800);
+  if (rng() < fanChance(fans, 'clout')) drops.clout = 1 + Math.floor(fans / 1000);
   state.money += drops.money;
   state.gems += drops.gems;
   state.researchPoints += drops.researchPoints;
+  state.clout += drops.clout;
   return drops;
 }
