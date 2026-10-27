@@ -461,9 +461,10 @@ export class GameScene extends Phaser.Scene {
       const y = top + Math.floor(i / 3) * 80;
       addBox(this, x, y, 168, 74);
       addBox(this, x, y, 5, 74, COLORS.red).setStrokeStyle(0);
-      addText(this, x + 14, y + 6, def.name.toUpperCase(), 16);
-      const level = addText(this, x + 14, y + 27, '', 12, '#9aa7d0');
-      const button = addButton(this, x + 14, y + 46, 144, 22, '', () => {
+      addText(this, x + 14, y + 3, def.name.toUpperCase(), 16);
+      const level = addText(this, x + 14, y + 22, '', 11, '#9aa7d0');
+      if (def.effect) addText(this, x + 14, y + 33, def.effect, 10, '#6ee7a8');
+      const button = addButton(this, x + 14, y + 47, 144, 22, '', () => {
         if (buyUpgrade(this.state, def)) {
           this.applyRating();
           this.spawnBurst(x + 84, y + 57, [COLORS.gold, 0xffffff], 8);

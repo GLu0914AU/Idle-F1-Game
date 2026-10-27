@@ -26,6 +26,9 @@ export const BOOST_DECAY_PER_SEC = 0.3;
 export const MODE_COOLDOWN = 30;
 // The pit lane runs from the entrance to the exit, each this far (in laps) from the start/finish line.
 export const PIT_HALF_LENGTH = 0.06;
+// A stop with no Pit Crew takes the base time; the crew shaves it toward the minimum with diminishing returns.
+export const PIT_BASE_SECONDS = 30;
+export const PIT_MIN_SECONDS = 8;
 
 export interface Strategy {
   mode: Mode;
@@ -80,7 +83,7 @@ export function newStrategy(prev?: Pick<Strategy, 'mode' | 'compound' | 'nextCom
 export const isPitting = (s: Strategy) => s.pitRemaining > 0;
 
 export function pitDuration(pitCrew: number): number {
-  return 30 / (1 + 0.1 * pitCrew);
+  return PIT_MIN_SECONDS + (PIT_BASE_SECONDS - PIT_MIN_SECONDS) / (1 + 0.1 * pitCrew);
 }
 
 // Things that can go wrong in a stop. Each adds game-seconds on top of the normal stop.
