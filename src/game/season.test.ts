@@ -25,6 +25,7 @@ describe('season', () => {
 
   it('awards constructors and drivers points from a race', () => {
     const race = createRace({ track: CALENDAR[0], laps: 1, season: 1, playerRating: 500, playerTeamName: 'Me', seed: 3 });
+    race.cars.forEach((c) => (c.fault = undefined));
     while (!race.finished) stepRace(race, 1);
     const s = fresh();
     awardPoints(s, standings(race));

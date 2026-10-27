@@ -318,6 +318,7 @@ export class GameScene extends Phaser.Scene {
       playerTeamName: this.state.teamName,
       playerDrivers: this.state.driverNames,
       playerColor: this.state.teamColor,
+      playerReliability: this.eff().reliability ?? 0,
       seed: Date.now() & 0x7fffffff,
     });
     this.strategies = [newStrategy(this.strategies[0]), newStrategy(this.strategies[1])];
@@ -353,6 +354,12 @@ export class GameScene extends Phaser.Scene {
 
   private renderRace() {
     const order = standings(this.race);
+    for (const car of this.race.cars) {
+      if (car.isPlayer && car.fault?.started && !car.fault.announced) {
+        car.fault.announced = true;
+        this.floatText(W / 2, VIEW.y + 250, car.fault.dnf ? `${car.driver}: ENGINE FAILURE, OUT!` : `${car.driver}: BREAKDOWN!`, '#ff5a4a');
+      }
+    }
     this.carGfx.clear();
     for (const car of [...this.race.cars].reverse()) {
       const dist = car.progress * this.track.length;
@@ -367,7 +374,7 @@ export class GameScene extends Phaser.Scene {
       order.forEach((car, i) => {
         const row = this.towerRows[i];
         const compound = car.isPlayer ? this.strategies[car.id === 'player-0' ? 0 : 1].compound : car.tyres?.compound;
-        const tyre = compound ? COMPOUND_LETTERS[compound] : ' ';
+        const tyre = car.dnf ? 'X' : car.fault?.started && car.fault.remaining > 0 ? '!' : compound ? COMPOUND_LETTERS[compound] : ' ';
         row.setText(`${String(i + 1).padStart(2)} ${tyre} ${shortName(car.isPlayer, car.driver)}`);
         row.setColor(car.isPlayer ? '#ffd400' : '#cfd6ee');
         this.towerPoints[i].setText('');

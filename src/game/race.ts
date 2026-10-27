@@ -32,6 +32,9 @@ export interface Car {
   pitWear?: number;
   // Set while the car is in the pit lane: it travels the lane from the entrance to the exit as the stop completes.
   pit?: { start: number; remaining: number; total: number; issue?: string };
+  // A breakdown decided at the start of the race: it strikes when the car reaches `at`, then either slows it for a while or retires it.
+  fault?: { at: number; dnf: boolean; remaining: number; started: boolean; announced?: boolean };
+  dnf?: boolean;
   lastPitId?: number;
 }
 
@@ -44,6 +47,8 @@ export interface RaceConfig {
   // Defaults to the standard names and colour.
   playerDrivers?: readonly [string, string];
   playerColor?: number;
+  // Reliability level (including R&D); it lowers the player cars' breakdown chance.
+  playerReliability?: number;
   seed: number;
   // Seconds a rating-0 car takes for one lap.
   baseLapTime?: number;
@@ -118,8 +123,25 @@ export function createRace(config: RaceConfig): Race {
       car.pitWear = 0.5 + rng() * 0.3;
     });
   }
+  // Breakdowns use their own random stream so they don't disturb the rest of the race.
+  const frng = mulberry32((config.seed ^ 0x9e3779b9) >>> 0);
+  for (const car of cars) {
+    const chance = car.isPlayer ? breakdownChance(config.playerReliability ?? 0) : RIVAL_BREAKDOWN_CHANCE;
+    if (frng() < chance) {
+      car.fault = { at: config.laps * (0.15 + 0.7 * frng()), dnf: frng() < DNF_SHARE, remaining: BREAKDOWN_SECONDS, started: false };
+    }
+  }
   return { config, cars, time: 0, finished: false, rng };
 }
+
+// Chance a player car breaks down during a race: about 1 in 3 with no Reliability, falling with diminishing returns but never to zero.
+export const breakdownChance = (reliability: number) => 0.04 + 0.29 / (1 + Math.max(0, reliability) / 12);
+export const RIVAL_BREAKDOWN_CHANCE = 0.1;
+// Share of breakdowns that retire the car; the rest only cost time.
+export const DNF_SHARE = 0.15;
+// Game-seconds a non-fatal breakdown lasts, and the pace the car crawls at meanwhile.
+export const BREAKDOWN_SECONDS = 25;
+export const BREAKDOWN_PACE = 0.2;
 
 function randomCompound(rng: () => number) {
   return COMPOUNDS[Math.floor(rng() * COMPOUNDS.length) % COMPOUNDS.length];
@@ -170,7 +192,7 @@ export function stepRace(race: Race, dt: number, playerBoost = 1, player?: Playe
   player?.strategies.forEach((s) => (s.pitTapCredit = 0));
 
   for (const car of race.cars) {
-    if (car.finishTime !== null) continue;
+    if (car.finishTime !== null || car.dnf) continue;
     const s = strategyOf(car, player);
     const crew = car.isPlayer ? (player?.pitCrew ?? 0) : 0;
     const boost = car.isPlayer ? playerBoost * (s ? paceFactor(s) : 1) : stepNpcTyres(race, car, dt);
@@ -192,8 +214,19 @@ export function stepRace(race: Race, dt: number, playerBoost = 1, player?: Playe
       continue;
     }
 
+    const f = car.fault;
+    if (f && !f.started && car.progress >= f.at) {
+      f.started = true;
+      if (f.dnf) {
+        car.dnf = true;
+        continue;
+      }
+    }
+    const crawling = !!f && f.started && f.remaining > 0;
+    if (crawling) f.remaining -= dt;
+
     const handling = car.isPlayer && player?.handling ? handlingFactor(player.handling, cornerness(race.config.track, car.progress)) : 1;
-    const lapsPerSecond = (paceMultiplier(car.rating) * car.form * boost * handling) / baseLapTime;
+    const lapsPerSecond = (paceMultiplier(car.rating) * car.form * boost * handling * (crawling ? BREAKDOWN_PACE : 1)) / baseLapTime;
     car.progress += lapsPerSecond * dt;
     if (Math.floor(car.progress) > Math.floor(before)) car.form = rollForm(race.rng);
 
@@ -229,18 +262,19 @@ export function stepRace(race: Race, dt: number, playerBoost = 1, player?: Playe
   }
   for (const [s, cars] of teams) {
     s.pitRemaining = Math.max(0, ...cars.map((c) => c.pit?.remaining ?? 0));
-    if (s.pitRequested && cars.every((c) => c.lastPitId === s.pitRequestId || c.finishTime !== null)) {
+    if (s.pitRequested && cars.every((c) => c.lastPitId === s.pitRequestId || c.finishTime !== null || c.dnf)) {
       s.pitRequested = false;
     }
   }
 
   race.time += dt;
-  race.finished = race.cars.every((c) => c.finishTime !== null);
+  race.finished = race.cars.every((c) => c.finishTime !== null || c.dnf);
 }
 
-// Finished cars first by finish time, then the rest by distance covered.
+// Retired cars last, then finished cars by finish time, then the rest by distance covered.
 export function standings(race: Race): Car[] {
   return [...race.cars].sort((a, b) => {
+    if (!!a.dnf !== !!b.dnf) return a.dnf ? 1 : -1;
     if (a.finishTime !== null && b.finishTime !== null) return a.finishTime - b.finishTime;
     if (a.finishTime !== null) return -1;
     if (b.finishTime !== null) return 1;

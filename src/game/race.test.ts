@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PIT_HALF_LENGTH, newStrategy, selectCompound, togglePitRequest } from './strategy';
-import { createRace, lapTime, paceMultiplier, standings, stepRace } from './race';
+import { breakdownChance, createRace, lapTime, paceMultiplier, standings, stepRace } from './race';
 import { pointAt } from './track';
 import { CALENDAR } from './tracks';
 
@@ -29,6 +29,44 @@ describe('pace', () => {
     const g2 = paceMultiplier(200) - paceMultiplier(100);
     expect(g2).toBeLessThan(g1);
     expect(lapTime(100)).toBeLessThan(lapTime(0));
+  });
+});
+
+describe('breakdowns', () => {
+  it('chance falls with Reliability but never reaches zero', () => {
+    expect(breakdownChance(0)).toBeGreaterThan(0.3);
+    expect(breakdownChance(100)).toBeLessThan(0.08);
+    expect(breakdownChance(100)).toBeGreaterThan(0);
+    expect(breakdownChance(50)).toBeLessThan(breakdownChance(10));
+  });
+
+  it('a non-fatal breakdown slows the car, a fatal one retires it to the back', () => {
+    const slow = createRace(config({ laps: 5 }));
+    const fast = createRace(config({ laps: 5 }));
+    for (const r of [slow, fast]) r.cars.forEach((c) => (c.fault = undefined));
+    const victim = (r: typeof slow) => r.cars.find((c) => c.id === 'player-0')!;
+    victim(slow).fault = { at: 1, dnf: false, remaining: 25, started: false };
+    runToEnd(slow);
+    runToEnd(fast);
+    expect(victim(slow).finishTime!).toBeGreaterThan(victim(fast).finishTime!);
+
+    const dead = createRace(config({ laps: 5 }));
+    dead.cars.forEach((c) => (c.fault = undefined));
+    victim(dead).fault = { at: 1, dnf: true, remaining: 25, started: false };
+    runToEnd(dead);
+    expect(dead.finished).toBe(true);
+    expect(victim(dead).dnf).toBe(true);
+    expect(standings(dead).at(-1)).toBe(victim(dead));
+  });
+
+  it('rolls breakdowns for the field, deterministically', () => {
+    const a = createRace(config({ seed: 7, playerReliability: 0 }));
+    const b = createRace(config({ seed: 7, playerReliability: 0 }));
+    expect(a.cars.map((c) => c.fault?.at)).toEqual(b.cars.map((c) => c.fault?.at));
+    let hit = 0;
+    for (let seed = 1; seed <= 200; seed++) hit += createRace(config({ seed, playerReliability: 0 })).cars.filter((c) => c.isPlayer && c.fault).length;
+    expect(hit / 400).toBeGreaterThan(0.25);
+    expect(hit / 400).toBeLessThan(0.42);
   });
 });
 
@@ -168,6 +206,7 @@ describe('race', () => {
 
   it('a push-mode car outpaces a conserve-mode car', () => {
     const race = createRace(config({ laps: 3, playerRating: 50 }));
+    race.cars.forEach((c) => (c.fault = undefined));
     const push = newStrategy();
     const save = newStrategy();
     push.mode = 'push';
