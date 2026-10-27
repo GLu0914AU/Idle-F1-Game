@@ -16,7 +16,7 @@ export const UPGRADE_DEFS: UpgradeDef[] = [
 ];
 
 export const COST_GROWTH = 1.15;
-export const BASE_RATING = 10;
+export const BASE_RATING = 25;
 const PRIZE_BASE = 100;
 
 // Max pace bonus (at infinite levels) from Top Speed on straights and Cornering in corners.

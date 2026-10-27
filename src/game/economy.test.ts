@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BASE_RATING,
   UPGRADE_DEFS,
   buyUpgrade,
   carRating,
@@ -20,8 +21,8 @@ describe('economy', () => {
   });
 
   it('rating rises with upgrades', () => {
-    expect(carRating({})).toBe(10);
-    expect(carRating({ engine: 2 })).toBe(16);
+    expect(carRating({})).toBe(BASE_RATING);
+    expect(carRating({ engine: 2 })).toBe(BASE_RATING + 6);
   });
 
   it('income scales with rating and sponsors', () => {

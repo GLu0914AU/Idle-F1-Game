@@ -77,6 +77,8 @@ export interface RunResult {
   // The player's car rating when each season was first reached.
   ratingAt: Record<number, number>;
   stuck: boolean;
+  // Every race played in Season 1 (including replays), for checking the opening.
+  season1: { best: number; worst: number; seconds: number; rating: number; money: number }[];
   // Research levels while this run was played.
   research: Record<string, number>;
 }
@@ -139,7 +141,7 @@ export function simulate(opts: SimOptions): SimResult {
   const blank = (run: number, previousBest: number): RunResult => ({
     run, maxSeason: 1, previousBest, realSeconds: 0, races: 0, seasonLosses: 0, titles: 0, rpEarned: 0, rating: 0,
     income: 0, prizes: 0, sponsorCash: 0, wages: 0, quits: 0, rainy: 0, rainPositions: [], dryPositions: [],
-    breakdowns: 0, dnfs: 0, pits: 0, pitIssues: 0, reached: { 1: 0 }, ratingAt: { 1: 10 }, stuck: false, research: {},
+    breakdowns: 0, dnfs: 0, pits: 0, pitIssues: 0, reached: { 1: 0 }, ratingAt: { 1: 10 }, stuck: false, season1: [], research: {},
   });
   let cur = blank(0, 0);
 
@@ -218,7 +220,10 @@ export function simulate(opts: SimOptions): SimResult {
     if (race.finished && !settled) {
       settled = true;
       const order = standings(race);
+      const seasonBefore = state.season;
+      const moneyBefore = state.money;
       const s = settleRace(state, order);
+      if (seasonBefore === 1) cur.season1.push({ best: Math.min(...s.positions), worst: Math.max(...s.positions), seconds: cur.realSeconds, rating: carRating(eff()), money: moneyBefore });
       cur.races += 1;
       cur.prizes += s.payout;
       cur.sponsorCash += s.sponsorCash;

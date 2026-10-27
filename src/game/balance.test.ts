@@ -61,6 +61,26 @@ describe('simulator', () => {
     expect(runs[0].rpEarned).toBeGreaterThan(0);
   }, 120_000);
 
+  it('lets a fresh team clear Season 1 on the first try in a reasonable time', () => {
+    const runs = [1, 2, 3].map((seed) => simulate({ seed, profile: ACTIVE, prestiges: 0 }).runs[0]);
+    for (const r of runs) {
+      expect(r.season1[0].best).toBeLessThanOrEqual(14);
+      expect(r.reached[2]).toBeLessThan(25 * 60);
+    }
+  }, 120_000);
+
+  it.runIf(FULL)('reports the opening (Season 1, first run)', () => {
+    const runs = Array.from({ length: SEEDS }, (_, i) => simulate({ seed: i + 1, profile: ACTIVE, prestiges: 0 }).runs[0]);
+    const lines = ['\n=== opening: Season 1 races, first run (mean over seeds) ===', 'race# | best | worst | minute | rating | money before'];
+    for (let n = 0; n < 14; n++) {
+      const rs = runs.map((r) => r.season1[n]).filter(Boolean);
+      if (!rs.length) break;
+      lines.push([String(n + 1).padStart(4), fmt(avg(rs.map((r) => r.best))), fmt(avg(rs.map((r) => r.worst))), fmt(avg(rs.map((r) => r.seconds / 60))), fmt(avg(rs.map((r) => r.rating)), 0), fmt(avg(rs.map((r) => r.money)), 0)].join(' | '));
+    }
+    lines.push(`season 1 cleared after ${fmt(avg(runs.map((r) => (r.reached[2] ?? NaN) / 60)))} min on average`);
+    process.stdout.write(lines.join('\n') + '\n');
+  }, 600_000);
+
   it.runIf(FULL)('reports balance across seeds', () => {
     report(ACTIVE);
     if (process.env.LAZY) report(LAZY);

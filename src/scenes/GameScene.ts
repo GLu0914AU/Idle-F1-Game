@@ -417,16 +417,16 @@ export class GameScene extends Phaser.Scene {
     const want = idealClass(w);
     this.weatherText.setText(describeWeather(this.race.weather, lap));
     this.weatherText.setColor(isDry(this.race.weather) ? '#ffd86b' : want === 'dry' ? '#9ec5ff' : '#4dc3ff');
-    this.wetShade.setAlpha(0.3 * w);
+    this.wetShade.setAlpha(0.45 * w);
     this.rainGfx.clear();
     if (w <= 0.02) return;
-    const drops = Math.round(90 * w);
+    const drops = Math.round(220 * w);
     const t = this.time.now / 1000;
-    this.rainGfx.lineStyle(1, 0xaec8ff, 0.55);
+    this.rainGfx.lineStyle(1.5, 0xc4d8ff, 0.7);
     for (let i = 0; i < drops; i++) {
-      const x = (i * 97.3 + t * 40) % W;
-      const y = VIEW.y + ((i * 61.7 + t * 520) % VIEW.h);
-      this.rainGfx.lineBetween(x, y, x - 3, y + 11);
+      const x = (i * 97.3 + t * 60) % W;
+      const y = VIEW.y + ((i * 61.7 + t * 600) % VIEW.h);
+      this.rainGfx.lineBetween(x, y, x - 4, y + 15);
     }
   }
 
