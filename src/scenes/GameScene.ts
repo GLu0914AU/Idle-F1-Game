@@ -468,10 +468,13 @@ export class GameScene extends Phaser.Scene {
       tapPower: eff.tapPower ?? 0,
       pitCrew: eff.pitCrew ?? 0,
       tyres: eff.tyres ?? 0,
+      tyreScience: eff.tyreScience ?? 0,
+      energyRecovery: eff.energyRecovery ?? 0,
     });
     stepRace(this.race, gameDt, paceFactor(this.strategy), {
       strategy: this.strategy,
       pitCrew: eff.pitCrew ?? 0,
+      handling: { topSpeed: eff.topSpeed ?? 0, cornering: eff.cornering ?? 0 },
     });
     if (this.race.finished && !this.paid) {
       this.paid = true;

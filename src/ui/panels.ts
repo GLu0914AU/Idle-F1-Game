@@ -98,10 +98,14 @@ export class PanelHost {
     const blurbs: Record<string, string> = {
       tapPower: '+10% boost per tap and faster pit stops',
       sponsorDeals: '+10% income and prize money',
+      topSpeed: 'Faster on straights (up to +30%)',
+      cornering: 'Faster through corners (up to +30%)',
+      tyreScience: '-4% tyre wear per level, on top of Tyres',
+      energyRecovery: 'Tap boost fades 10% slower per level',
     };
     RND_DEFS.forEach((def, i) => {
-      const y = 150 + i * 110;
-      addBox(this.scene, 20, y, W - 40, 96, COLORS.panel, c);
+      const y = 140 + i * 100;
+      addBox(this.scene, 20, y, W - 40, 90, COLORS.panel, c);
       addText(this.scene, 36, y + 10, def.name, 20, '#ffffff', c);
       const level = addText(this.scene, 36, y + 40, '', 14, '#9aa7d0', c);
       addText(this.scene, 36, y + 62, blurbs[def.key] ?? '', 13, '#9aa7d0', c);

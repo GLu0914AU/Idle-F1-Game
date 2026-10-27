@@ -52,6 +52,8 @@ export interface StrategyLevels {
   tapPower: number;
   pitCrew: number;
   tyres: number;
+  tyreScience?: number;
+  energyRecovery?: number;
 }
 
 export function newStrategy(prev?: Pick<Strategy, 'mode' | 'nextCompound'>): Strategy {
@@ -109,11 +111,13 @@ export function togglePitRequest(s: Strategy): boolean {
 }
 
 export function stepStrategy(s: Strategy, dt: number, levels: StrategyLevels): void {
-  s.boost = Math.max(0, s.boost - BOOST_DECAY_PER_SEC * dt);
+  s.boost = Math.max(0, s.boost - (BOOST_DECAY_PER_SEC * dt) / (1 + 0.1 * (levels.energyRecovery ?? 0)));
   s.modeCooldown = Math.max(0, s.modeCooldown - dt);
   // Tyres don't wear while the car is crawling through the pit lane.
   if (isPitting(s)) return;
-  const rate = (BASE_WEAR_PER_SEC * MODE_FX[s.mode].wear * COMPOUND_FX[s.compound].wear) / (1 + 0.05 * levels.tyres);
+  const rate =
+    (BASE_WEAR_PER_SEC * MODE_FX[s.mode].wear * COMPOUND_FX[s.compound].wear) /
+    ((1 + 0.05 * levels.tyres) * (1 + 0.04 * (levels.tyreScience ?? 0)));
   s.wear = Math.min(1, s.wear + rate * dt);
 }
 

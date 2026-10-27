@@ -8,7 +8,8 @@ import {
   stepStrategy,
 } from './strategy';
 import { PLAYER_COLOR, PLAYER_DRIVERS, RIVAL_TEAMS, rivalRating } from './teams';
-import { Track } from './track';
+import { Handling, handlingFactor } from './economy';
+import { Track, cornerness } from './track';
 
 export interface Car {
   id: string;
@@ -137,6 +138,7 @@ function stepNpcTyres(race: Race, car: Car, dt: number): number {
 export interface PlayerTeam {
   strategy: Strategy;
   pitCrew: number;
+  handling?: Handling;
 }
 
 // Where a car in the pit lane is, as laps of progress along the route (entrance to exit).
@@ -178,7 +180,8 @@ export function stepRace(race: Race, dt: number, playerBoost = 1, player?: Playe
       continue;
     }
 
-    const lapsPerSecond = (paceMultiplier(car.rating) * car.form * boost) / baseLapTime;
+    const handling = car.isPlayer && player?.handling ? handlingFactor(player.handling, cornerness(race.config.track, car.progress)) : 1;
+    const lapsPerSecond = (paceMultiplier(car.rating) * car.form * boost * handling) / baseLapTime;
     car.progress += lapsPerSecond * dt;
     if (Math.floor(car.progress) > Math.floor(before)) car.form = rollForm(race.rng);
 

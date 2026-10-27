@@ -9,6 +9,7 @@ A mobile-first idle racing game. Run your own F1 team, upgrade your cars, and be
 - **Platform:** mobile-first PWA (Phaser + TypeScript + Vite), Capacitor packaging later.
 - **Style:** dark UI, 2D top-down track view, upgrade cards, bottom tab bar.
 - **Seasons:** each season is a stage of 10 races. Finish 1st in the Constructors' standings to unlock the next one. Rivals get 30% stronger every season (compounding).
+- **R&D:** Tap Power, Sponsor Deals, plus car-handling upgrades that act on the track itself: Top Speed (faster on straights), Cornering (faster in corners), Tyre Science (less wear) and Energy Recovery (tap boost lasts longer). Each circuit's curvature is measured, so long-straight tracks reward Top Speed and twisty ones reward Cornering.
 - **Prestige:** once rivals are unbeatable, prestige from Season 3+ to return to Season 1 Race 1. The further you got, the more research points (RP) you earn. RP buy permanent research: free levels in each car stat and Tap Power, +25% Funding, and Seed Money. Research, gems and Auto survive a prestige.
 - **Teams:** the player names their own team; rivals are real F1 teams and drivers.
 - **Cars:** 2 per team; Constructors' points are the sum of both.

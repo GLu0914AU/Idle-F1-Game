@@ -57,3 +57,48 @@ export function pointAt(track: Track, distance: number): Point {
   const t = seg === 0 ? 0 : (d - track.cumulative[lo]) / seg;
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
+
+const PROFILE_SAMPLES = 400;
+// Heading change (radians) across the sampling window that counts as a full corner.
+const FULL_CORNER_ANGLE = 0.6;
+const profiles = new WeakMap<Track, number[]>();
+
+// How cornery each point of the lap is: 0 = straight, 1 = tight corner. Cached per track.
+function cornerProfile(track: Track): number[] {
+  const cached = profiles.get(track);
+  if (cached) return cached;
+  const w = track.length * 0.015;
+  const sx = track.aspect ?? 1;
+  const at = (d: number) => {
+    const p = pointAt(track, d);
+    return { x: p.x * sx, y: p.y };
+  };
+  const out: number[] = [];
+  for (let i = 0; i < PROFILE_SAMPLES; i++) {
+    const d = (i / PROFILE_SAMPLES) * track.length;
+    const a = at(d - w);
+    const b = at(d);
+    const c = at(d + w);
+    const v1 = { x: b.x - a.x, y: b.y - a.y };
+    const v2 = { x: c.x - b.x, y: c.y - b.y };
+    const angle = Math.abs(Math.atan2(v1.x * v2.y - v1.y * v2.x, v1.x * v2.x + v1.y * v2.y));
+    out.push(Math.min(1, angle / FULL_CORNER_ANGLE));
+  }
+  profiles.set(track, out);
+  return out;
+}
+
+// Cornerness (0..1) at a race progress value in laps.
+export function cornerness(track: Track, progress: number): number {
+  const prof = cornerProfile(track);
+  const f = (progress - Math.floor(progress)) * PROFILE_SAMPLES;
+  const i = Math.floor(f);
+  const t = f - i;
+  return prof[i % PROFILE_SAMPLES] * (1 - t) + prof[(i + 1) % PROFILE_SAMPLES] * t;
+}
+
+// Share of the lap that is corner rather than straight, 0..1.
+export function cornerShare(track: Track): number {
+  const prof = cornerProfile(track);
+  return prof.reduce((a, b) => a + b, 0) / prof.length;
+}

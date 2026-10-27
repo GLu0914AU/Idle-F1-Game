@@ -23,7 +23,26 @@ const PRIZE_BASE = 100;
 export const RND_DEFS: UpgradeDef[] = [
   { key: 'tapPower', name: 'Tap Power', baseCost: 1000, ratingPerLevel: 0 },
   { key: 'sponsorDeals', name: 'Sponsor Deals', baseCost: 4000, ratingPerLevel: 0 },
+  { key: 'topSpeed', name: 'Top Speed', baseCost: 2500, ratingPerLevel: 0 },
+  { key: 'cornering', name: 'Cornering', baseCost: 2500, ratingPerLevel: 0 },
+  { key: 'tyreScience', name: 'Tyre Science', baseCost: 5000, ratingPerLevel: 0 },
+  { key: 'energyRecovery', name: 'Energy Recovery', baseCost: 6000, ratingPerLevel: 0 },
 ];
+
+// Max pace bonus (at infinite levels) from Top Speed on straights and Cornering in corners.
+const HANDLING_MAX = 0.3;
+const HANDLING_HALF = 25;
+
+export interface Handling {
+  topSpeed: number;
+  cornering: number;
+}
+
+// Pace multiplier at a point of cornerness c (0 straight .. 1 tight corner). Diminishing returns per stat.
+export function handlingFactor(h: Handling, c: number): number {
+  const bonus = (level: number) => HANDLING_MAX * (level / (level + HANDLING_HALF));
+  return 1 + bonus(h.topSpeed) * (1 - c) + bonus(h.cornering) * c;
+}
 
 // Permanent sponsors multiplier, plus 10% per Sponsor Deals level and 25% per Funding research level.
 export function sponsorMultiplier(state: {
