@@ -48,7 +48,7 @@ import { Tutorial } from '../ui/tutorial';
 import { restartTutorial } from '../game/tutorial';
 import { drawScenery, themeFor } from '../ui/scenery';
 import { researchInfo, upgradeInfo } from '../game/upgradeInfo';
-import { Button, COLORS, W, addBox, addButton, addSlant, addText, fillPoly } from '../ui/widgets';
+import { Button, COLORS, THEME, W, addBox, addButton, addSlant, addText, fillPoly } from '../ui/widgets';
 
 const VIEW = { y: 70, h: 580, padX: 90, padTop: 30, padBottom: 80 };
 const STRIP_H = 30;
@@ -133,6 +133,7 @@ export class GameScene extends Phaser.Scene {
   create() {
     this.cameras.main.setZoom(RES).centerOn(GAME_W / 2, GAME_H / 2);
     this.state = loadGame();
+    THEME.team = this.state.teamColor;
     syncAudio(this.state.settings);
     this.input.on('pointerdown', () => unlockAudio());
     this.drawHud();
@@ -261,6 +262,7 @@ export class GameScene extends Phaser.Scene {
 
   // Pushes the player's driver names and colour into the live race and strategy strip.
   private applyIdentity() {
+    THEME.team = this.state.teamColor;
     this.race.cars.forEach((car) => {
       if (!car.isPlayer) return;
       car.driver = this.state.driverNames[car.id === 'player-0' ? 0 : 1];

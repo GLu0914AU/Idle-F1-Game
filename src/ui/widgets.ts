@@ -13,6 +13,13 @@ export const COLORS = {
   gold: 0xffc933,
 };
 
+// The player's team colour; every COLORS.green button is drawn in it.
+export const THEME = { team: COLORS.green };
+
+export const resolveFill = (c: number): number => (c === COLORS.green ? THEME.team : c);
+
+const isLight = (c: number): boolean => ((c >> 16) & 255) * 0.299 + ((c >> 8) & 255) * 0.587 + (c & 255) * 0.114 > 160;
+
 export function addText(
   scene: Phaser.Scene,
   x: number,
@@ -91,7 +98,7 @@ export function addButton(
 ): Button {
   const { fill = COLORS.accent, size = 14, parent } = opts;
   let enabled = true;
-  const rect = addBox(scene, x, y, w, h, fill, parent).setInteractive({ useHandCursor: true });
+  const rect = addBox(scene, x, y, w, h, resolveFill(fill), parent).setInteractive({ useHandCursor: true });
   const text = addText(scene, x + w / 2, y + h / 2, label, size, '#ffffff', parent).setOrigin(0.5).setAlign('center');
   rect.on('pointerdown', () => {
     if (!enabled) return;
@@ -107,8 +114,9 @@ export function addButton(
     setLabel: (s) => void text.setText(s),
     setState: (on, color = fill) => {
       enabled = on;
-      rect.setFillStyle(on ? color : COLORS.disabled);
-      text.setColor(on ? '#ffffff' : '#8591b8');
+      const shade = resolveFill(color);
+      rect.setFillStyle(on ? shade : COLORS.disabled);
+      text.setColor(!on ? '#8591b8' : isLight(shade) ? '#0b1020' : '#ffffff');
     },
   };
 }

@@ -63,7 +63,7 @@ import {
   streakCount,
 } from '../game/goals';
 import { FANS_PER_WIN, FAN_EVENT_MIN_FANS, FanCurrency, canRunFanEvent, fanChance, fansFor, runFanEvent } from '../game/career';
-import { Button, COLORS, W, addBox, addButton, addText } from './widgets';
+import { Button, COLORS, THEME, W, addBox, addButton, addText } from './widgets';
 import { playSound } from '../game/audio';
 
 export const TABS = ['Race', 'Team', 'Sponsors', 'Prestige', 'Shop'] as const;
@@ -850,7 +850,7 @@ export class PanelHost {
       row.name = addText(this.scene, 32, y + 6, '', 16, '#ffffff', c);
       row.desc = addText(this.scene, 32, y + 28, '', 12, '#9aa7d0', c).setWordWrapWidth(W - 180);
       const track = this.scene.add.rectangle(32, y + 54, GOAL_BAR_W, 8, COLORS.bg).setOrigin(0, 0.5);
-      row.bar = this.scene.add.rectangle(32, y + 54, GOAL_BAR_W, 8, COLORS.green).setOrigin(0, 0.5);
+      row.bar = this.scene.add.rectangle(32, y + 54, GOAL_BAR_W, 8, THEME.team).setOrigin(0, 0.5);
       c.add([track, row.bar]);
       row.value = addText(this.scene, 32 + GOAL_BAR_W + 8, y + 48, '', 12, '#cfd6ee', c);
       row.btn = addButton(this.scene, W - 124, y + 14, 92, 40, 'CLAIM', () => row.onClaim(), { fill: COLORS.green, size: 14, parent: c });
@@ -878,7 +878,7 @@ export class PanelHost {
     row.name.setText(d.name);
     row.desc.setText(d.desc);
     row.bar.setSize(Math.max(1, GOAL_BAR_W * Math.min(1, d.frac)), 8);
-    row.bar.setFillStyle(d.claimed ? COLORS.border : COLORS.green);
+    row.bar.setFillStyle(d.claimed ? COLORS.border : THEME.team);
     row.value.setText(d.value);
     row.btn.setLabel(d.claimed ? 'CLAIMED' : 'CLAIM');
     row.btn.setState(d.ready && !d.claimed, COLORS.green);
