@@ -22,7 +22,7 @@ export const RIVAL_TEAMS: Team[] = [
 
 export const PLAYER_TEAM_ID = 'player';
 export const PLAYER_DRIVERS: [string, string] = ['Driver One', 'Driver Two'];
-export const PLAYER_COLOR = 0xffd400;
+export const PLAYER_COLOR = 0xb48cff;
 
 // Rivals get stronger every season until they outgrow what a run can build: that's the cue to prestige. Early on the growth is steep
 // (a polynomial), so the first runs hit a wall; past the knee it continues in a straight line at the knee's slope, which is about
