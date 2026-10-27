@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
 import { AUTO_PRICE_LABEL, FAST_RACES_PRICE_LABEL, purchaseAutoUnlock, purchaseFastRaces, purchasePack, showRewardedAd } from '../game/monetization';
-import { CURRENCIES, CURRENCY_NAMES, Currency, PRICES, grantPack, isFirstBuy, packAmount, priceLabel } from '../game/store';
+import { AD_KINDS, AdKind, CURRENCIES, CURRENCY_NAMES, Currency, PRICES, adAmount, adWait, grantAd, grantPack, isFirstBuy, packAmount, priceLabel } from '../game/store';
 
 const CURRENCY_SHORT: Record<Currency, string> = { gems: 'Gems', rp: 'RP', clout: 'Clout' };
+const AD_NAMES: Record<AdKind, string> = { money: 'Free cash', gems: 'Free gems', rp: 'Free RP', clout: 'Free clout' };
 import { GameState } from '../game/save';
 import { MIN_PRESTIGE_SEASON, RESEARCH_DEFS, ResearchDef, buyResearch, researchCost, researchPointsFor } from '../game/prestige';
 import { openingPitch, meetingCost, pitch, requestMeeting, sponsorIncome, walkAway } from '../game/sponsors';
@@ -290,6 +291,7 @@ export class PanelHost {
     gemBoost: Button;
     fast: Button;
     store: Button;
+    ads: { kind: AdKind; button: Button }[];
   };
   private autoOpen = false;
   private storeOpen = false;
@@ -1418,9 +1420,29 @@ export class PanelHost {
       .setOrigin(0.5, 0)
       .setWordWrapWidth(W - 60)
       .setAlign('center');
+    const cardW = (W - 60 - 12) / 2;
+    const ads = AD_KINDS.map((kind, i) => ({
+      kind,
+      button: addButton(
+        this.scene,
+        30 + (i % 2) * (cardW + 12),
+        700 + Math.floor(i / 2) * 58,
+        cardW,
+        50,
+        '',
+        async () => {
+          const s = this.state();
+          if (adWait(s, kind, Date.now()) > 0) return;
+          if (!(await showRewardedAd())) return;
+          grantAd(s, kind, this.hooks.incomePerSecond(), Date.now());
+          this.hooks.save();
+        },
+        { size: 13, parent: c },
+      ),
+    }));
     const store = addButton(this.scene, 30, 334, W - 60, 48, 'BUY GEMS, RP & CLOUT', () => this.openStore(true), { fill: COLORS.gold, size: 17, parent: c });
-    addText(this.scene, W / 2, 710, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
-    this.shop = { gems, unlock, toggles, checklist, gemBoost, fast, store };
+    addText(this.scene, W / 2, 824, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
+    this.shop = { gems, unlock, toggles, checklist, gemBoost, fast, store, ads };
   }
 
   openStore(open: boolean) {
@@ -1585,6 +1607,14 @@ export class PanelHost {
       sh.gemBoost.setState(s.gems >= GEM_BOOST_COST);
       sh.fast.setLabel(s.fastRaces ? 'Fast Races unlocked ✓' : `Unlock Fast Races (one-time) ${FAST_RACES_PRICE_LABEL}`);
       sh.fast.setState(!s.fastRaces, COLORS.green);
+      const now = Date.now();
+      for (const { kind, button } of sh.ads) {
+        const wait = adWait(s, kind, now);
+        const amount = adAmount(kind, this.hooks.incomePerSecond());
+        const prize = kind === 'money' ? `$${formatNumber(amount)}` : `${amount} ${CURRENCY_SHORT[kind]}`;
+        button.setLabel(wait > 0 ? `${AD_NAMES[kind]}\nready in ${Math.ceil(wait / 1000)}s` : `Watch ad:\n+${prize}`);
+        button.setState(wait <= 0);
+      }
     }
   }
 }

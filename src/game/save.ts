@@ -31,6 +31,8 @@ export interface GameState {
   autoItems: Record<string, boolean>;
   // Currency packs already bought once (keyed currency:price); the first purchase of each pays double.
   packsBought: Record<string, boolean>;
+  // When each rewarded-ad payout (money, gems, rp, clout) can next be claimed, as epoch milliseconds.
+  adReadyAt: Record<string, number>;
   // Salary instalments paid so far this season; the rest is settled when it ends.
   wageInstalments: number;
   autoTap: boolean;
@@ -110,6 +112,7 @@ export function newGame(now = Date.now()): GameState {
     autoBuy: false,
     autoItems: {},
     packsBought: {},
+    adReadyAt: {},
     wageInstalments: 0,
     autoTap: false,
     autoResearch: false,
@@ -162,6 +165,7 @@ export function loadGame(store: Store = localStorage, now = Date.now()): GameSta
       points: { ...(data.points ?? {}) },
       autoItems: { ...(data.autoItems ?? {}) },
       packsBought: { ...(data.packsBought ?? {}) },
+      adReadyAt: { ...(data.adReadyAt ?? {}) },
       driverPoints: { ...(data.driverPoints ?? {}) },
       research: { ...(data.research ?? {}) },
       sponsorList: [...(data.sponsorList ?? [])],

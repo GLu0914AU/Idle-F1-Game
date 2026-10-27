@@ -1,6 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import { newGame } from './save';
-import { PRICES, baseAmount, grantPack, isFirstBuy, packAmount, priceLabel } from './store';
+import { AD_COOLDOWN_MS, PRICES, adAmount, adWait, baseAmount, grantAd, grantPack, isFirstBuy, packAmount, priceLabel } from './store';
+
+describe('rewarded ads', () => {
+  it('pays each currency and money from income', () => {
+    const s = newGame();
+    const [m, g, r, c] = [s.money, s.gems, s.researchPoints, s.clout];
+    expect(grantAd(s, 'money', 10, 0)).toBe(adAmount('money', 10));
+    expect(s.money).toBe(m + 9000);
+    grantAd(s, 'gems', 10, 0);
+    grantAd(s, 'rp', 10, 0);
+    grantAd(s, 'clout', 10, 0);
+    expect([s.gems, s.researchPoints, s.clout]).toEqual([g + 5, r + 1, c + 1]);
+  });
+
+  it('puts each ad on its own cooldown', () => {
+    const s = newGame();
+    grantAd(s, 'gems', 1, 1000);
+    expect(grantAd(s, 'gems', 1, 1000 + AD_COOLDOWN_MS - 1)).toBe(0);
+    expect(adWait(s, 'gems', 1000)).toBe(AD_COOLDOWN_MS);
+    expect(adWait(s, 'rp', 1000)).toBe(0);
+    expect(grantAd(s, 'gems', 1, 1000 + AD_COOLDOWN_MS)).toBe(5);
+  });
+
+  it('pays nothing for money while income is zero', () => {
+    expect(grantAd(newGame(), 'money', 0, 0)).toBe(0);
+  });
+});
 
 describe('currency packs', () => {
   it('has six price points per currency, with better rates for bigger packs', () => {

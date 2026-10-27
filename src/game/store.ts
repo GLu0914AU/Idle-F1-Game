@@ -37,3 +37,29 @@ export function grantPack(state: Pick<GameState, 'packsBought' | 'gems' | 'resea
   else state.clout += amount;
   return amount;
 }
+
+// Rewarded-ad payouts, one per currency, each with its own cooldown so they can't be chained.
+export type AdKind = 'money' | Currency;
+export const AD_KINDS: AdKind[] = ['money', 'gems', 'rp', 'clout'];
+export const AD_COOLDOWN_MS = 3 * 60 * 1000;
+export const AD_MONEY_SECONDS = 15 * 60;
+export const AD_AMOUNTS: Record<Currency, number> = { gems: 5, rp: 1, clout: 1 };
+
+// What watching the ad pays: money is this many minutes of current income.
+export const adAmount = (kind: AdKind, incomePerSecond: number): number =>
+  kind === 'money' ? Math.floor(incomePerSecond * AD_MONEY_SECONDS) : AD_AMOUNTS[kind];
+
+export const adWait = (state: Pick<GameState, 'adReadyAt'>, kind: AdKind, now: number): number => Math.max(0, (state.adReadyAt[kind] ?? 0) - now);
+
+// Pays out a watched ad if its cooldown is over. Returns the amount, or 0 while it is cooling down.
+export function grantAd(state: Pick<GameState, 'adReadyAt' | 'money' | 'gems' | 'researchPoints' | 'clout'>, kind: AdKind, incomePerSecond: number, now: number): number {
+  if (adWait(state, kind, now) > 0) return 0;
+  const amount = adAmount(kind, incomePerSecond);
+  if (amount <= 0) return 0;
+  state.adReadyAt[kind] = now + AD_COOLDOWN_MS;
+  if (kind === 'money') state.money += amount;
+  else if (kind === 'gems') state.gems += amount;
+  else if (kind === 'rp') state.researchPoints += amount;
+  else state.clout += amount;
+  return amount;
+}
