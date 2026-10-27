@@ -56,8 +56,9 @@ export interface StrategyLevels {
   energyRecovery?: number;
 }
 
-export function newStrategy(prev?: Pick<Strategy, 'mode' | 'nextCompound'>): Strategy {
-  const compound = prev?.nextCompound ?? 'medium';
+export function newStrategy(prev?: Pick<Strategy, 'mode' | 'compound'>): Strategy {
+  // A new race starts on the tyres the car was last running, not on an unused selection.
+  const compound = prev?.compound ?? 'medium';
   return {
     mode: prev?.mode ?? 'normal',
     compound,

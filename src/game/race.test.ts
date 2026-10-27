@@ -128,6 +128,32 @@ describe('race', () => {
     expect(b.compound).toBe('medium');
   });
 
+  it('a pit stop keeps the same tyres unless another compound was chosen', () => {
+    const race = createRace(config({ laps: 6 }));
+    const a = newStrategy();
+    const b = newStrategy();
+    a.compound = 'soft';
+    a.nextCompound = 'soft';
+    b.compound = 'hard';
+    b.nextCompound = 'hard';
+    a.wear = 0.8;
+    b.wear = 0.8;
+    togglePitRequest(a);
+    togglePitRequest(b);
+    const team = { strategies: [a, b] as [typeof a, typeof b], pitCrew: 0 };
+    while (!race.finished) stepRace(race, 0.5, 1, team);
+    expect(a.compound).toBe('soft');
+    expect(b.compound).toBe('hard');
+  });
+
+  it('a new race starts on the fitted tyres, not an unused selection', () => {
+    const s = newStrategy();
+    s.compound = 'hard';
+    s.nextCompound = 'soft';
+    expect(newStrategy(s).compound).toBe('hard');
+    expect(newStrategy(s).nextCompound).toBe('hard');
+  });
+
   it('a push-mode car outpaces a conserve-mode car', () => {
     const race = createRace(config({ laps: 3, playerRating: 50 }));
     const push = newStrategy();
