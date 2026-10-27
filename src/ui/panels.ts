@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { RND_DEFS, UpgradeDef, buyUpgrade, formatNumber, upgradeCost } from '../game/economy';
 import { AUTO_PRICE_LABEL, purchaseAutoUnlock, showRewardedAd } from '../game/monetization';
 import { GameState } from '../game/save';
 import { MIN_PRESTIGE_SEASON, RESEARCH_DEFS, ResearchDef, buyResearch, researchCost, researchPointsFor } from '../game/prestige';
@@ -7,7 +6,7 @@ import { RACES_PER_SEASON, constructorsTable } from '../game/season';
 import { PLAYER_DRIVERS } from '../game/teams';
 import { Button, COLORS, W, addBox, addButton, addText } from './widgets';
 
-export const TABS = ['Race', 'Team', 'Standings', 'R&D', 'Prestige', 'Shop'] as const;
+export const TABS = ['Race', 'Team', 'Standings', 'Prestige', 'Shop'] as const;
 type TabName = (typeof TABS)[number];
 type AutoKey = 'autoBuy' | 'autoStrategy' | 'autoTap';
 
@@ -30,7 +29,6 @@ export class PanelHost {
   private standingNote!: Phaser.GameObjects.Text;
   private teamName!: Phaser.GameObjects.Text;
   private teamInfo!: Phaser.GameObjects.Text;
-  private rnd: { def: UpgradeDef; level: Phaser.GameObjects.Text; button: Button }[] = [];
   private prestige!: {
     info: Phaser.GameObjects.Text;
     button: Button;
@@ -51,7 +49,6 @@ export class PanelHost {
   ) {
     this.buildStandings();
     this.buildTeam();
-    this.buildRnd();
     this.buildPrestige();
     this.buildShop();
     this.show('Race');
@@ -93,39 +90,18 @@ export class PanelHost {
     this.teamInfo = addText(this.scene, 40, 420, '', 16, '#9aa7d0', c).setWordWrapWidth(W - 80);
   }
 
-  private buildRnd() {
-    const c = this.panel('R&D', 'R&D');
-    const blurbs: Record<string, string> = {
-      tapPower: '+10% boost per tap and faster pit stops',
-      sponsorDeals: '+10% income and prize money',
-      topSpeed: 'Faster on straights (up to +30%)',
-      cornering: 'Faster through corners (up to +30%)',
-      tyreScience: '-4% tyre wear per level, on top of Tyres',
-      energyRecovery: 'Tap boost fades 10% slower per level',
-    };
-    RND_DEFS.forEach((def, i) => {
-      const y = 140 + i * 100;
-      addBox(this.scene, 20, y, W - 40, 90, COLORS.panel, c);
-      addText(this.scene, 36, y + 10, def.name, 20, '#ffffff', c);
-      const level = addText(this.scene, 36, y + 40, '', 14, '#9aa7d0', c);
-      addText(this.scene, 36, y + 62, blurbs[def.key] ?? '', 13, '#9aa7d0', c);
-      const button = addButton(this.scene, W - 190, y + 28, 150, 40, '', () => buyUpgrade(this.state(), def), { parent: c });
-      this.rnd.push({ def, level, button });
-    });
-  }
-
   private buildPrestige() {
-    const c = this.panel('Prestige', 'Prestige');
-    const info = addText(this.scene, W / 2, 128, '', 14, '#9aa7d0', c)
+    const c = this.panel('Prestige', 'Prestige & R&D');
+    const info = addText(this.scene, W / 2, 122, '', 13, '#9aa7d0', c)
       .setOrigin(0.5, 0)
       .setWordWrapWidth(W - 60)
       .setAlign('center');
     const button = addButton(
       this.scene,
       30,
-      188,
+      168,
       W - 60,
-      46,
+      40,
       '',
       () => {
         const now = this.scene.time.now;
@@ -138,23 +114,23 @@ export class PanelHost {
       },
       { fill: COLORS.green, size: 16, parent: c },
     );
-    addText(this.scene, 30, 246, 'Research (permanent)', 16, '#ffffff', c);
+    addText(this.scene, 30, 214, 'R&D: permanent, bought with research points', 14, '#ffffff', c);
     const rows = RESEARCH_DEFS.map((def, i) => {
-      const y = 272 + i * 64;
-      addBox(this.scene, 20, y, W - 40, 58, COLORS.panel, c);
-      addText(this.scene, 32, y + 6, def.name, 17, '#ffffff', c);
-      const level = addText(this.scene, 32, y + 32, '', 12, '#9aa7d0', c);
+      const y = 238 + i * 47;
+      addBox(this.scene, 20, y, W - 40, 43, COLORS.panel, c);
+      addText(this.scene, 32, y + 4, def.name, 15, '#ffffff', c);
+      const level = addText(this.scene, 32, y + 25, '', 11, '#9aa7d0', c);
       const button = addButton(
         this.scene,
-        W - 170,
-        y + 9,
-        140,
-        40,
+        W - 150,
+        y + 6,
+        120,
+        31,
         '',
         () => {
           if (buyResearch(this.state(), def)) this.hooks.onResearch();
         },
-        { size: 14, parent: c },
+        { size: 13, parent: c },
       );
       return { def, level, button };
     });
@@ -245,14 +221,6 @@ export class PanelHost {
     } else if (this.current === 'Team') {
       this.teamName.setText(s.teamName);
       this.teamInfo.setText(`Season ${s.season}\nCars: 2\nAuto: ${s.autoUnlocked ? 'unlocked' : 'locked'}`);
-    } else if (this.current === 'R&D') {
-      for (const { def, level, button } of this.rnd) {
-        const lv = s.upgrades[def.key] ?? 0;
-        const cost = upgradeCost(def, lv);
-        level.setText(`Level ${lv}`);
-        button.setLabel(`$${formatNumber(cost)}`);
-        button.setState(s.money >= cost);
-      }
     } else if (this.current === 'Prestige') {
       const p = this.prestige;
       const rp = researchPointsFor(s.season);

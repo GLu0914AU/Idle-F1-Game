@@ -14,15 +14,24 @@ export interface ResearchDef {
   name: string;
   baseCost: number;
   blurb: string;
+  // Stats give free levels each run; the rest are special effects.
+  stat: boolean;
 }
 
-const statBlurb = (name: string) => `+${FREE_LEVELS_PER_RESEARCH} free ${name} levels every run`;
+const levels = FREE_LEVELS_PER_RESEARCH;
+const stat = (key: string, name: string, baseCost: number, blurb: string): ResearchDef => ({ key, name, baseCost, blurb, stat: true });
 
 export const RESEARCH_DEFS: ResearchDef[] = [
-  ...UPGRADE_DEFS.map((d) => ({ key: d.key, name: d.name, baseCost: 2, blurb: statBlurb(d.name) })),
-  { key: 'tapPower', name: 'Tap Power', baseCost: 2, blurb: statBlurb('Tap Power') },
-  { key: 'funding', name: 'Funding', baseCost: 3, blurb: `+${FUNDING_BONUS * 100}% income and prize money` },
-  { key: 'seed', name: 'Seed Money', baseCost: 2, blurb: `Start each run with $${SEED_MONEY} per level` },
+  // R&D: bought only with research points, never money.
+  stat('topSpeed', 'Top Speed', 3, `+${levels} levels: faster on straights`),
+  stat('cornering', 'Cornering', 3, `+${levels} levels: faster in corners`),
+  stat('tapPower', 'Tap Power', 2, `+${levels} levels: bigger taps, faster pits`),
+  stat('tyreScience', 'Tyre Science', 3, `+${levels} levels: ${levels * 4}% less tyre wear`),
+  stat('energyRecovery', 'Energy Recovery', 3, `+${levels} levels: boost lasts longer`),
+  { key: 'funding', name: 'Funding', baseCost: 3, blurb: `+${FUNDING_BONUS * 100}% income and prize money`, stat: false },
+  { key: 'seed', name: 'Seed Money', baseCost: 2, blurb: `Start each run with $${SEED_MONEY} per level`, stat: false },
+  // Car stats: free levels on top of what you buy with money.
+  ...UPGRADE_DEFS.map((d) => stat(d.key, d.name, 2, `+${levels} free levels every run`)),
 ];
 
 // Research points earned by prestiging from a given season.
@@ -46,13 +55,16 @@ export function buyResearch(state: Pick<GameState, 'researchPoints' | 'research'
   return true;
 }
 
-// Purchased upgrade levels plus the free levels from research. Use this for everything the levels affect.
+const CAR_KEYS = new Set(UPGRADE_DEFS.map((d) => d.key));
+
+// Money-bought car levels plus levels from research. Use this for everything the levels affect.
 export function effectiveUpgrades(state: Pick<GameState, 'upgrades' | 'research'>): Record<string, number> {
   const out = { ...state.upgrades };
   for (const d of RESEARCH_DEFS) {
-    if (d.key in state.upgrades || d.key === 'tapPower') {
-      out[d.key] = (out[d.key] ?? 0) + (state.research[d.key] ?? 0) * FREE_LEVELS_PER_RESEARCH;
-    }
+    if (!d.stat) continue;
+    // R&D stats come from research alone, even if an old save holds money-bought levels.
+    const bought = CAR_KEYS.has(d.key) ? (state.upgrades[d.key] ?? 0) : 0;
+    out[d.key] = bought + (state.research[d.key] ?? 0) * FREE_LEVELS_PER_RESEARCH;
   }
   return out;
 }
@@ -69,7 +81,7 @@ export function prestige(state: GameState): number {
   state.season = 1;
   state.race = 1;
   state.points = {};
-  state.upgrades = Object.fromEntries(Object.keys(state.upgrades).map((k) => [k, 0]));
+  state.upgrades = Object.fromEntries(UPGRADE_DEFS.map((d) => [d.key, 0]));
   state.money = startingMoney(state);
   return earned;
 }

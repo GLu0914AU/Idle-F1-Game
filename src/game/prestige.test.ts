@@ -69,6 +69,23 @@ describe('prestige', () => {
     expect(s.upgrades.engine).toBe(0);
   });
 
+  it('R&D stats come only from research points, never from money-bought levels', () => {
+    const s = newGame();
+    s.upgrades.topSpeed = 50; // stale level from an old save
+    expect(effectiveUpgrades(s).topSpeed).toBe(0);
+    const def = RESEARCH_DEFS.find((d) => d.key === 'topSpeed')!;
+    s.researchPoints = 10;
+    expect(buyResearch(s, def)).toBe(true);
+    expect(effectiveUpgrades(s).topSpeed).toBe(FREE_LEVELS_PER_RESEARCH);
+    for (const key of ['topSpeed', 'cornering', 'tapPower', 'tyreScience', 'energyRecovery', 'funding', 'seed']) {
+      expect(RESEARCH_DEFS.some((d) => d.key === key), key).toBe(true);
+    }
+    s.season = 5;
+    prestige(s);
+    expect(s.research.topSpeed).toBe(1);
+    expect(effectiveUpgrades(s).topSpeed).toBe(FREE_LEVELS_PER_RESEARCH);
+  });
+
   it('funding research boosts income and seed money survives a prestige', () => {
     const s = newGame();
     const before = sponsorMultiplier(s);

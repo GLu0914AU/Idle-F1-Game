@@ -19,16 +19,6 @@ export const COST_GROWTH = 1.15;
 export const BASE_RATING = 10;
 const PRIZE_BASE = 100;
 
-// R&D upgrades don't change car rating; they change how you play and earn.
-export const RND_DEFS: UpgradeDef[] = [
-  { key: 'tapPower', name: 'Tap Power', baseCost: 1000, ratingPerLevel: 0 },
-  { key: 'sponsorDeals', name: 'Sponsor Deals', baseCost: 4000, ratingPerLevel: 0 },
-  { key: 'topSpeed', name: 'Top Speed', baseCost: 2500, ratingPerLevel: 0 },
-  { key: 'cornering', name: 'Cornering', baseCost: 2500, ratingPerLevel: 0 },
-  { key: 'tyreScience', name: 'Tyre Science', baseCost: 5000, ratingPerLevel: 0 },
-  { key: 'energyRecovery', name: 'Energy Recovery', baseCost: 6000, ratingPerLevel: 0 },
-];
-
 // Max pace bonus (at infinite levels) from Top Speed on straights and Cornering in corners.
 const HANDLING_MAX = 0.3;
 const HANDLING_HALF = 25;
@@ -44,13 +34,9 @@ export function handlingFactor(h: Handling, c: number): number {
   return 1 + bonus(h.topSpeed) * (1 - c) + bonus(h.cornering) * c;
 }
 
-// Permanent sponsors multiplier, plus 10% per Sponsor Deals level and 25% per Funding research level.
-export function sponsorMultiplier(state: {
-  sponsors: number;
-  upgrades: Record<string, number>;
-  research?: Record<string, number>;
-}): number {
-  return state.sponsors * (1 + 0.1 * (state.upgrades.sponsorDeals ?? 0)) * (1 + 0.25 * (state.research?.funding ?? 0));
+// Permanent sponsors multiplier, plus 25% per Funding research level.
+export function sponsorMultiplier(state: { sponsors: number; research?: Record<string, number> }): number {
+  return state.sponsors * (1 + 0.25 * (state.research?.funding ?? 0));
 }
 
 export function upgradeCost(def: UpgradeDef, level: number): number {
