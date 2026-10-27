@@ -22,6 +22,7 @@ import { GameState, loadGame, saveGame } from '../game/save';
 import { RACES_PER_SEASON, driversTable } from '../game/season';
 import { packageDef } from '../game/development';
 import { achievementDef, claimableCount, readyAchievements, recordEvent, recordRaceResult } from '../game/goals';
+import { playSound, setEngine, syncAudio, unlockAudio } from '../game/audio';
 import { GAME_H, GAME_W, RES } from '../resolution';
 import {
   COMPOUNDS,
@@ -107,6 +108,7 @@ export class GameScene extends Phaser.Scene {
   // The list shows this race's running order, or each driver's points this season.
   private towerMode: 'race' | 'season' = 'race';
   private tabHighlight!: Phaser.GameObjects.Rectangle;
+  private safetyCarSounded = false;
   private stripChips: Phaser.GameObjects.Rectangle[] = [];
   private cards: { def: UpgradeDef; level: Phaser.GameObjects.Text; button: Button }[] = [];
   private info!: { box: Phaser.GameObjects.Container; title: Phaser.GameObjects.Text; body: Phaser.GameObjects.Text; key: string | null; research: boolean };
@@ -123,6 +125,8 @@ export class GameScene extends Phaser.Scene {
   create() {
     this.cameras.main.setZoom(RES).centerOn(GAME_W / 2, GAME_H / 2);
     this.state = loadGame();
+    syncAudio(this.state.settings);
+    this.input.on('pointerdown', () => unlockAudio());
     this.drawHud();
     this.drawTrack();
     this.drawStrategyStrip();
@@ -359,6 +363,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onTap(x: number, y: number) {
+    unlockAudio();
+    playSound('tap');
     recordEvent(this.state, 'tap');
     this.tapBoth();
     this.spawnBurst(x, y, [0xffffff, COLORS.gold, COLORS.red], 6);
@@ -408,6 +414,7 @@ export class GameScene extends Phaser.Scene {
       seed: Date.now() & 0x7fffffff,
     });
     this.strategies = [newStrategy(this.strategies[0]), newStrategy(this.strategies[1])];
+    playSound('start');
     this.restartAt = 0;
     this.paid = false;
     this.banner?.setVisible(false);
@@ -447,6 +454,7 @@ export class GameScene extends Phaser.Scene {
     for (const car of this.race.cars) {
       if (car.isPlayer && car.fault?.started && !car.fault.announced) {
         car.fault.announced = true;
+        playSound('fail');
         this.floatText(W / 2, VIEW.y + 250, car.fault.dnf ? `${car.driver}: ENGINE FAILURE, OUT!` : `${car.driver}: BREAKDOWN!`, '#ff5a4a');
       }
     }
@@ -579,6 +587,7 @@ export class GameScene extends Phaser.Scene {
       addButton(this, x + 168 - 30, y + 5, 24, 20, 'i', () => this.openInfo(def.key), { size: 13, fill: 0x1d2745 });
       const button = addButton(this, x + 14, y + 47, 144, 22, '', () => {
         if (buyUpgrade(this.state, def)) {
+          playSound('buy');
           this.applyRating();
           this.spawnBurst(x + 84, y + 57, [COLORS.gold, 0xffffff], 8);
         }
@@ -675,6 +684,9 @@ export class GameScene extends Phaser.Scene {
     const order = standings(this.race);
     const { positions, payout, wagesPaid, quit, outcome, sponsorCash, development } = settleRace(this.state, order);
     recordRaceResult(this.state, positions, !isDry(this.race.weather));
+    const best = Math.min(...positions);
+    playSound(outcome.type === 'season-won' ? 'fanfare' : best === 1 ? 'win' : best <= 3 ? 'podium' : 'finish');
+    if (development?.outcome === 'flop') playSound('fail');
     if (development?.outcome === 'big') recordEvent(this.state, 'breakthrough');
     if (development?.outcome === 'flop') recordEvent(this.state, 'flop');
     this.floatText(W - 90, 70, `+$${formatNumber(payout)}`, '#ffc933');
@@ -753,6 +765,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private selectTab(index: number) {
+    unlockAudio();
     this.panels.show(TABS[index]);
     this.tweens.add({ targets: this.tabHighlight, x: index * (W / TABS.length) + 6, duration: 140, ease: 'Cubic.easeOut' });
   }
@@ -839,7 +852,10 @@ export class GameScene extends Phaser.Scene {
     for (const a of readyAchievements(this.state)) {
       if (this.seenReady.has(a.id)) continue;
       this.seenReady.add(a.id);
-      if (this.seenReadyArmed) this.floatText(W / 2, 270, `ACHIEVEMENT READY: ${achievementDef(a.id)?.name}`, '#ffd400');
+      if (this.seenReadyArmed) {
+        playSound('claim');
+        this.floatText(W / 2, 270, `ACHIEVEMENT READY: ${achievementDef(a.id)?.name}`, '#ffd400');
+      }
     }
     this.seenReadyArmed = true;
   }
@@ -880,8 +896,15 @@ export class GameScene extends Phaser.Scene {
       if (car.isPlayer && car.pit && !this.countedPits.has(car.pit)) {
         this.countedPits.add(car.pit);
         recordEvent(this.state, 'pit');
+        playSound('pit');
       }
     }
+    if (this.race.safetyCarActive && !this.safetyCarSounded) playSound('safety');
+    this.safetyCarSounded = this.race.safetyCarActive;
+    syncAudio(this.state.settings);
+    const running = this.race.cars.some((c) => c.isPlayer && !c.dnf && c.finishTime === null);
+    const pitting = this.race.cars.filter((c) => c.isPlayer && c.pit).length;
+    setEngine(!running || this.race.finished ? 0 : pitting >= 2 ? 0.3 : 1, scale);
     if (this.race.finished && !this.paid) {
       this.paid = true;
       this.finishRace();

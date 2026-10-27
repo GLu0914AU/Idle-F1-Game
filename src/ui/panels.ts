@@ -57,12 +57,14 @@ import {
 } from '../game/goals';
 import { FANS_PER_WIN, FanCurrency, canRunFanEvent, fanChance, fansFor, runFanEvent } from '../game/career';
 import { Button, COLORS, W, addBox, addButton, addText } from './widgets';
+import { playSound } from '../game/audio';
 
 export const TABS = ['Race', 'Team', 'Sponsors', 'Prestige', 'Shop'] as const;
 const TEAM_COLORS = [0xffd400, 0xff7a1a, 0xe10600, 0xff4fa3, 0xb48cff, 0x2f6bff, 0x4de3ff, 0x14b87a, 0xffffff, 0x9aa0b5];
 const STAT_LABELS = ['RACES WON', "DRIVERS' TITLES", "CONSTRUCTORS' TITLES"];
 type TabName = (typeof TABS)[number];
 type AutoKey = 'autoBuy' | 'autoTap';
+type AudioToggle = 'sound' | 'engine' | 'music' | 'haptics';
 
 const driverLines = (d: DriverStats) => [
   `Skill: +${d.skill}% car rating`,
@@ -258,6 +260,8 @@ export class PanelHost {
     unlock: Button;
     toggles: { key: AutoKey; button: Button; name: string }[];
     gemBoost: Button;
+    audioToggles: { key: AudioToggle; name: string; button: Button }[];
+    volume: Phaser.GameObjects.Text;
   };
 
   constructor(
@@ -690,7 +694,10 @@ export class PanelHost {
             claimed: g.claimed,
             ready: dailyDone(g),
             onClaim: () => {
-              if (claimDaily(s, i, now)) save();
+              if (claimDaily(s, i, now)) {
+                playSound('claim');
+                save();
+              }
             },
           });
         } else if (i === s.goals.daily.goals.length) {
@@ -703,7 +710,10 @@ export class PanelHost {
             claimed: s.goals.daily.bonusClaimed,
             ready: canClaimBonus(s),
             onClaim: () => {
-              if (claimDailyBonus(s, now)) save();
+              if (claimDailyBonus(s, now)) {
+                playSound('claim');
+                save();
+              }
             },
           });
         } else {
@@ -733,7 +743,10 @@ export class PanelHost {
               claimed: achievementClaimed(s, a),
               ready: achievementReady(s, a),
               onClaim: () => {
-                if (claimAchievement(s, a.id)) save();
+                if (claimAchievement(s, a.id)) {
+                  playSound('claim');
+                  save();
+                }
               },
             }
           : null,
@@ -794,7 +807,10 @@ export class PanelHost {
   }
 
   private buyFacility(key: FacilityKey, count: number) {
-    if (buyFacility(this.state(), key, count) > 0) this.hooks.save();
+    if (buyFacility(this.state(), key, count) > 0) {
+      playSound('buy');
+      this.hooks.save();
+    }
   }
 
   private renderFacilities(s: GameState) {
@@ -1142,7 +1158,10 @@ export class PanelHost {
         31,
         '',
         () => {
-          if (buyResearch(this.state(), def)) this.hooks.onResearch();
+          if (buyResearch(this.state(), def)) {
+            playSound('buy');
+            this.hooks.onResearch();
+          }
         },
         { size: 13, parent: c },
       );
@@ -1215,7 +1234,43 @@ export class PanelHost {
       { size: 16, parent: c },
     );
     addText(this.scene, W / 2, 530, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
-    this.shop = { gems, unlock, toggles, gemBoost };
+    addText(this.scene, 30, 566, 'SOUND & HAPTICS', 13, '#9aa7d0', c);
+    const audioKeys: [AudioToggle, string][] = [
+      ['sound', 'Sound effects'],
+      ['engine', 'Engine hum'],
+      ['music', 'Music'],
+      ['haptics', 'Vibration'],
+    ];
+    const halfW = (W - 68) / 2;
+    const audioToggles = audioKeys.map(([key, name], i) => ({
+      key,
+      name,
+      button: addButton(
+        this.scene,
+        30 + (i % 2) * (halfW + 8),
+        590 + Math.floor(i / 2) * 52,
+        halfW,
+        44,
+        name,
+        () => {
+          const s = this.state();
+          s.settings[key] = !s.settings[key];
+          if (s.settings[key]) playSound('buy');
+          this.hooks.save();
+        },
+        { size: 14, parent: c },
+      ),
+    }));
+    const volume = addText(this.scene, W / 2, 712, '', 16, '#ffffff', c).setOrigin(0.5, 0);
+    const stepVolume = (d: number) => {
+      const s = this.state();
+      s.settings.volume = Math.round(Math.min(1, Math.max(0, s.settings.volume + d)) * 10) / 10;
+      playSound('buy');
+      this.hooks.save();
+    };
+    addButton(this.scene, 30, 704, 80, 40, '-', () => stepVolume(-0.1), { size: 20, parent: c });
+    addButton(this.scene, W - 110, 704, 80, 40, '+', () => stepVolume(0.1), { size: 20, parent: c });
+    this.shop = { gems, unlock, toggles, gemBoost, audioToggles, volume };
   }
 
   render() {
@@ -1255,6 +1310,11 @@ export class PanelHost {
         button.setState(s.autoUnlocked, s[key] ? COLORS.green : COLORS.accent);
       }
       sh.gemBoost.setState(s.gems >= GEM_BOOST_COST);
+      for (const { key, name, button } of sh.audioToggles) {
+        button.setLabel(`${name}: ${s.settings[key] ? 'ON' : 'OFF'}`);
+        button.setState(true, s.settings[key] ? COLORS.green : COLORS.accent);
+      }
+      sh.volume.setText(`Volume ${Math.round(s.settings.volume * 100)}%`);
     }
   }
 }

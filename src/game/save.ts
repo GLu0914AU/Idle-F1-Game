@@ -1,6 +1,7 @@
 import { CareerStats } from './career';
 import { Development, newDevelopment } from './development';
 import { FacilityKey, newFacilities } from './facilities';
+import { AudioSettings, mergeAudioSettings, newAudioSettings } from './audio';
 import { GoalsState, mergeGoals, newGoals } from './goals';
 import { Candidate, Driver, rookie } from './drivers';
 import type { Engineer, EngineerCandidate } from './engineers';
@@ -62,6 +63,8 @@ export interface GameState {
   goals: GoalsState;
   // Gem-bought buildings by level; they survive prestige.
   facilities: Record<FacilityKey, number>;
+  // Sound, music and haptics preferences.
+  settings: AudioSettings;
 }
 
 export const SAVE_VERSION = 1;
@@ -115,6 +118,7 @@ export function newGame(now = Date.now()): GameState {
     development: newDevelopment(),
     goals: newGoals(),
     facilities: newFacilities(),
+    settings: newAudioSettings(),
   };
 }
 
@@ -146,6 +150,7 @@ export function loadGame(store: Store = localStorage, now = Date.now()): GameSta
       staffMeetings: { ...fresh.staffMeetings, ...(data.staffMeetings ?? {}) },
       goals: mergeGoals(data.goals),
       facilities: { ...fresh.facilities, ...(data.facilities ?? {}) },
+      settings: mergeAudioSettings(data.settings),
       version: SAVE_VERSION,
     };
   } catch {
