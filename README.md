@@ -30,7 +30,7 @@ npm run build   # production build
 
 ## Credits
 
-Real circuit outlines for 40 tracks come from [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT License, unofficial data, not endorsed by Formula One Licensing B.V.). Other historic circuits use hand-drawn approximations.
+Real circuit outlines for all 40 tracks come from [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT License, unofficial data, not endorsed by Formula One Licensing B.V.).
 
 ## Contributing
 
