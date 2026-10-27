@@ -43,6 +43,8 @@ import { Point, Track, pointAt } from '../game/track';
 import { pickTrack } from '../game/tracks';
 import { PanelHost, BOOST_SECONDS, TABS } from '../ui/panels';
 import { askTeamName } from '../ui/teamName';
+import { Tutorial } from '../ui/tutorial';
+import { restartTutorial } from '../game/tutorial';
 import { drawScenery, themeFor } from '../ui/scenery';
 import { researchInfo, upgradeInfo } from '../game/upgradeInfo';
 import { Button, COLORS, W, addBox, addButton, addSlant, addText, fillPoly } from '../ui/widgets';
@@ -110,6 +112,7 @@ export class GameScene extends Phaser.Scene {
   private tabHighlight!: Phaser.GameObjects.Rectangle;
   private safetyCarSounded = false;
   private resetting = false;
+  private tutorial!: Tutorial;
   private stripChips: Phaser.GameObjects.Rectangle[] = [];
   private cards: { def: UpgradeDef; level: Phaser.GameObjects.Text; button: Button }[] = [];
   private info!: { box: Phaser.GameObjects.Container; title: Phaser.GameObjects.Text; body: Phaser.GameObjects.Text; key: string | null; research: boolean };
@@ -156,10 +159,42 @@ export class GameScene extends Phaser.Scene {
         this.applyRating();
       },
       onInfo: (key) => this.openInfo(key, true),
+      replayTutorial: () => {
+        restartTutorial(this.state);
+        this.persist();
+      },
     });
     this.drawTabs();
     this.buildInfoPopup();
     this.startRace();
+    const cardTop = VIEW.y + VIEW.h + 48;
+    const stripTop = VIEW.y + VIEW.h - 2 * STRIP_H - 12;
+    this.tutorial = new Tutorial(
+      this,
+      () => this.state,
+      {
+        track: { x: 0, y: VIEW.y, w: W, h: VIEW.h },
+        card: { x: 12, y: cardTop, w: 168, h: 74 },
+        strip: { x: 0, y: stripTop, w: W, h: 2 * STRIP_H + 6 },
+        tabs: { x: 0, y: 880, w: W, h: 80 },
+      },
+      {
+        prepare: (step) => {
+          this.selectTab(0);
+          this.panels.openProfile(false);
+          this.panels.openGoals(false);
+          // The first purchase must be affordable, or the guide could stall.
+          if (step === 'buy') {
+            const def = UPGRADE_DEFS[0];
+            this.state.money = Math.max(this.state.money, upgradeCost(def, this.state.upgrades[def.key] ?? 0));
+          }
+        },
+        onClaim: () => {
+          playSound('claim');
+          this.persist();
+        },
+      },
+    );
 
     const report = simulateOffline(this.state, Date.now());
     if (report && report.races > 0) {
@@ -391,6 +426,7 @@ export class GameScene extends Phaser.Scene {
     unlockAudio();
     playSound('tap');
     recordEvent(this.state, 'tap');
+    this.tutorial.notify('tap');
     this.tapBoth();
     this.spawnBurst(x, y, [0xffffff, COLORS.gold, COLORS.red], 6);
     const ring = this.add.circle(x, y, 8, 0xffffff, 0.35);
@@ -613,6 +649,7 @@ export class GameScene extends Phaser.Scene {
       const button = addButton(this, x + 14, y + 47, 144, 22, '', () => {
         if (buyUpgrade(this.state, def)) {
           playSound('buy');
+          this.tutorial.notify('buy');
           this.applyRating();
           this.spawnBurst(x + 84, y + 57, [COLORS.gold, 0xffffff], 8);
         }
@@ -940,6 +977,7 @@ export class GameScene extends Phaser.Scene {
     this.renderEconomy();
     this.renderInfo();
     this.panels.render();
+    if (this.state.teamNamed) this.tutorial.sync();
     if (this.race.finished) {
       this.restartAt += delta;
       if (this.restartAt > this.restartDelay) this.startRace();

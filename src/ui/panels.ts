@@ -109,6 +109,7 @@ export interface PanelHooks {
   rename(): void;
   // Erase the saved game and start over.
   resetSave(): void;
+  replayTutorial(): void;
   // The team colour changed, so cars and the strategy strip need recolouring.
   recolour(): void;
   incomePerSecond(): number;
@@ -706,6 +707,10 @@ export class PanelHost {
       },
       { size: 16, parent: c, fill: 0xb8321f },
     );
+    addButton(this.scene, 30, 750, W - 60, 44, 'REPLAY TUTORIAL', () => {
+      this.openProfile(false);
+      this.hooks.replayTutorial();
+    }, { size: 16, parent: c });
     addButton(this.scene, 30, 812, W - 60, 44, 'BACK', () => this.openProfile(false), { size: 16, parent: c });
     this.profileUi = { box: c, name, chip, stats, toggles, volume, reset };
   }

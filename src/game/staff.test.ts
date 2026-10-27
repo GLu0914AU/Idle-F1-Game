@@ -10,9 +10,12 @@ const hire = (state: ReturnType<typeof newGame>, role: StaffRole, stats: Record<
   state.staff[role] = { name: 'Test', stats, salary };
 };
 
+// New games start with no clout, so negotiation tests grant some.
+const richGame = () => ({ ...newGame(), clout: 10 });
+
 describe('staff negotiation', () => {
   it('costs clout and opens one meeting per role', () => {
-    const s = newGame();
+    const s = richGame();
     const before = s.clout;
     const c = requestStaffMeeting(s, 'tyre', mulberry32(1));
     expect(c).not.toBeNull();
@@ -29,7 +32,7 @@ describe('staff negotiation', () => {
 
   it('generates the right stats for each role within range', () => {
     for (const role of STAFF_ROLES) {
-      const s = newGame();
+      const s = richGame();
       const c = requestStaffMeeting(s, role, mulberry32(7))!;
       const keys = Object.keys(c.stats);
       expect(keys.length).toBe(role === 'pit' ? 2 : 1);
@@ -41,7 +44,7 @@ describe('staff negotiation', () => {
   });
 
   it('signs at or above the hidden minimum and fails below it', () => {
-    const s = newGame();
+    const s = richGame();
     const c = requestStaffMeeting(s, 'pit', mulberry32(3))!;
     const low = offerStaffContract(s, 'pit', Math.max(1, c.secret - 1));
     expect(low.outcome).toBe('failed');

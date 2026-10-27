@@ -8,6 +8,7 @@ import type { Engineer, EngineerCandidate } from './engineers';
 import { newStaff, newStaffMeetings } from './staff';
 import type { StaffCandidate, StaffMember, StaffRole } from './staff';
 import { PLAYER_COLOR, PLAYER_DRIVERS } from './teams';
+import { TUTORIAL_DONE } from './tutorial';
 
 export interface GameState {
   version: number;
@@ -65,12 +66,15 @@ export interface GameState {
   facilities: Record<FacilityKey, number>;
   // Sound, music and haptics preferences.
   settings: AudioSettings;
+  // First-run guide progress; see tutorial.ts.
+  tutorial: number;
+  tutorialRewarded: boolean;
 }
 
 export const SAVE_VERSION = 1;
 export const SAVE_KEY = 'idle-f1-save';
-// A new team can open a driver or engineer meeting right away (each costs 2 clout).
-export const STARTING_CLOUT = 10;
+// New teams earn their first clout from the tutorial reward and goals.
+export const STARTING_CLOUT = 0;
 
 export function newGame(now = Date.now()): GameState {
   return {
@@ -119,6 +123,8 @@ export function newGame(now = Date.now()): GameState {
     goals: newGoals(),
     facilities: newFacilities(),
     settings: newAudioSettings(),
+    tutorial: 0,
+    tutorialRewarded: false,
   };
 }
 
@@ -151,6 +157,9 @@ export function loadGame(store: Store = localStorage, now = Date.now()): GameSta
       goals: mergeGoals(data.goals),
       facilities: { ...fresh.facilities, ...(data.facilities ?? {}) },
       settings: mergeAudioSettings(data.settings),
+      // Saves from before the tutorial existed are experienced players.
+      tutorial: data.tutorial ?? TUTORIAL_DONE,
+      tutorialRewarded: data.tutorialRewarded ?? true,
       version: SAVE_VERSION,
     };
   } catch {

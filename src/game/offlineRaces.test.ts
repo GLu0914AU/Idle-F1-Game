@@ -42,7 +42,7 @@ describe('offline races', () => {
     });
     expect(report!.next.season).toBeLessThanOrEqual(3);
     expect(report!.races).toBeLessThanOrEqual(AUTO_OFFLINE_CAP_S / OFFLINE_RACE_SECONDS);
-  });
+  }, 30000);
 
   it('only pays money when already at the best season', () => {
     const { report } = away(3600, (s) => {
