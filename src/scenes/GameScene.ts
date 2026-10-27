@@ -244,6 +244,31 @@ export class GameScene extends Phaser.Scene {
     this.banner?.setVisible(false);
   }
 
+  // Top-down F1 car about 10px long (the road is 11px wide), nose pointing along `angle`.
+  private drawCar(x: number, y: number, angle: number, color: number, isPlayer: boolean) {
+    const g = this.carGfx;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    // Local coords: +u forward, +v to the right of travel.
+    const rect = (u0: number, u1: number, v0: number, v1: number, fill: number) => {
+      const corners = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]].map(
+        ([u, v]) => new Phaser.Math.Vector2(x + u * cos - v * sin, y + u * sin + v * cos),
+      );
+      g.fillStyle(fill).fillPoints(corners, true);
+    };
+    if (isPlayer) g.lineStyle(1.5, 0xffffff, 0.9).strokeCircle(x, y, 6.5);
+    const dark = 0x10131f;
+    rect(-1.8, -0.2, -2.3, -1.2, dark); // rear wheels
+    rect(-1.8, -0.2, 1.2, 2.3, dark);
+    rect(2.2, 3.4, -2.2, -1.3, dark); // front wheels
+    rect(2.2, 3.4, 1.3, 2.2, dark);
+    rect(-5, -4, -2.3, 2.3, color); // rear wing
+    rect(4, 5, -2.5, 2.5, color); // front wing
+    rect(-4, 4.2, -0.9, 0.9, color); // body
+    rect(-0.8, 0.6, -1.5, 1.5, color); // sidepods
+    rect(-0.6, 0.8, -0.5, 0.5, dark); // cockpit
+  }
+
   private renderRace() {
     const order = standings(this.race);
     this.carGfx.clear();
@@ -251,8 +276,9 @@ export class GameScene extends Phaser.Scene {
       const dist = car.progress * this.track.length;
       const t = car.pit ? (car.progress - car.pit.start) / (2 * PIT_HALF_LENGTH) : 0;
       const p = this.trackPos(dist, car.pit ? pitOffset(t) : 0);
-      this.carGfx.fillStyle(car.color).fillCircle(p.x, p.y, car.isPlayer ? 7 : 5);
-      if (car.isPlayer) this.carGfx.lineStyle(2, 0xffffff).strokeCircle(p.x, p.y, 8);
+      const ahead = this.trackPos(dist + this.track.length * 0.002, car.pit ? pitOffset(t) : 0);
+      const angle = Math.atan2(ahead.y - p.y, ahead.x - p.x);
+      this.drawCar(p.x, p.y, angle, car.color, car.isPlayer);
     }
     order.forEach((car, i) => {
       const row = this.towerRows[i];
