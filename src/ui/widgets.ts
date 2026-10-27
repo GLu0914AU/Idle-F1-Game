@@ -1,7 +1,16 @@
 import Phaser from 'phaser';
 
 export const W = 540;
-export const COLORS = { bg: 0x0b1020, panel: 0x151c33, border: 0x2a3558, accent: 0x2f6bff, disabled: 0x2a3350, green: 0x14b87a };
+export const COLORS = {
+  bg: 0x0b1020,
+  panel: 0x151c33,
+  border: 0x2a3558,
+  accent: 0x2f6bff,
+  disabled: 0x2a3350,
+  green: 0x14b87a,
+  red: 0xe10600,
+  gold: 0xffc933,
+};
 
 export function addText(
   scene: Phaser.Scene,
@@ -12,7 +21,8 @@ export function addText(
   color = '#ffffff',
   parent?: Phaser.GameObjects.Container,
 ) {
-  const t = scene.add.text(x, y, s, { fontFamily: 'system-ui, sans-serif', fontSize: `${size}px`, color });
+  const fontFamily = size >= 14 ? 'Impact, "Arial Narrow", system-ui, sans-serif' : 'system-ui, sans-serif';
+  const t = scene.add.text(x, y, s, { fontFamily, fontSize: `${size}px`, color });
   parent?.add(t);
   return t;
 }
@@ -29,6 +39,36 @@ export function addBox(
   const r = scene.add.rectangle(x, y, w, h, fill).setOrigin(0).setStrokeStyle(2, COLORS.border);
   parent?.add(r);
   return r;
+}
+
+export function fillPoly(g: Phaser.GameObjects.Graphics, pts: { x: number; y: number }[]) {
+  g.fillPoints(
+    pts.map((p) => new Phaser.Math.Vector2(p.x, p.y)),
+    true,
+  );
+}
+
+// Parallelogram in the style of TV graphics; `slant` is the horizontal lean in pixels.
+export function addSlant(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  fill: number,
+  slant = 12,
+  parent?: Phaser.GameObjects.Container,
+) {
+  const g = scene.add.graphics();
+  g.fillStyle(fill);
+  fillPoly(g, [
+    { x: x + slant, y },
+    { x: x + w, y },
+    { x: x + w - slant, y: y + h },
+    { x, y: y + h },
+  ]);
+  parent?.add(g);
+  return g;
 }
 
 export interface Button {
@@ -53,8 +93,13 @@ export function addButton(
   const rect = addBox(scene, x, y, w, h, fill, parent).setInteractive({ useHandCursor: true });
   const text = addText(scene, x + w / 2, y + h / 2, label, size, '#ffffff', parent).setOrigin(0.5);
   rect.on('pointerdown', () => {
-    if (enabled) onClick();
+    if (!enabled) return;
+    scene.tweens.add({ targets: text, scale: 0.88, duration: 70, yoyo: true });
+    scene.tweens.add({ targets: rect, alpha: 0.6, duration: 70, yoyo: true });
+    onClick();
   });
+  rect.on('pointerover', () => enabled && rect.setStrokeStyle(2, 0xffffff, 0.7));
+  rect.on('pointerout', () => rect.setStrokeStyle(2, COLORS.border));
   return {
     rect,
     label: text,

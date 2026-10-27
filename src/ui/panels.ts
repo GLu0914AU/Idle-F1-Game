@@ -74,15 +74,24 @@ export class PanelHost {
   }
 
   show(tab: TabName) {
+    const changed = tab !== this.current;
     this.current = tab;
-    for (const [name, c] of this.panels) c.setVisible(name === tab);
+    for (const [name, c] of this.panels) {
+      c.setVisible(name === tab);
+      if (name === tab && changed) {
+        this.scene.tweens.killTweensOf(c);
+        c.setAlpha(0).setY(14);
+        this.scene.tweens.add({ targets: c, alpha: 1, y: 0, duration: 180, ease: 'Cubic.easeOut' });
+      }
+    }
   }
 
   private panel(name: TabName, title: string) {
     const c = this.scene.add.container(0, 0).setVisible(false);
     // Blocks taps from reaching the race view underneath.
     c.add(addBox(this.scene, 0, 70, W, 810, COLORS.bg).setInteractive());
-    c.add(addText(this.scene, W / 2, 90, title, 24).setOrigin(0.5, 0));
+    c.add(this.scene.add.rectangle(W / 2, 84, 120, 3, COLORS.red));
+    c.add(addText(this.scene, W / 2, 90, title.toUpperCase(), 24).setOrigin(0.5, 0));
     this.panels.set(name, c);
     return c;
   }

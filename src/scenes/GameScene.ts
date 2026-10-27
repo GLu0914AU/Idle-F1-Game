@@ -37,7 +37,7 @@ import { Point, Track, pointAt } from '../game/track';
 import { pickTrack } from '../game/tracks';
 import { PanelHost, BOOST_SECONDS, TABS } from '../ui/panels';
 import { askTeamName } from '../ui/teamName';
-import { Button, COLORS, W, addBox, addButton, addText } from '../ui/widgets';
+import { Button, COLORS, W, addBox, addButton, addSlant, addText, fillPoly } from '../ui/widgets';
 
 const VIEW = { y: 70, h: 580, padX: 90, padTop: 30, padBottom: 80 };
 const STRIP_H = 30;
@@ -71,6 +71,7 @@ export class GameScene extends Phaser.Scene {
   private teamText!: Phaser.GameObjects.Text;
   private moneyText!: Phaser.GameObjects.Text;
   private gemText!: Phaser.GameObjects.Text;
+  private rpText!: Phaser.GameObjects.Text;
   private seasonText!: Phaser.GameObjects.Text;
   private incomeText!: Phaser.GameObjects.Text;
   private lapText!: Phaser.GameObjects.Text;
@@ -135,16 +136,31 @@ export class GameScene extends Phaser.Scene {
     if (!name) return;
     this.state.teamName = name;
     this.state.teamNamed = true;
-    this.teamText.setText(name);
+    this.teamText.setText(name.toUpperCase());
     saveGame(this.state);
   }
 
   private drawHud() {
-    addBox(this, 0, 0, W, 70, COLORS.bg);
-    this.teamText = addText(this, 16, 12, this.state.teamName, 22);
-    this.seasonText = addText(this, 16, 40, '', 14, '#9aa7d0');
-    this.moneyText = addText(this, W - 16, 12, '', 22).setOrigin(1, 0);
-    this.gemText = addText(this, W - 16, 40, '', 14, '#9aa7d0').setOrigin(1, 0);
+    addBox(this, 0, 0, W, 70, COLORS.bg).setStrokeStyle(0);
+    // Broadcast-style header: red team tag on the left, gold money badge on the right.
+    addSlant(this, -12, 6, 300, 36, COLORS.red, 18);
+    addSlant(this, 282, 6, 6, 36, 0xffffff, 6);
+    this.teamText = addText(this, 20, 10, this.state.teamName.toUpperCase(), 22).setFixedSize(250, 0);
+    this.seasonText = addText(this, 20, 46, '', 14, '#9aa7d0');
+    addSlant(this, W - 190, 6, 200, 36, 0x1a2342, 18);
+    addSlant(this, W - 190, 6, 6, 36, COLORS.gold, 6);
+    this.moneyText = addText(this, W - 22, 10, '', 22, '#ffc933').setOrigin(1, 0);
+    const g = this.add.graphics();
+    // Gem (cyan diamond) and research point (purple hexagon) icons.
+    const gx = W - 196;
+    g.fillStyle(0x4de3ff);
+    fillPoly(g, [{ x: gx + 6, y: 49 }, { x: gx + 12, y: 55 }, { x: gx + 6, y: 63 }, { x: gx, y: 55 }]);
+    const hx = W - 96;
+    const hex = Array.from({ length: 6 }, (_, i) => ({ x: hx + 6 + Math.cos((i * Math.PI) / 3) * 7, y: 56 + Math.sin((i * Math.PI) / 3) * 7 }));
+    g.fillStyle(0xb48cff);
+    fillPoly(g, hex);
+    this.gemText = addText(this, gx + 18, 47, '', 14, '#cfe9ff');
+    this.rpText = addText(this, hx + 18, 47, '', 14, '#e0ccff');
   }
 
   private toView(p: Point): Point {
@@ -161,7 +177,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawTrack() {
-    addBox(this, 0, VIEW.y, W, VIEW.h, 0x070a14);
+    addBox(this, 0, VIEW.y, W, VIEW.h, 0x0c1f15).setStrokeStyle(0);
     this.trackGfx = this.add.graphics();
     this.carGfx = this.add.graphics();
     this.barGfx = this.add.graphics();
@@ -200,9 +216,17 @@ export class GameScene extends Phaser.Scene {
       return new Phaser.Math.Vector2(v.x, v.y);
     });
     this.trackGfx.clear();
-    this.trackGfx.lineStyle(15, 0xc9d1f0).strokePoints(pts, true, true);
-    this.trackGfx.lineStyle(11, 0x2b3350).strokePoints(pts, true, true);
-    this.trackGfx.lineStyle(1, 0x4a5580, 0.8).strokePoints(pts, true, true);
+    // Gravel runoff, then red/white kerbs, then asphalt with a racing line.
+    this.trackGfx.lineStyle(34, 0x1a3324).strokePoints(pts, true, true);
+    this.trackGfx.lineStyle(26, 0x3d3a2c).strokePoints(pts, true, true);
+    const seg = 160;
+    for (let i = 0; i < seg; i++) {
+      const a = this.trackPos((i / seg) * this.track.length);
+      const b = this.trackPos(((i + 1.2) / seg) * this.track.length);
+      this.trackGfx.lineStyle(18, i % 2 ? 0xf2f2f2 : COLORS.red).lineBetween(a.x, a.y, b.x, b.y);
+    }
+    this.trackGfx.lineStyle(13, 0x30343f).strokePoints(pts, true, true);
+    this.trackGfx.lineStyle(1, 0x5a6075, 0.6).strokePoints(pts, true, true);
 
     // Pit lane: branches off at the entrance, runs beside the straight, and rejoins at the exit.
     const len = this.track.length;
@@ -212,17 +236,20 @@ export class GameScene extends Phaser.Scene {
       const p = this.trackPos(len * (-PIT_HALF_LENGTH + 2 * PIT_HALF_LENGTH * t), pitOffset(t));
       lane.push(new Phaser.Math.Vector2(p.x, p.y));
     }
-    this.trackGfx.lineStyle(9, 0x1d2540).strokePoints(lane, false, false);
-    this.trackGfx.lineStyle(1, 0x6b78a8, 0.9).strokePoints(lane, false, false);
+    this.trackGfx.lineStyle(9, 0x262b3a).strokePoints(lane, false, false);
+    this.trackGfx.lineStyle(1, 0xf2c94c, 0.9).strokePoints(lane, false, false);
 
-    // Start/finish line across the track.
-    const a = this.trackPos(0, -6);
-    const b = this.trackPos(0, 6);
-    this.trackGfx.lineStyle(3, 0xffffff).lineBetween(a.x, a.y, b.x, b.y);
+    // Chequered start/finish line across the track.
+    for (let k = 0; k < 4; k++) {
+      const a = this.trackPos(0, -6 + k * 3);
+      const b = this.trackPos(0, -3 + k * 3);
+      this.trackGfx.lineStyle(3, k % 2 ? 0x111111 : 0xffffff).lineBetween(a.x, a.y, b.x, b.y);
+    }
   }
 
   private onTap(x: number, y: number) {
     this.tapBoth();
+    this.spawnBurst(x, y, [0xffffff, COLORS.gold, COLORS.red], 6);
     const ring = this.add.circle(x, y, 8, 0xffffff, 0.35);
     this.tweens.add({ targets: ring, scale: 3, alpha: 0, duration: 300, onComplete: () => ring.destroy() });
   }
@@ -393,10 +420,14 @@ export class GameScene extends Phaser.Scene {
       const x = 12 + (i % 3) * 176;
       const y = top + Math.floor(i / 3) * 80;
       addBox(this, x, y, 168, 74);
-      addText(this, x + 10, y + 6, def.name, 16);
-      const level = addText(this, x + 10, y + 27, '', 12, '#9aa7d0');
-      const button = addButton(this, x + 10, y + 46, 148, 22, '', () => {
-        if (buyUpgrade(this.state, def)) this.applyRating();
+      addBox(this, x, y, 5, 74, COLORS.red).setStrokeStyle(0);
+      addText(this, x + 14, y + 6, def.name.toUpperCase(), 16);
+      const level = addText(this, x + 14, y + 27, '', 12, '#9aa7d0');
+      const button = addButton(this, x + 14, y + 46, 144, 22, '', () => {
+        if (buyUpgrade(this.state, def)) {
+          this.applyRating();
+          this.spawnBurst(x + 84, y + 57, [COLORS.gold, 0xffffff], 8);
+        }
       }, { size: 12 });
       return { def, level, button };
     });
@@ -416,7 +447,8 @@ export class GameScene extends Phaser.Scene {
     const s = this.state;
     const rating = carRating(this.eff());
     this.moneyText.setText(`$ ${formatNumber(s.money)}`);
-    this.gemText.setText(`Gems ${s.gems} · RP ${s.researchPoints}`);
+    this.gemText.setText(String(s.gems));
+    this.rpText.setText(`${s.researchPoints} RP`);
     this.seasonText.setText(`Season ${s.season} · Race ${s.race}/${RACES_PER_SEASON}`);
     this.incomeText.setText(`${formatNumber(incomePerSecond(rating, sponsorMultiplier(s)))} $/s · Rating ${Math.round(rating)}`);
     for (const { def, level, button } of this.cards) {
@@ -445,11 +477,14 @@ export class GameScene extends Phaser.Scene {
   private finishRace() {
     const order = standings(this.race);
     const positions = order.flatMap((c, i) => (c.isPlayer ? [i + 1] : []));
-    this.state.money += racePayout(positions, this.state.season, sponsorMultiplier(this.state));
+    const payout = racePayout(positions, this.state.season, sponsorMultiplier(this.state));
+    this.state.money += payout;
+    this.floatText(W - 90, 70, `+$${formatNumber(payout)}`, '#ffc933');
     awardPoints(this.state, order);
 
     const outcome = advanceSeason(this.state);
     if (outcome.type === 'season-won') {
+      this.confetti();
       this.state.gems += TITLE_GEMS;
       const sponsorCash = sponsorIncome(this.state);
       this.state.money += sponsorCash;
@@ -478,11 +513,14 @@ export class GameScene extends Phaser.Scene {
 
   private drawTabs() {
     const y = 880;
-    addBox(this, 0, y, W, 80, COLORS.bg);
+    addBox(this, 0, y, W, 80, COLORS.bg).setStrokeStyle(0);
+    this.add.rectangle(0, y, W, 3, COLORS.red).setOrigin(0);
     const w = W / TABS.length;
     this.tabHighlight = addBox(this, 6, y + 8, w - 12, 64, COLORS.panel).setStrokeStyle(2, COLORS.accent);
+    const g = this.add.graphics();
     TABS.forEach((t, i) => {
-      addText(this, i * w + w / 2, y + 40, t, 14).setOrigin(0.5);
+      this.drawTabIcon(g, t, i * w + w / 2, y + 28);
+      addText(this, i * w + w / 2, y + 54, t.toUpperCase(), 13).setOrigin(0.5);
       this.add
         .rectangle(i * w, y, w, 80, 0x000000, 0)
         .setOrigin(0)
@@ -491,9 +529,67 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private drawTabIcon(g: Phaser.GameObjects.Graphics, tab: string, cx: number, cy: number) {
+    const white = 0xffffff;
+    if (tab === 'Race') {
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) g.fillStyle((r + c) % 2 ? 0x333a55 : white).fillRect(cx - 12 + c * 6, cy - 9 + r * 6, 6, 6);
+    } else if (tab === 'Team') {
+      g.fillStyle(white).fillCircle(cx - 6, cy - 4, 5).fillCircle(cx + 7, cy - 2, 4);
+      g.fillRect(cx - 12, cy + 3, 12, 7).fillRect(cx + 2, cy + 4, 10, 6);
+    } else if (tab === 'Sponsors') {
+      g.fillStyle(COLORS.gold).fillCircle(cx, cy, 11);
+      g.fillStyle(0x0b1020).fillRect(cx - 1, cy - 7, 2, 14).fillRect(cx - 5, cy - 4, 10, 2).fillRect(cx - 5, cy + 2, 10, 2);
+    } else if (tab === 'Prestige') {
+      g.fillStyle(0xb48cff);
+      fillPoly(g, [{ x: cx, y: cy - 11 }, { x: cx + 11, y: cy + 1 }, { x: cx + 4, y: cy + 1 }, { x: cx + 4, y: cy + 10 }, { x: cx - 4, y: cy + 10 }, { x: cx - 4, y: cy + 1 }, { x: cx - 11, y: cy + 1 }]);
+    } else {
+      g.fillStyle(0x4de3ff);
+      fillPoly(g, [{ x: cx - 10, y: cy - 4 }, { x: cx - 5, y: cy - 10 }, { x: cx + 5, y: cy - 10 }, { x: cx + 10, y: cy - 4 }, { x: cx, y: cy + 10 }]);
+    }
+  }
+
   private selectTab(index: number) {
     this.panels.show(TABS[index]);
-    this.tabHighlight.setX(index * (W / TABS.length) + 6);
+    this.tweens.add({ targets: this.tabHighlight, x: index * (W / TABS.length) + 6, duration: 140, ease: 'Cubic.easeOut' });
+  }
+
+  // Small burst of particles, used for taps, purchases and wins.
+  private spawnBurst(x: number, y: number, colors: number[], count: number) {
+    for (let i = 0; i < count; i++) {
+      const p = this.add.rectangle(x, y, 4, 4, colors[i % colors.length]).setDepth(50);
+      const ang = Math.random() * Math.PI * 2;
+      const dist = 20 + Math.random() * 30;
+      this.tweens.add({
+        targets: p,
+        x: x + Math.cos(ang) * dist,
+        y: y + Math.sin(ang) * dist,
+        alpha: 0,
+        angle: 180,
+        duration: 400,
+        onComplete: () => p.destroy(),
+      });
+    }
+  }
+
+  private floatText(x: number, y: number, s: string, color: string) {
+    const t = addText(this, x, y, s, 20, color).setOrigin(0.5).setDepth(50).setStroke('#000000', 4);
+    this.tweens.add({ targets: t, y: y - 40, alpha: 0, duration: 1200, onComplete: () => t.destroy() });
+  }
+
+  private confetti() {
+    const colors = [COLORS.red, COLORS.gold, 0xffffff, 0x4de3ff, 0xb48cff];
+    for (let i = 0; i < 70; i++) {
+      const p = this.add.rectangle(Math.random() * W, VIEW.y - 10, 6, 10, colors[i % colors.length]).setDepth(50);
+      this.tweens.add({
+        targets: p,
+        y: VIEW.y + VIEW.h,
+        x: p.x + (Math.random() - 0.5) * 80,
+        angle: 360 * (Math.random() < 0.5 ? 1 : -1),
+        duration: 1500 + Math.random() * 1500,
+        delay: Math.random() * 600,
+        onComplete: () => p.destroy(),
+      });
+    }
   }
 
   private runAutos(dt: number) {
