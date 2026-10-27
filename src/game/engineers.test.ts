@@ -16,6 +16,7 @@ import { newStrategy } from './strategy';
 const base = (over: Partial<Parameters<typeof requestEngineerMeeting>[0]> = {}) => ({
   clout: 5,
   season: 3,
+  bestSeason: 3,
   money: 1e9,
   engineer: null as Engineer | null,
   engineerMeeting: null as ReturnType<typeof requestEngineerMeeting>,

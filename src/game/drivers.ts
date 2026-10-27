@@ -14,7 +14,7 @@ export interface DriverStats {
   raceCraft: number;
 }
 
-export interface Driver extends DriverStats {
+export interface Driver extends DriverStats, Contract {
   // Paid after every race for as long as the driver stays.
   salary: number;
 }
@@ -28,7 +28,7 @@ export interface Candidate {
   hi: number;
 }
 
-export type DriverState = Pick<GameState, 'clout' | 'season' | 'drivers' | 'driverNames' | 'driverMeeting' | 'money'>;
+export type DriverState = Pick<GameState, 'clout' | 'season' | 'bestSeason' | 'drivers' | 'driverNames' | 'driverMeeting' | 'money'>;
 
 export const MAX_TRAIT = 10;
 export const MAX_SKILL = 25;
@@ -154,7 +154,22 @@ export const NAMES = [
 // What a typical driver asks per season: a slice of a winner's prize, so it grows with the season.
 export const salaryMarket = (season: number) => Math.max(1, Math.round(prize(1, season) * SALARY_SHARE));
 
-export const payroll = (state: Pick<GameState, 'drivers'>) => state.drivers.reduce((sum, d) => sum + d.salary, 0);
+export const payroll = (state: Pick<GameState, 'drivers' | 'season' | 'bestSeason'>) => state.drivers.reduce((sum, d) => sum + currentSalary(d, state), 0);
+
+export interface Contract {
+  salary: number;
+  // The season the contract was signed in. Older saves without it count as signed at the best season reached.
+  season?: number;
+}
+
+// A contract is tied to the season it was signed in. Below that season (after a prestige) it costs only what that season's market would
+// have asked, so wages restart at Season 1 levels and climb back to the contracted figure as the team climbs back up.
+export function currentSalary(c: Contract, s: Pick<GameState, 'season' | 'bestSeason'>): number {
+  if (c.salary <= 0) return 0;
+  const signed = c.season ?? Math.max(s.season, s.bestSeason);
+  if (s.season >= signed) return c.salary;
+  return Math.max(1, Math.min(c.salary, Math.round((c.salary * salaryMarket(s.season)) / salaryMarket(signed))));
+}
 
 // A season's salary is paid in ten equal instalments, which the player can settle early as the season goes on.
 export const wagePerRace = (salary: number) => (salary > 0 ? Math.max(1, Math.round(salary / RACES_PER_SEASON)) : 0);
@@ -199,7 +214,7 @@ export function offerContract(state: DriverState, slot: 0 | 1, amount: number): 
   state.driverMeeting = null;
   if (amount < c.secret) return { outcome: 'failed', name: c.name };
   const replaced = state.driverNames[slot];
-  state.drivers[slot] = { ...c.stats, salary: Math.floor(amount) };
+  state.drivers[slot] = { ...c.stats, salary: Math.floor(amount), season: state.season };
   state.driverNames[slot] = c.name;
   return { outcome: 'signed', name: c.name, replaced };
 }
@@ -214,8 +229,9 @@ export function payDrivers(state: DriverState, instalments = 0): { paid: number;
   let paid = 0;
   const quit: string[] = [];
   state.drivers.forEach((d, i) => {
-    if (d.salary <= 0) return;
-    const due = remainingSalary(d.salary, instalments);
+    const wage = currentSalary(d, state);
+    if (wage <= 0) return;
+    const due = remainingSalary(wage, instalments);
     if (state.money >= due) {
       state.money -= due;
       paid += due;

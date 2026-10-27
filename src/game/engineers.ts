@@ -1,4 +1,4 @@
-import { remainingSalary, rollAsk } from './drivers';
+import { Contract, currentSalary, remainingSalary, rollAsk } from './drivers';
 import type { GameState } from './save';
 import { Strategy, COMPOUNDS, Compound, isPitting, setMode, togglePitRequest } from './strategy';
 import { autoCompound, shouldAutoPit } from './auto';
@@ -13,7 +13,7 @@ export interface EngineerStats {
   mode: number;
 }
 
-export interface Engineer extends EngineerStats {
+export interface Engineer extends EngineerStats, Contract {
   name: string;
   // Paid after every race for as long as the engineer stays.
   salary: number;
@@ -28,7 +28,7 @@ export interface EngineerCandidate {
   hi: number;
 }
 
-export type EngineerState = Pick<GameState, 'clout' | 'season' | 'engineer' | 'engineerMeeting' | 'money'>;
+export type EngineerState = Pick<GameState, 'clout' | 'season' | 'bestSeason' | 'engineer' | 'engineerMeeting' | 'money'>;
 
 export const ENGINEER_MEETING_CLOUT = 2;
 export const MIN_ENGINEER_STAT = 30;
@@ -84,7 +84,7 @@ export function offerEngineerContract(state: EngineerState, amount: number): Eng
   state.engineerMeeting = null;
   if (amount < c.secret) return { outcome: 'failed', name: c.name };
   const replaced = state.engineer?.name ?? null;
-  state.engineer = { ...c.stats, name: c.name, salary: Math.floor(amount) };
+  state.engineer = { ...c.stats, name: c.name, salary: Math.floor(amount), season: state.season };
   return { outcome: 'signed', name: c.name, replaced };
 }
 
@@ -95,8 +95,9 @@ export function endEngineerMeeting(state: Pick<EngineerState, 'engineerMeeting'>
 // Settles what is left of the salary at season's end. An engineer the team can't pay walks out and the team goes back to calling strategy by hand.
 export function payEngineer(state: EngineerState, instalments = 0): { paid: number; quit: string[] } {
   const e = state.engineer;
-  if (!e || e.salary <= 0) return { paid: 0, quit: [] };
-  const due = remainingSalary(e.salary, instalments);
+  const wage = e ? currentSalary(e, state) : 0;
+  if (!e || wage <= 0) return { paid: 0, quit: [] };
+  const due = remainingSalary(wage, instalments);
   if (state.money >= due) {
     state.money -= due;
     return { paid: due, quit: [] };

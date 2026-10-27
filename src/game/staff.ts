@@ -1,4 +1,4 @@
-import { openingOffer, payroll, remainingSalary, rollAsk, wagePerRace } from './drivers';
+import { Contract, currentSalary, openingOffer, remainingSalary, rollAsk, wagePerRace } from './drivers';
 import type { GameState } from './save';
 
 // Specialist staff beyond the race engineer. Each role is hired with clout and the same hidden-minimum-wage haggling, is paid once per
@@ -6,7 +6,7 @@ import type { GameState } from './save';
 export type StaffRole = 'tyre' | 'pit' | 'wind';
 export const STAFF_ROLES: StaffRole[] = ['tyre', 'pit', 'wind'];
 
-export interface StaffMember {
+export interface StaffMember extends Contract {
   name: string;
   stats: Record<string, number>;
   salary: number;
@@ -20,7 +20,7 @@ export interface StaffCandidate {
   hi: number;
 }
 
-export type StaffState = Pick<GameState, 'clout' | 'season' | 'staff' | 'staffMeetings' | 'money'>;
+export type StaffState = Pick<GameState, 'clout' | 'season' | 'bestSeason' | 'staff' | 'staffMeetings' | 'money'>;
 
 export const STAFF_MEETING_CLOUT = 2;
 export const MIN_STAFF_STAT = 30;
@@ -111,7 +111,7 @@ export function offerStaffContract(state: StaffState, role: StaffRole, amount: n
   state.staffMeetings[role] = null;
   if (amount < c.secret) return { outcome: 'failed', name: c.name };
   const replaced = state.staff[role]?.name ?? null;
-  state.staff[role] = { name: c.name, stats: { ...c.stats }, salary: Math.floor(amount) };
+  state.staff[role] = { name: c.name, stats: { ...c.stats }, salary: Math.floor(amount), season: state.season };
   return { outcome: 'signed', name: c.name, replaced };
 }
 
@@ -125,8 +125,9 @@ export function payStaff(state: StaffState, instalments = 0): { paid: number; qu
   const quit: string[] = [];
   for (const role of STAFF_ROLES) {
     const m = state.staff[role];
-    if (!m || m.salary <= 0) continue;
-    const due = remainingSalary(m.salary, instalments);
+    const wage = m ? currentSalary(m, state) : 0;
+    if (!m || wage <= 0) continue;
+    const due = remainingSalary(wage, instalments);
     if (state.money >= due) {
       state.money -= due;
       paid += due;
@@ -139,17 +140,20 @@ export function payStaff(state: StaffState, instalments = 0): { paid: number; qu
 }
 
 // Everything the team owes per season: both drivers, the race engineer and the specialist staff.
-export function totalPayroll(state: Pick<GameState, 'drivers' | 'engineer' | 'staff'>): number {
-  const staff = STAFF_ROLES.reduce((sum, role) => sum + (state.staff?.[role]?.salary ?? 0), 0);
-  return payroll(state) + (state.engineer?.salary ?? 0) + staff;
+export function totalPayroll(state: Pick<GameState, 'drivers' | 'engineer' | 'staff' | 'season' | 'bestSeason'>): number {
+  return salaries(state).reduce((sum, s) => sum + s, 0);
 }
 
-type WageState = Pick<GameState, 'drivers' | 'engineer' | 'staff' | 'race' | 'wageInstalments' | 'money'>;
+type WageState = Pick<GameState, 'drivers' | 'engineer' | 'staff' | 'race' | 'wageInstalments' | 'money' | 'season' | 'bestSeason'>;
 
-const salaries = (state: Pick<GameState, 'drivers' | 'engineer' | 'staff'>): number[] => [
-  ...state.drivers.map((d) => d.salary),
-  state.engineer?.salary ?? 0,
-  ...STAFF_ROLES.map((role) => state.staff?.[role]?.salary ?? 0),
+// Each salary as it stands this season (see currentSalary).
+const salaries = (state: Pick<GameState, 'drivers' | 'engineer' | 'staff' | 'season' | 'bestSeason'>): number[] => [
+  ...state.drivers.map((d) => currentSalary(d, state)),
+  state.engineer ? currentSalary(state.engineer, state) : 0,
+  ...STAFF_ROLES.map((role) => {
+    const m = state.staff?.[role];
+    return m ? currentSalary(m, state) : 0;
+  }),
 ];
 
 // What one instalment (a tenth of every salary) comes to, never more than is still owed.

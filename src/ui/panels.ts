@@ -8,6 +8,8 @@ import {
   DriverStats,
   MAX_TRAIT,
   Driver,
+  Contract,
+  currentSalary,
   endDriverMeeting,
   offerContract,
   openingOffer,
@@ -79,14 +81,22 @@ const engineerLines = (e: EngineerStats) => [
   `Push / conserve: right ${e.mode}% of the time`,
 ];
 
-const describeDriver = (d: Driver) =>
-  `Skill +${d.skill}% · Tyres ${d.tyreMgmt} · Consistency ${d.consistency} · Race craft ${d.raceCraft} · ${d.salary > 0 ? `$${formatNumber(d.salary)}/season` : 'no wage'}`;
+type SeasonInfo = Pick<GameState, 'season' | 'bestSeason'>;
+
+// The wage as it stands this season, noting the full contract while it is still discounted after a prestige.
+const wageLabel = (c: Contract, s: SeasonInfo) => {
+  const now = currentSalary(c, s);
+  return now < c.salary ? `$${formatNumber(now)}/season (rises to $${formatNumber(c.salary)})` : `$${formatNumber(now)}/season`;
+};
+
+const describeDriver = (d: Driver, s: SeasonInfo) =>
+  `Skill +${d.skill}% · Tyres ${d.tyreMgmt} · Consistency ${d.consistency} · Race craft ${d.raceCraft} · ${d.salary > 0 ? wageLabel(d, s) : 'no wage'}`;
 
 const DEV_OUTCOME_LABEL: Record<DevOutcome, string> = { big: 'a breakthrough!', solid: 'a solid gain', flop: 'a flop' };
 const oddsHint = (p: number) => (p < 0.1 ? 'rare' : p < 0.2 ? 'unlikely' : p < 0.35 ? 'possible' : p < 0.55 ? 'likely' : 'very likely');
 
-const describeEngineer = (e: Engineer | null) =>
-  e ? `Pit ${e.pit}% · Tyres ${e.tyre}% · Mode ${e.mode}% · $${formatNumber(e.salary)}/season` : 'No engineer: you call strategy by hand';
+const describeEngineer = (e: Engineer | null, s: SeasonInfo) =>
+  e ? `Pit ${e.pit}% · Tyres ${e.tyre}% · Mode ${e.mode}% · ${wageLabel(e, s)}` : 'No engineer: you call strategy by hand';
 
 export const GEM_BOOST_COST = 10;
 export const BOOST_SECONDS = 60;
@@ -626,7 +636,7 @@ export class PanelHost {
           r.idle.setColor(this.staffMessage ? (this.staffMessageGood ? '#14b87a' : '#e08a1f') : '#9aa7d0');
         }
         r.currentTitle.setText(`Current ${def.title.toLowerCase()}`);
-        r.current.setText(holder ? `${holder.name}\n${def.lines(holder.stats).join('\n')}\n$${formatNumber(holder.salary)}/season` : `No ${def.title.toLowerCase()} hired`);
+        r.current.setText(holder ? `${holder.name}\n${def.lines(holder.stats).join('\n')}\n${wageLabel(holder, s)}` : `No ${def.title.toLowerCase()} hired`);
       }
 
   openProfile(open: boolean) {
@@ -1112,7 +1122,7 @@ export class PanelHost {
       r.idle.setText(this.engineerMessage || 'Spend clout to meet a race engineer. Each has a hidden minimum wage: offer at least that and they sign, offer less and they walk. A better engineer costs more.');
       r.idle.setColor(this.engineerMessage ? (this.engineerMessageGood ? '#14b87a' : '#e08a1f') : '#9aa7d0');
     }
-    r.current.setText(s.engineer ? `${s.engineer.name}\n${describeEngineer(s.engineer)}` : describeEngineer(null));
+    r.current.setText(s.engineer ? `${s.engineer.name}\n${describeEngineer(s.engineer, s)}` : describeEngineer(null, s));
   }
 
   private buildRecruit() {
@@ -1196,7 +1206,7 @@ export class PanelHost {
       r.idle.setText(this.driverMessage || 'Spend clout to meet a driver. Each one has a hidden minimum wage: offer at least that and they sign into the seat you choose, offer less and they walk. A better driver costs more.');
       r.idle.setColor(this.driverMessage ? (this.driverMessageGood ? '#14b87a' : '#e08a1f') : '#9aa7d0');
     }
-    r.current.forEach((t, i) => t.setText(`Driver ${i + 1}: ${s.driverNames[i]}\n${describeDriver(s.drivers[i])}`));
+    r.current.forEach((t, i) => t.setText(`Driver ${i + 1}: ${s.driverNames[i]}\n${describeDriver(s.drivers[i], s)}`));
   }
 
   private runFanEvent() {
@@ -1219,13 +1229,13 @@ export class PanelHost {
     t.swatches.forEach(({ sw, color }) => sw.setStrokeStyle(color === s.teamColor ? 4 : 2, color === s.teamColor ? 0xffffff : COLORS.border));
     t.driverRows.forEach((row, i) => {
       row.name.setText(`${s.driverNames[i]}${s.drivers[i].salary > 0 ? '' : '  (rookie)'}`);
-      row.detail.setText(describeDriver(s.drivers[i]));
+      row.detail.setText(describeDriver(s.drivers[i], s));
       row.chip.setFillStyle(s.teamColor);
     });
     t.recruitBtn.setLabel(`RECRUIT A DRIVER (${s.clout} CLOUT)`);
     if (this.recruitOpen) this.renderRecruit(s);
     t.engineerRow.name.setText(s.engineer ? s.engineer.name : 'No race engineer');
-    t.engineerRow.detail.setText(describeEngineer(s.engineer));
+    t.engineerRow.detail.setText(describeEngineer(s.engineer, s));
     t.engineerRow.chip.setFillStyle(s.engineer ? s.teamColor : COLORS.border);
     t.engineerBtn.setLabel(`RECRUIT A RACE ENGINEER (${s.clout} CLOUT)`);
     if (this.engineerOpen) this.renderEngineerRecruit(s);
