@@ -40,7 +40,6 @@ export const GEM_BOOST_SECONDS = 300;
 
 export interface PanelHooks {
   rename(): void;
-  renameDriver(index: number): void;
   // The team colour changed, so cars and the strategy strip need recolouring.
   recolour(): void;
   incomePerSecond(): number;
@@ -314,7 +313,6 @@ export class PanelHost {
       const chip = addBox(this.scene, 30, y, 8, 54, PLAYER_COLOR, c).setStrokeStyle(0);
       const name = addText(this.scene, 52, y + 5, '', 19, '#ffffff', c);
       const detail = addText(this.scene, 52, y + 32, '', 12, '#9aa7d0', c);
-      addButton(this.scene, W - 150, y + 5, 110, 24, 'CHANGE NAME', () => this.hooks.renameDriver(i), { parent: c, size: 12 });
       return { name, chip, detail };
     });
     const recruitBtn = addButton(this.scene, 30, 402, W - 60, 36, 'RECRUIT A DRIVER', () => this.openRecruit(true), { parent: c, size: 15, fill: COLORS.green });

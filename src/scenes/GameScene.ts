@@ -36,7 +36,7 @@ import { offlineEarnings } from '../game/offline';
 import { Point, Track, pointAt } from '../game/track';
 import { pickTrack } from '../game/tracks';
 import { PanelHost, BOOST_SECONDS, TABS } from '../ui/panels';
-import { askTeamName, askText } from '../ui/teamName';
+import { askTeamName } from '../ui/teamName';
 import { drawScenery, themeFor } from '../ui/scenery';
 import { researchInfo, upgradeInfo } from '../game/upgradeInfo';
 import { recordRace, recordSeason } from '../game/career';
@@ -119,7 +119,6 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false);
     this.panels = new PanelHost(this, () => this.state, {
       rename: () => void this.rename(true),
-      renameDriver: (i) => void this.renameDriver(i),
       recolour: () => this.applyIdentity(),
       incomePerSecond: () => incomePerSecond(carRating(this.eff()), sponsorMultiplier(this.state)),
       prestige: () => this.doPrestige(),
@@ -147,15 +146,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.state.teamNamed) void this.rename(false);
   }
 
-  private async renameDriver(index: number) {
-    const name = await askText(`Driver ${index + 1} name`, this.state.driverNames[index], true);
-    if (!name) return;
-    this.state.driverNames[index] = name;
-    this.applyIdentity();
-    saveGame(this.state);
-  }
-
-  // Pushes the player's chosen driver names and colour into the live race and strategy strip.
+  // Pushes the player's driver names and colour into the live race and strategy strip.
   private applyIdentity() {
     this.race.cars.forEach((car) => {
       if (!car.isPlayer) return;
