@@ -13,6 +13,7 @@ import {
   MAX_TRAIT,
   Driver,
   Contract,
+  careerLabel,
   currentSalary,
   endDriverMeeting,
   offerContract,
@@ -72,17 +73,19 @@ type TabName = (typeof TABS)[number];
 type AutoKey = 'autoBuy' | 'autoTap';
 type AudioToggle = 'sound' | 'engine' | 'music' | 'haptics';
 
-const driverLines = (d: DriverStats) => [
+const driverLines = (d: DriverStats, career?: number) => [
   `Skill: +${d.skill}% car rating`,
   `Tyre management: ${d.tyreMgmt}/${MAX_TRAIT}`,
   `Consistency: ${d.consistency}/${MAX_TRAIT}`,
   `Race craft: ${d.raceCraft}/${MAX_TRAIT}`,
+  careerLabel(career),
 ];
 
-const engineerLines = (e: EngineerStats) => [
+const engineerLines = (e: EngineerStats, career?: number) => [
   `Pit calls: right ${e.pit}% of the time`,
   `Tyre choice: right ${e.tyre}% of the time`,
   `Push / conserve: right ${e.mode}% of the time`,
+  careerLabel(career),
 ];
 
 type SeasonInfo = Pick<GameState, 'season' | 'bestSeason'>;
@@ -90,7 +93,8 @@ type SeasonInfo = Pick<GameState, 'season' | 'bestSeason'>;
 // The wage as it stands this season, noting the full contract while it is still discounted after a prestige.
 const wageLabel = (c: Contract, s: SeasonInfo) => {
   const now = currentSalary(c, s);
-  return now < c.salary ? `$${formatNumber(now)}/season (rises to $${formatNumber(c.salary)})` : `$${formatNumber(now)}/season`;
+  const wage = now < c.salary ? `$${formatNumber(now)}/season (rises to $${formatNumber(c.salary)})` : `$${formatNumber(now)}/season`;
+  return c.prestigesLeft === undefined ? wage : `${wage} · ${careerLabel(c.prestigesLeft)}`;
 };
 
 const describeDriver = (d: Driver, s: SeasonInfo) =>
@@ -647,7 +651,7 @@ export class PanelHost {
         if (m) {
           r.name.setText(m.name);
           r.estimate.setText(`They want roughly $${formatNumber(m.lo)} to $${formatNumber(m.hi)}           a season`);
-          r.traits.setText(def.lines(m.stats).join('\n'));
+          r.traits.setText([...def.lines(m.stats), careerLabel(m.career)].join('\n'));
           r.amount.setText(`$${formatNumber(this.staffOffer)}`);
           r.sign.setLabel(holder ? `SIGN, REPLACING ${holder.name.toUpperCase()}` : `SIGN AS ${def.title.toUpperCase()}`);
         } else {
@@ -1134,7 +1138,7 @@ export class PanelHost {
     if (m) {
       r.name.setText(m.name);
       r.estimate.setText(`They want roughly $${formatNumber(m.lo)} to $${formatNumber(m.hi)}       a season`);
-      r.traits.setText(engineerLines(m.stats).join('\n'));
+      r.traits.setText(engineerLines(m.stats, m.career).filter(Boolean).join('\n'));
       r.amount.setText(`$${formatNumber(this.engineerOffer)}`);
       r.sign.setLabel(s.engineer ? `SIGN, REPLACING ${s.engineer.name.toUpperCase()}` : 'SIGN AS RACE ENGINEER');
     } else {
@@ -1160,9 +1164,9 @@ export class PanelHost {
     addBox(this.scene, 20, 226, W - 40, 370, COLORS.panel, c);
     const name = addText(this.scene, W / 2, 238, '', 22, '#ffd400', c).setOrigin(0.5, 0);
     const estimate = addText(this.scene, W / 2, 272, '', 14, '#9aa7d0', c).setOrigin(0.5, 0);
-    const traits = addText(this.scene, W / 2, 300, '', 15, '#cfd6ee', c).setOrigin(0.5, 0).setAlign('center').setLineSpacing(4);
-    const amount = addText(this.scene, W / 2, 398, '', 30, '#ffffff', c).setOrigin(0.5, 0);
-    const caption = addText(this.scene, W / 2, 438, 'per season, paid after its final race', 12, '#9aa7d0', c).setOrigin(0.5, 0);
+    const traits = addText(this.scene, W / 2, 296, '', 15, '#cfd6ee', c).setOrigin(0.5, 0).setAlign('center').setLineSpacing(1);
+    const amount = addText(this.scene, W / 2, 408, '', 30, '#ffffff', c).setOrigin(0.5, 0);
+    const caption = addText(this.scene, W / 2, 445, 'per season, paid after its final race', 12, '#9aa7d0', c).setOrigin(0.5, 0);
     const steps: [string, number][] = [['-25%', 0.75], ['-5%', 0.95], ['+5%', 1.05], ['+25%', 1.25]];
     const stepBtns = steps.map(([label, mult], i) =>
       addButton(this.scene, 34 + i * 118, 466, 108, 38, label, () => {
@@ -1218,7 +1222,7 @@ export class PanelHost {
     if (m) {
       r.name.setText(m.name);
       r.estimate.setText(`They want roughly $${formatNumber(m.lo)} to $${formatNumber(m.hi)}       a season`);
-      r.traits.setText(driverLines(m.stats).join('\n'));
+      r.traits.setText(driverLines(m.stats, m.career).filter(Boolean).join('\n'));
       r.amount.setText(`$${formatNumber(this.driverOffer)}`);
       r.sign.forEach((b, i) => b.setLabel(`SIGN AS DRIVER ${i + 1}`));
     } else {

@@ -1,4 +1,4 @@
-import { Contract, currentSalary, remainingSalary, rollAsk } from './drivers';
+import { Contract, currentSalary, remainingSalary, rollAsk, rollCareer } from './drivers';
 import type { GameState } from './save';
 import { Strategy, COMPOUNDS, Compound, isPitting, setMode, togglePitRequest } from './strategy';
 import { autoCompound, shouldAutoPit } from './auto';
@@ -26,6 +26,7 @@ export interface EngineerCandidate {
   secret: number;
   lo: number;
   hi: number;
+  career: number;
 }
 
 export type EngineerState = Pick<GameState, 'clout' | 'season' | 'bestSeason' | 'engineer' | 'engineerMeeting' | 'money'>;
@@ -70,7 +71,7 @@ export function requestEngineerMeeting(state: EngineerState, rng: () => number =
   const q = rng();
   const stat = () => Math.max(MIN_ENGINEER_STAT, Math.min(MAX_ENGINEER_STAT, Math.round(MIN_ENGINEER_STAT + 70 * q * (0.6 + rng() * 0.8))));
   const stats: EngineerStats = { pit: stat(), tyre: stat(), mode: stat() };
-  const meeting: EngineerCandidate = { name, stats, ...rollAsk(state.season, q, rng) };
+  const meeting: EngineerCandidate = { name, stats, ...rollAsk(state.season, q, rng), career: rollCareer(rng) };
   state.engineerMeeting = meeting;
   return meeting;
 }
@@ -84,7 +85,7 @@ export function offerEngineerContract(state: EngineerState, amount: number): Eng
   state.engineerMeeting = null;
   if (amount < c.secret) return { outcome: 'failed', name: c.name };
   const replaced = state.engineer?.name ?? null;
-  state.engineer = { ...c.stats, name: c.name, salary: Math.floor(amount), season: state.season };
+  state.engineer = { ...c.stats, name: c.name, salary: Math.floor(amount), season: state.season, prestigesLeft: c.career };
   return { outcome: 'signed', name: c.name, replaced };
 }
 

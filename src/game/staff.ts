@@ -1,4 +1,4 @@
-import { Contract, currentSalary, openingOffer, remainingSalary, rollAsk, wagePerRace } from './drivers';
+import { Contract, currentSalary, openingOffer, remainingSalary, rollAsk, rollCareer, wagePerRace } from './drivers';
 import type { GameState } from './save';
 
 // Specialist staff beyond the race engineer. Each role is hired with clout and the same hidden-minimum-wage haggling, is paid once per
@@ -18,6 +18,7 @@ export interface StaffCandidate {
   secret: number;
   lo: number;
   hi: number;
+  career: number;
 }
 
 export type StaffState = Pick<GameState, 'clout' | 'season' | 'bestSeason' | 'staff' | 'staffMeetings' | 'money'>;
@@ -95,7 +96,7 @@ export function requestStaffMeeting(state: StaffState, role: StaffRole, rng: () 
   const q = rng();
   const stat = () => Math.max(MIN_STAFF_STAT, Math.min(MAX_STAFF_STAT, Math.round(MIN_STAFF_STAT + 70 * q * (0.6 + rng() * 0.8))));
   const stats = Object.fromEntries(def.stats.map((k) => [k, stat()]));
-  const meeting: StaffCandidate = { name, stats, ...rollAsk(state.season, q, rng) };
+  const meeting: StaffCandidate = { name, stats, ...rollAsk(state.season, q, rng), career: rollCareer(rng) };
   state.staffMeetings[role] = meeting;
   return meeting;
 }
@@ -111,7 +112,7 @@ export function offerStaffContract(state: StaffState, role: StaffRole, amount: n
   state.staffMeetings[role] = null;
   if (amount < c.secret) return { outcome: 'failed', name: c.name };
   const replaced = state.staff[role]?.name ?? null;
-  state.staff[role] = { name: c.name, stats: { ...c.stats }, salary: Math.floor(amount), season: state.season };
+  state.staff[role] = { name: c.name, stats: { ...c.stats }, salary: Math.floor(amount), season: state.season, prestigesLeft: c.career };
   return { outcome: 'signed', name: c.name, replaced };
 }
 

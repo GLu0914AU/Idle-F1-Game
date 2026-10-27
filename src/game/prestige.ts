@@ -1,4 +1,5 @@
 import { UPGRADE_DEFS } from './economy';
+import { retireAfterPrestige } from './drivers';
 import type { Development } from './development';
 import { newDevelopment } from './development';
 import { GameState } from './save';
@@ -95,6 +96,7 @@ export function prestige(state: GameState): number {
   if (earned <= 0) return 0;
   state.researchPoints += earned;
   state.prestiges += 1;
+  retireAfterPrestige(state);
   state.bestSeason = Math.max(state.bestSeason, state.season);
   state.season = 1;
   state.race = 1;

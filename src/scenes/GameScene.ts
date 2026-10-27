@@ -774,9 +774,14 @@ export class GameScene extends Phaser.Scene {
   private doPrestige() {
     if (!canPrestige(this.state)) return;
     const from = this.state.season;
+    const before = [...this.state.driverNames, this.state.engineer?.name, ...Object.values(this.state.staff ?? {}).map((m) => m?.name)].filter(Boolean);
     const earned = prestige(this.state);
+    const after = new Set([...this.state.driverNames, this.state.engineer?.name, ...Object.values(this.state.staff ?? {}).map((m) => m?.name)]);
+    const retired = before.filter((n) => !after.has(n));
     this.startRace();
-    this.banner.setText(`Prestiged from Season ${from}\n+${earned} research points\nBack to Season 1`).setVisible(true);
+    this.banner
+      .setText(`Prestiged from Season ${from}\n+${earned} research points\nBack to Season 1${retired.length ? `\nRetired: ${retired.join(', ')}` : ''}`)
+      .setVisible(true);
     this.time.delayedCall(4000, () => this.banner.setVisible(false));
     saveGame(this.state);
   }

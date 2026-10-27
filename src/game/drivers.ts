@@ -26,6 +26,8 @@ export interface Candidate {
   secret: number;
   lo: number;
   hi: number;
+  // Prestiges they will stay for.
+  career: number;
 }
 
 export type DriverState = Pick<GameState, 'clout' | 'season' | 'bestSeason' | 'drivers' | 'driverNames' | 'driverMeeting' | 'money'>;
@@ -160,6 +162,41 @@ export interface Contract {
   salary: number;
   // The season the contract was signed in. Older saves without it count as signed at the best season reached.
   season?: number;
+  // Prestiges left before they retire (1 to MAX_CAREER when signed). Missing on older saves, which never retire.
+  prestigesLeft?: number;
+}
+
+export const MAX_CAREER = 25;
+export const rollCareer = (rng: () => number): number => 1 + Math.floor(rng() * MAX_CAREER);
+export const careerLabel = (left: number | undefined): string => (left === undefined ? '' : `Retires after ${left} prestige${left === 1 ? '' : 's'}`);
+
+// Counts one prestige off every contract. Anyone whose career has run out retires: drivers are replaced by rookies and the engineer and staff leave.
+export function retireAfterPrestige(state: Pick<GameState, 'drivers' | 'driverNames' | 'engineer' | 'staff'>): string[] {
+  const retired: string[] = [];
+  const tick = (c: Contract | null | undefined): boolean => {
+    if (!c || c.prestigesLeft === undefined) return false;
+    c.prestigesLeft -= 1;
+    return c.prestigesLeft <= 0;
+  };
+  state.drivers.forEach((d, i) => {
+    if (d.salary > 0 && tick(d)) {
+      retired.push(state.driverNames[i]);
+      state.drivers[i] = rookie();
+      state.driverNames[i] = PLAYER_DRIVERS[i];
+    }
+  });
+  if (state.engineer && tick(state.engineer)) {
+    retired.push(state.engineer.name);
+    state.engineer = null;
+  }
+  for (const role of Object.keys(state.staff ?? {}) as (keyof typeof state.staff)[]) {
+    const m = state.staff[role];
+    if (m && tick(m)) {
+      retired.push(m.name);
+      state.staff[role] = null;
+    }
+  }
+  return retired;
 }
 
 // A contract is tied to the season it was signed in. Below that season (after a prestige) it costs only what that season's market would
@@ -198,7 +235,7 @@ export function requestDriverMeeting(state: DriverState, rng: () => number = Mat
   const q = rng();
   const trait = () => Math.max(0, Math.min(MAX_TRAIT, Math.round(q * MAX_TRAIT * (0.4 + rng() * 1.2))));
   const stats: DriverStats = { skill: Math.round(MAX_SKILL * q), tyreMgmt: trait(), consistency: trait(), raceCraft: trait() };
-  const meeting: Candidate = { name, stats, ...rollAsk(state.season, q, rng) };
+  const meeting: Candidate = { name, stats, ...rollAsk(state.season, q, rng), career: rollCareer(rng) };
   state.driverMeeting = meeting;
   return meeting;
 }
@@ -214,7 +251,7 @@ export function offerContract(state: DriverState, slot: 0 | 1, amount: number): 
   state.driverMeeting = null;
   if (amount < c.secret) return { outcome: 'failed', name: c.name };
   const replaced = state.driverNames[slot];
-  state.drivers[slot] = { ...c.stats, salary: Math.floor(amount), season: state.season };
+  state.drivers[slot] = { ...c.stats, salary: Math.floor(amount), season: state.season, prestigesLeft: c.career };
   state.driverNames[slot] = c.name;
   return { outcome: 'signed', name: c.name, replaced };
 }
