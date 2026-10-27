@@ -12,24 +12,6 @@ export interface Track {
   length: number;
 }
 
-// Hand-placed control points for a simplified circuit.
-const CONTROL: Point[] = [
-  { x: 0.12, y: 0.55 },
-  { x: 0.1, y: 0.3 },
-  { x: 0.25, y: 0.12 },
-  { x: 0.45, y: 0.15 },
-  { x: 0.55, y: 0.3 },
-  { x: 0.72, y: 0.12 },
-  { x: 0.9, y: 0.25 },
-  { x: 0.88, y: 0.5 },
-  { x: 0.7, y: 0.6 },
-  { x: 0.82, y: 0.8 },
-  { x: 0.6, y: 0.9 },
-  { x: 0.4, y: 0.75 },
-  { x: 0.25, y: 0.88 },
-  { x: 0.1, y: 0.8 },
-];
-
 function catmullRom(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Point {
   const t2 = t * t;
   const t3 = t2 * t;
@@ -38,7 +20,7 @@ function catmullRom(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Poin
   return { x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y) };
 }
 
-export function buildTrack(name: string, control: Point[] = CONTROL, steps = 24): Track {
+export function buildTrack(name: string, control: Point[], steps = 24): Track {
   const n = control.length;
   const points: Point[] = [];
   for (let i = 0; i < n; i++) {
@@ -73,5 +55,3 @@ export function pointAt(track: Track, distance: number): Point {
   const t = seg === 0 ? 0 : (d - track.cumulative[lo]) / seg;
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
-
-export const DEFAULT_TRACK = buildTrack('Simplified Circuit');

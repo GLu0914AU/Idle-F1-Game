@@ -28,7 +28,7 @@ import {
   tap,
 } from '../game/strategy';
 import { offlineEarnings } from '../game/offline';
-import { DEFAULT_TRACK, Point, Track, pointAt } from '../game/track';
+import { Point, Track, pointAt } from '../game/track';
 import { pickTrack } from '../game/tracks';
 import { PanelHost, BOOST_SECONDS, TABS } from '../ui/panels';
 import { askTeamName } from '../ui/teamName';
@@ -44,7 +44,7 @@ export class GameScene extends Phaser.Scene {
   private state!: GameState;
   private race!: Race;
   private strategy: Strategy = newStrategy();
-  private track: Track = DEFAULT_TRACK;
+  private track: Track = pickTrack();
   private panels!: PanelHost;
 
   private paid = false;

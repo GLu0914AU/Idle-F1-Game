@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createRace, lapTime, paceMultiplier, standings, stepRace } from './race';
-import { DEFAULT_TRACK, pointAt } from './track';
+import { pointAt } from './track';
+import { CALENDAR } from './tracks';
+
+const TEST_TRACK = CALENDAR.find((t) => t.name === 'Monaco')!;
 
 function config(over = {}) {
-  return { track: DEFAULT_TRACK, laps: 3, season: 1, playerRating: 10, playerTeamName: 'Me', seed: 1, ...over };
+  return { track: TEST_TRACK, laps: 3, season: 1, playerRating: 10, playerTeamName: 'Me', seed: 1, ...over };
 }
 
 function runToEnd(race: ReturnType<typeof createRace>) {
@@ -12,8 +15,8 @@ function runToEnd(race: ReturnType<typeof createRace>) {
 
 describe('track', () => {
   it('wraps positions each lap', () => {
-    const a = pointAt(DEFAULT_TRACK, 0.3);
-    const b = pointAt(DEFAULT_TRACK, 0.3 + DEFAULT_TRACK.length * 2);
+    const a = pointAt(TEST_TRACK, 0.3);
+    const b = pointAt(TEST_TRACK, 0.3 + TEST_TRACK.length * 2);
     expect(b.x).toBeCloseTo(a.x, 6);
     expect(b.y).toBeCloseTo(a.y, 6);
   });

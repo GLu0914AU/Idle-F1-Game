@@ -9,7 +9,7 @@ import {
   playerWonChampionship,
   pointsForPosition,
 } from './season';
-import { DEFAULT_TRACK } from './track';
+import { CALENDAR } from './tracks';
 
 const fresh = (): SeasonState => ({ season: 1, race: 1, points: {} });
 
@@ -21,7 +21,7 @@ describe('season', () => {
   });
 
   it('awards constructors points from a race', () => {
-    const race = createRace({ track: DEFAULT_TRACK, laps: 1, season: 1, playerRating: 500, playerTeamName: 'Me', seed: 3 });
+    const race = createRace({ track: CALENDAR[0], laps: 1, season: 1, playerRating: 500, playerTeamName: 'Me', seed: 3 });
     while (!race.finished) stepRace(race, 1);
     const s = fresh();
     awardPoints(s, standings(race));
