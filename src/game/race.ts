@@ -153,9 +153,9 @@ export function createRace(config: RaceConfig): Race {
 }
 
 // Share of rival tyre choices in the wet that are wrong, and how long (game-seconds) they take to react to a change.
-export const RIVAL_MISTAKE_CHANCE = 0.15;
-export const RIVAL_REACT_MIN = 4;
-export const RIVAL_REACT_SPREAD = 30;
+export const RIVAL_MISTAKE_CHANCE = 0.3;
+export const RIVAL_REACT_MIN = 8;
+export const RIVAL_REACT_SPREAD = 60;
 
 // Chance a player car breaks down during a race: about 1 in 3 with no Reliability, falling with diminishing returns but never to zero.
 export const breakdownChance = (reliability: number) => 0.04 + 0.29 / (1 + Math.max(0, reliability) / 12);
