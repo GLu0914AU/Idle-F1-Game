@@ -326,6 +326,10 @@ export class PanelHost {
     this.show('Race');
   }
 
+  get tab(): TabName {
+    return this.current;
+  }
+
   show(tab: TabName) {
     const changed = tab !== this.current;
     this.current = tab;
@@ -1122,7 +1126,7 @@ export class PanelHost {
 
   private renderEngineerRecruit(s: GameState) {
     const r = this.engineerRecruit;
-    r.info.setText(`Clout: ${s.clout} · One engineer calls pits, tyres and push/conserve for both cars. Each stat is how often they get it right. Unpaid engineers quit.`);
+    r.info.setText(`Clout: ${s.clout} · One engineer calls pits, tyres and push/conserve for both cars. Unpaid engineers quit.`);
     r.meet.setLabel(s.engineerMeeting ? 'NEGOTIATION IN PROGRESS' : `MEET AN ENGINEER: ${ENGINEER_MEETING_CLOUT} CLOUT`);
     r.meet.setState(!s.engineerMeeting && s.clout >= ENGINEER_MEETING_CLOUT, COLORS.green);
 
@@ -1206,7 +1210,7 @@ export class PanelHost {
 
   private renderRecruit(s: GameState) {
     const r = this.recruit;
-    r.info.setText(`Clout: ${s.clout} · Win races, then run a Fan Event to earn clout. Drivers stay until you replace them, and are paid by the end of each season (use PAY WAGES on the Race tab to pay a tenth at a time): if you can't pay what's left, they quit.`);
+    r.info.setText(`Clout: ${s.clout} · Win races and run a Fan Event to earn clout. Drivers are paid a tenth per race; anyone you can't pay quits.`);
     r.meet.setLabel(s.driverMeeting ? 'NEGOTIATION IN PROGRESS' : `MEET A DRIVER: ${DRIVER_MEETING_CLOUT} CLOUT`);
     r.meet.setState(!s.driverMeeting && s.clout >= DRIVER_MEETING_CLOUT, COLORS.green);
 
@@ -1491,7 +1495,7 @@ export class PanelHost {
       .setOrigin(0.5, 0)
       .setWordWrapWidth(W - 60)
       .setAlign('center');
-    addButton(this.scene, 30, 812, W - 60, 44, 'DONE', () => this.openStore(false), { size: 16, parent: c });
+    addButton(this.scene, 30, 800, W - 60, 44, 'DONE', () => this.openStore(false), { size: 16, parent: c });
     this.storeUi = { box: c, wallet, tabs, packs, message };
   }
 
@@ -1543,7 +1547,7 @@ export class PanelHost {
     const power = addButton(
       this.scene,
       30,
-      700,
+      470,
       W - 60,
       48,
       '',
@@ -1554,7 +1558,7 @@ export class PanelHost {
       },
       { size: 16, parent: c },
     );
-    addButton(this.scene, 30, 812, W - 60, 44, 'DONE', () => this.openAuto(false), { size: 16, parent: c });
+    addButton(this.scene, 30, 800, W - 60, 44, 'DONE', () => this.openAuto(false), { size: 16, parent: c });
     this.autoUi = { box: c, items, power };
   }
 
@@ -1583,8 +1587,8 @@ export class PanelHost {
       const rp = researchPointsFor(s.season);
       p.info.setText(
         rp > 0
-          ? `Season ${s.season} · Research points: ${s.researchPoints}\nPrestige resets money, upgrades and seasons to Season 1 Race 1, but keeps research, gems and Auto.`
-          : `Season ${s.season} · Research points: ${s.researchPoints}\nReach Season ${MIN_PRESTIGE_SEASON} to prestige. The further you get, the more research points you earn.`,
+          ? `Season ${s.season} · Research points: ${s.researchPoints}\nResets money, upgrades and seasons; keeps research, gems and Auto.`
+          : `Season ${s.season} · Research points: ${s.researchPoints}\nReach Season ${MIN_PRESTIGE_SEASON} to prestige for research points.`,
       );
       const armed = this.scene.time.now < this.prestigeArmedUntil;
       p.button.setLabel(armed ? 'TAP AGAIN TO CONFIRM' : rp > 0 ? `PRESTIGE: +${rp} RP` : 'PRESTIGE LOCKED');

@@ -575,7 +575,8 @@ export class GameScene extends Phaser.Scene {
     this.weatherText.setText(describeWeather(this.race.weather, lap));
     this.weatherText.setColor(isDry(this.race.weather) ? '#ffd86b' : want === 'dry' ? '#9ec5ff' : '#4dc3ff');
     const sc = this.race.safetyCarActive;
-    this.safetyCarText.setVisible(sc && !this.race.finished).setAlpha(0.65 + 0.35 * Math.sin(this.time.now / 200));
+    this.gridText?.setVisible(this.panels.tab === 'Race');
+    this.safetyCarText.setVisible(sc && !this.race.finished && this.panels.tab === 'Race').setAlpha(0.65 + 0.35 * Math.sin(this.time.now / 200));
     this.wetShade.setAlpha(0.45 * w);
     this.rainGfx.clear();
     if (w <= 0.02) return;
