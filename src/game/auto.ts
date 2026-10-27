@@ -2,23 +2,21 @@ import { UPGRADE_DEFS, UpgradeDef, upgradeCost } from './economy';
 import { Compound, Strategy, isPitting } from './strategy';
 import { idealClass, tyreClass } from './weather';
 
-// Picks the affordable car upgrade with the best rating per dollar, skipping any the player unticked. `reserve` is money Auto Buy must leave untouched (the next wages),
+// Picks the cheapest upgrade the player has ticked, and only buys it once it is affordable, so Auto Buy never skips ahead of it. `reserve` is money Auto Buy must leave untouched (the owed wages),
 // so it can never spend what keeps drivers and staff from quitting.
 export function pickAutoBuy(money: number, upgrades: Record<string, number>, reserve = 0, enabled: Record<string, boolean> = {}): UpgradeDef | null {
   const spendable = money - reserve;
   let best: UpgradeDef | null = null;
-  let bestScore = -1;
+  let bestCost = Infinity;
   for (const def of UPGRADE_DEFS) {
     if (enabled[def.key] === false) continue;
     const cost = upgradeCost(def, upgrades[def.key] ?? 0);
-    if (cost > spendable) continue;
-    const score = def.ratingPerLevel / cost;
-    if (score > bestScore) {
+    if (cost < bestCost) {
       best = def;
-      bestScore = score;
+      bestCost = cost;
     }
   }
-  return best;
+  return best && bestCost <= spendable ? best : null;
 }
 
 // Call the car in once tyres are worn, or when the rain has made them wrong, unless the race is nearly over.

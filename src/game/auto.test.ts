@@ -33,20 +33,22 @@ describe('auto', () => {
     expect(pickAutoBuy(0, {})).toBeNull();
   });
 
-  it('picks the best rating per dollar among affordable upgrades', () => {
+  it('always buys the cheapest ticked upgrade first', () => {
     const engine = UPGRADE_DEFS[0];
-    const pick = pickAutoBuy(upgradeCost(engine, 0), {});
-    expect(pick?.key).toBe('engine');
+    expect(pickAutoBuy(upgradeCost(engine, 0), {})?.key).toBe('engine');
+    // Engine at a high level costs more than a fresh Aero, so Aero is next.
+    expect(pickAutoBuy(1e9, { engine: 20 })?.key).toBe('aero');
+    // Unticked upgrades are skipped.
+    expect(pickAutoBuy(1e9, {}, 0, { engine: false })?.key).toBe('aero');
   });
 
-  it('skips upgrades it cannot afford', () => {
-    const pick = pickAutoBuy(upgradeCost(UPGRADE_DEFS[0], 0) - 1, {});
-    expect(pick?.key).not.toBe('engine');
+  it('waits for the cheapest ticked upgrade instead of buying something dearer', () => {
+    expect(pickAutoBuy(upgradeCost(UPGRADE_DEFS[0], 0) - 1, {})).toBeNull();
   });
 
   it('leaves the reserve untouched', () => {
     const cost = upgradeCost(UPGRADE_DEFS[0], 0);
-    expect(pickAutoBuy(cost, {}, 1)?.key).not.toBe('engine');
+    expect(pickAutoBuy(cost, {}, 1)).toBeNull();
     expect(pickAutoBuy(cost + 1000, {}, 1000)?.key).toBe('engine');
     expect(pickAutoBuy(500, {}, 500)).toBeNull();
   });

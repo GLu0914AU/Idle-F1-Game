@@ -183,6 +183,7 @@ export class GameScene extends Phaser.Scene {
         prepare: (step) => {
           this.selectTab(0);
           this.panels.openProfile(false);
+          this.panels.openAuto(false);
           this.panels.openGoals(false);
           // The first purchase must be affordable, or the guide could stall.
           if (step === 'buy') {
@@ -646,8 +647,10 @@ export class GameScene extends Phaser.Scene {
       34,
       '',
       () => {
-        if (this.state.autoUnlocked) this.state.autoBuy = !this.state.autoBuy;
-        else this.selectTab(TABS.indexOf('Shop'));
+        if (this.state.autoUnlocked) {
+          this.state.autoBuy = !this.state.autoBuy;
+          if (this.state.autoBuy) this.panels.openAuto(true);
+        } else this.selectTab(TABS.indexOf('Shop'));
       },
       { fill: COLORS.bg, size: 14 },
     );

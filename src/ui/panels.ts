@@ -273,9 +273,11 @@ export class PanelHost {
     gems: Phaser.GameObjects.Text;
     unlock: Button;
     toggles: { key: AutoKey; button: Button; name: string }[];
-    items: { key: string; name: string; button: Button }[];
+    checklist: Button;
     gemBoost: Button;
   };
+  private autoOpen = false;
+  private autoUi!: { box: Phaser.GameObjects.Container; items: { key: string; name: string; button: Button }[]; power: Button };
 
   constructor(
     private scene: Phaser.Scene,
@@ -288,6 +290,7 @@ export class PanelHost {
     this.buildShop();
     this.buildGoals();
     this.buildProfile();
+    this.buildAuto();
     this.show('Race');
   }
 
@@ -302,7 +305,9 @@ export class PanelHost {
       this.facilitiesOpen = false;
       this.profileOpen = false;
       this.goalsOpen = false;
+      this.autoOpen = false;
     }
+    this.autoUi?.box.setVisible(this.autoOpen);
     this.goalsUi?.box.setVisible(this.goalsOpen && tab === 'Race');
     this.profileUi?.box.setVisible(this.profileOpen);
     this.recruit?.box.setVisible(this.recruitOpen && tab === 'Team');
@@ -1336,33 +1341,16 @@ export class PanelHost {
         () => {
           const s = this.state();
           s[key] = !s[key];
+          if (key === 'autoBuy' && s.autoBuy) this.openAuto(true);
         },
         { size: 16, parent: c },
       ),
     }));
-    addText(this.scene, 30, 376, 'AUTO BUY CHECKLIST: tick what it may do', 13, '#9aa7d0', c);
-    const cardW = (W - 60 - 12) / 2;
-    const items = [...UPGRADE_DEFS.map((d) => ({ key: d.key, name: d.name })), { key: 'wages', name: 'Pay Wages' }].map((def, i) => ({
-      key: def.key,
-      name: def.name,
-      button: addButton(
-        this.scene,
-        30 + (i % 2) * (cardW + 12),
-        400 + Math.floor(i / 2) * 46,
-        cardW,
-        38,
-        def.name,
-        () => {
-          const s = this.state();
-          s.autoItems[def.key] = s.autoItems[def.key] === false;
-        },
-        { size: 15, parent: c },
-      ),
-    }));
+    const checklist = addButton(this.scene, 30, 380, W - 60, 44, 'AUTO BUY CHECKLIST', () => this.openAuto(true), { size: 15, parent: c });
     addButton(
       this.scene,
       30,
-      592,
+      450,
       W - 60,
       48,
       `Watch ad: 2x speed for ${BOOST_SECONDS}s`,
@@ -1374,7 +1362,7 @@ export class PanelHost {
     const gemBoost = addButton(
       this.scene,
       30,
-      652,
+      510,
       W - 60,
       48,
       `${GEM_BOOST_COST} gems: 2x speed for ${GEM_BOOST_SECONDS / 60} min`,
@@ -1386,13 +1374,73 @@ export class PanelHost {
       },
       { size: 16, parent: c },
     );
-    addText(this.scene, W / 2, 726, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
-    this.shop = { gems, unlock, toggles, items, gemBoost };
+    addText(this.scene, W / 2, 590, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
+    this.shop = { gems, unlock, toggles, checklist, gemBoost };
+  }
+
+  // The Auto Buy page: opens when Auto Buy is switched on, and lists what it may spend money on.
+  openAuto(open: boolean) {
+    this.autoOpen = open && this.state().autoUnlocked;
+    this.autoUi.box.setVisible(this.autoOpen);
+  }
+
+  private buildAuto() {
+    const c = this.scene.add.container(0, 0).setDepth(100).setVisible(false);
+    c.add(addBox(this.scene, 0, 70, W, 810, COLORS.bg).setInteractive());
+    c.add(this.scene.add.rectangle(W / 2, 84, 120, 3, COLORS.red));
+    c.add(addText(this.scene, W / 2, 90, 'AUTO BUY', 24).setOrigin(0.5, 0));
+    addText(this.scene, 30, 136, 'Tick what Auto Buy may do. It buys the cheapest ticked upgrade first, and always keeps the owed wages aside.', 13, '#9aa7d0', c).setWordWrapWidth(W - 60);
+    const cardW = (W - 60 - 12) / 2;
+    const items = [...UPGRADE_DEFS.map((d) => ({ key: d.key, name: d.name })), { key: 'wages', name: 'Pay Wages' }].map((def, i) => ({
+      key: def.key,
+      name: def.name,
+      button: addButton(
+        this.scene,
+        30 + (i % 2) * (cardW + 12),
+        200 + Math.floor(i / 2) * 64,
+        cardW,
+        54,
+        def.name,
+        () => {
+          const s = this.state();
+          s.autoItems[def.key] = s.autoItems[def.key] === false;
+          this.hooks.save();
+        },
+        { size: 17, parent: c },
+      ),
+    }));
+    const power = addButton(
+      this.scene,
+      30,
+      700,
+      W - 60,
+      48,
+      '',
+      () => {
+        const s = this.state();
+        s.autoBuy = !s.autoBuy;
+        this.hooks.save();
+      },
+      { size: 16, parent: c },
+    );
+    addButton(this.scene, 30, 812, W - 60, 44, 'DONE', () => this.openAuto(false), { size: 16, parent: c });
+    this.autoUi = { box: c, items, power };
+  }
+
+  private renderAuto(s: GameState) {
+    for (const { key, name, button } of this.autoUi.items) {
+      const on = s.autoItems[key] !== false;
+      button.setLabel(on ? `✓ ${name}` : name);
+      button.setState(true, on ? COLORS.green : COLORS.bg);
+    }
+    this.autoUi.power.setLabel(`AUTO BUY: ${s.autoBuy ? 'ON' : 'OFF'}`);
+    this.autoUi.power.setState(true, s.autoBuy ? COLORS.green : COLORS.accent);
   }
 
   render() {
     const s = this.state();
     if (this.profileOpen) this.renderProfile(s);
+    if (this.autoOpen) this.renderAuto(s);
     if (this.goalsOpen && this.current === 'Race') this.renderGoals(s);
     if (this.current === 'Sponsors') {
       this.renderSponsors(s);
@@ -1427,11 +1475,7 @@ export class PanelHost {
         button.setLabel(`${name}: ${s[key] ? 'ON' : 'OFF'}`);
         button.setState(s.autoUnlocked, s[key] ? COLORS.green : COLORS.accent);
       }
-      for (const { key, name, button } of sh.items) {
-        const on = s.autoItems[key] !== false;
-        button.setLabel(on ? `✓ ${name}` : name);
-        button.setState(s.autoUnlocked, on ? COLORS.green : COLORS.bg);
-      }
+      sh.checklist.setState(s.autoUnlocked);
       sh.gemBoost.setState(s.gems >= GEM_BOOST_COST);
     }
   }
