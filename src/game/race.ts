@@ -57,11 +57,6 @@ export function lapTime(rating: number, baseLapTime = 90): number {
   return baseLapTime / paceMultiplier(rating);
 }
 
-// Placeholder until the economy step defines real stat effects.
-export function ratingFromUpgrades(upgrades: Record<string, number>): number {
-  return 10 + Object.values(upgrades).reduce((sum, level) => sum + level * 2, 0);
-}
-
 function rollForm(rng: () => number): number {
   return 1 + (rng() - 0.5) * 0.03;
 }

@@ -1,5 +1,15 @@
 import Phaser from 'phaser';
-import { Race, createRace, ratingFromUpgrades, standings, stepRace } from '../game/race';
+import {
+  UPGRADE_DEFS,
+  UpgradeDef,
+  buyUpgrade,
+  carRating,
+  formatNumber,
+  incomePerSecond,
+  racePayout,
+  upgradeCost,
+} from '../game/economy';
+import { Race, createRace, standings, stepRace } from '../game/race';
 import { GameState, loadGame, saveGame } from '../game/save';
 import { DEFAULT_TRACK, Point, pointAt } from '../game/track';
 
@@ -9,14 +19,6 @@ const RACE_LAPS = 5;
 // Game seconds per real second; ~90s laps would be too slow to watch.
 const RACE_SPEED = 6;
 const COLORS = { bg: 0x0b1020, panel: 0x151c33, border: 0x2a3558, accent: 0x2f6bff };
-const UPGRADES: [string, string][] = [
-  ['engine', 'Engine'],
-  ['aero', 'Aero'],
-  ['tyres', 'Tyres'],
-  ['brakes', 'Brakes'],
-  ['reliability', 'Reliability'],
-  ['pitCrew', 'Pit Crew'],
-];
 const TABS = ['Race', 'Team', 'Standings', 'R&D', 'Shop'];
 
 export class RaceScene extends Phaser.Scene {
@@ -27,6 +29,14 @@ export class RaceScene extends Phaser.Scene {
   private towerRows: Phaser.GameObjects.Text[] = [];
   private lapText!: Phaser.GameObjects.Text;
   private restartAt = 0;
+  private paid = false;
+  private incomeText!: Phaser.GameObjects.Text;
+  private cards: {
+    def: UpgradeDef;
+    level: Phaser.GameObjects.Text;
+    button: Phaser.GameObjects.Rectangle;
+    cost: Phaser.GameObjects.Text;
+  }[] = [];
 
   constructor() {
     super('Race');
@@ -56,7 +66,7 @@ export class RaceScene extends Phaser.Scene {
     this.box(0, 0, W, 70, COLORS.bg);
     this.text(16, 12, this.state.teamName, 22);
     this.text(16, 40, `Season ${this.state.season} · Race ${this.state.race}/10`, 14, '#9aa7d0');
-    this.moneyText = this.text(W - 16, 12, `$ ${Math.floor(this.state.money)}`, 22).setOrigin(1, 0);
+    this.moneyText = this.text(W - 16, 12, '', 22).setOrigin(1, 0);
     this.text(W - 16, 40, `Gems ${this.state.gems}`, 14, '#9aa7d0').setOrigin(1, 0);
   }
 
@@ -85,11 +95,12 @@ export class RaceScene extends Phaser.Scene {
       track: DEFAULT_TRACK,
       laps: RACE_LAPS,
       season: this.state.season,
-      playerRating: ratingFromUpgrades(this.state.upgrades),
+      playerRating: carRating(this.state.upgrades),
       playerTeamName: this.state.teamName,
       seed: Date.now() & 0x7fffffff,
     });
     this.restartAt = 0;
+    this.paid = false;
   }
 
   private renderRace() {
@@ -110,7 +121,7 @@ export class RaceScene extends Phaser.Scene {
   }
 
   private drawStats() {
-    this.text(16, 486, '0 $/s', 20);
+    this.incomeText = this.text(16, 486, '', 20);
     this.box(300, 478, 110, 44, 0x14b87a);
     this.text(355, 500, '2x SPEED', 14).setOrigin(0.5);
     this.box(420, 478, 110, 44, COLORS.bg).setStrokeStyle(2, COLORS.accent);
@@ -118,15 +129,45 @@ export class RaceScene extends Phaser.Scene {
   }
 
   private drawUpgrades() {
-    UPGRADES.forEach(([key, name], i) => {
+    this.cards = UPGRADE_DEFS.map((def, i) => {
       const x = 12 + (i % 2) * 264;
       const y = 540 + Math.floor(i / 2) * 106;
       this.box(x, y, 252, 96);
-      this.text(x + 12, y + 10, name, 18);
-      this.text(x + 12, y + 38, `Lv ${this.state.upgrades[key] ?? 0}`, 14, '#9aa7d0');
-      this.box(x + 12, y + 62, 228, 26, COLORS.accent);
-      this.text(x + 126, y + 75, 'UPGRADE', 14).setOrigin(0.5);
+      this.text(x + 12, y + 10, def.name, 18);
+      const level = this.text(x + 12, y + 38, '', 14, '#9aa7d0');
+      const button = this.box(x + 12, y + 62, 228, 26, COLORS.accent).setInteractive({ useHandCursor: true });
+      const cost = this.text(x + 126, y + 75, '', 14).setOrigin(0.5);
+      button.on('pointerdown', () => {
+        if (buyUpgrade(this.state, def)) this.applyRating();
+      });
+      return { def, level, button, cost };
     });
+  }
+
+  private applyRating() {
+    const rating = carRating(this.state.upgrades);
+    for (const car of this.race.cars) if (car.isPlayer) car.rating = rating;
+  }
+
+  private renderEconomy() {
+    const rating = carRating(this.state.upgrades);
+    this.moneyText.setText(`$ ${formatNumber(this.state.money)}`);
+    this.incomeText.setText(`${formatNumber(incomePerSecond(rating, this.state.sponsors))} $/s · Rating ${Math.round(rating)}`);
+    for (const { def, level, button, cost } of this.cards) {
+      const lv = this.state.upgrades[def.key] ?? 0;
+      const price = upgradeCost(def, lv);
+      const affordable = this.state.money >= price;
+      level.setText(`Lv ${lv} · +${def.ratingPerLevel} rating`);
+      cost.setText(`UPGRADE  $${formatNumber(price)}`);
+      button.setFillStyle(affordable ? COLORS.accent : 0x2a3350);
+      cost.setColor(affordable ? '#ffffff' : '#8591b8');
+    }
+  }
+
+  private payOut() {
+    const order = standings(this.race);
+    const positions = order.flatMap((c, i) => (c.isPlayer ? [i + 1] : []));
+    this.state.money += racePayout(positions, this.state.season, this.state.sponsors);
   }
 
   private drawTabs() {
@@ -140,10 +181,18 @@ export class RaceScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number) {
-    this.moneyText.setText(`$ ${Math.floor(this.state.money)}`);
-    // Clamp so a backgrounded tab doesn't teleport the cars.
-    stepRace(this.race, Math.min(delta, 100) / 1000 * RACE_SPEED);
+    // Clamp so a backgrounded tab doesn't teleport the cars or the money.
+    const dt = Math.min(delta, 100) / 1000;
+    const rating = carRating(this.state.upgrades);
+    this.state.money += incomePerSecond(rating, this.state.sponsors) * dt;
+
+    stepRace(this.race, dt * RACE_SPEED);
+    if (this.race.finished && !this.paid) {
+      this.paid = true;
+      this.payOut();
+    }
     this.renderRace();
+    this.renderEconomy();
     if (this.race.finished) {
       this.restartAt += delta;
       if (this.restartAt > 3000) this.startRace();

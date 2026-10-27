@@ -7,6 +7,8 @@ export interface GameState {
   race: number;
   upgrades: Record<string, number>;
   autoUnlocked: boolean;
+  // Multiplies all income and prizes.
+  sponsors: number;
   lastSavedAt: number;
 }
 
@@ -23,6 +25,7 @@ export function newGame(now = Date.now()): GameState {
     race: 1,
     upgrades: { engine: 0, aero: 0, tyres: 0, brakes: 0, reliability: 0, pitCrew: 0 },
     autoUnlocked: false,
+    sponsors: 1,
     lastSavedAt: now,
   };
 }
