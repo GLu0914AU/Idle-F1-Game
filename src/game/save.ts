@@ -70,6 +70,8 @@ export interface GameState {
   facilities: Record<FacilityKey, number>;
   // Sound, music and haptics preferences.
   settings: AudioSettings;
+  // The race/season standings list over the track can be folded away.
+  towerCollapsed: boolean;
   // First-run guide progress; see tutorial.ts.
   tutorial: number;
   tutorialRewarded: boolean;
@@ -129,6 +131,7 @@ export function newGame(now = Date.now()): GameState {
     goals: newGoals(),
     facilities: newFacilities(),
     settings: newAudioSettings(),
+    towerCollapsed: false,
     tutorial: 0,
     tutorialRewarded: false,
   };

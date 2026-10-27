@@ -107,6 +107,8 @@ export class GameScene extends Phaser.Scene {
   private towerRows: Phaser.GameObjects.Text[] = [];
   private towerPoints: Phaser.GameObjects.Text[] = [];
   private towerBtn!: Button;
+  private towerFold!: Button;
+  private towerBox!: Phaser.GameObjects.Rectangle;
   // The list shows this race's running order, or each driver's points this season.
   private towerMode: 'race' | 'season' = 'race';
   private tabHighlight!: Phaser.GameObjects.Rectangle;
@@ -357,10 +359,14 @@ export class GameScene extends Phaser.Scene {
       .setInteractive()
       .on('pointerdown', (p: Phaser.Input.Pointer) => this.onTap(p.x, p.y));
     this.lapText = addText(this, W - 12, VIEW.y + 8, '', 14, '#9aa7d0').setOrigin(1, 0);
-    addBox(this, 4, VIEW.y + 3, 152, 355, 0x050914).setAlpha(0.85).setStrokeStyle(1, 0x2a365e);
+    this.towerBox = addBox(this, 4, VIEW.y + 3, 152, 355, 0x050914).setAlpha(0.85).setStrokeStyle(1, 0x2a365e);
     this.towerRows = Array.from({ length: 20 }, (_, i) => addText(this, 8, VIEW.y + 30 + i * 16, '', 11));
     this.towerPoints = Array.from({ length: 20 }, (_, i) => addText(this, 150, VIEW.y + 30 + i * 16, '', 11).setOrigin(1, 0));
-    this.towerBtn = addButton(this, 8, VIEW.y + 6, 142, 20, '', () => (this.towerMode = this.towerMode === 'race' ? 'season' : 'race'), {
+    this.towerBtn = addButton(this, 8, VIEW.y + 6, 114, 20, '', () => (this.towerMode = this.towerMode === 'race' ? 'season' : 'race'), {
+      fill: 0x1d2745,
+      size: 10,
+    });
+    this.towerFold = addButton(this, 126, VIEW.y + 6, 24, 20, '', () => (this.state.towerCollapsed = !this.state.towerCollapsed), {
       fill: 0x1d2745,
       size: 10,
     });
@@ -547,6 +553,11 @@ export class GameScene extends Phaser.Scene {
         this.towerPoints[i].setText(String(d.points)).setColor(d.isPlayer ? '#ffd400' : '#cfd6ee');
       });
     }
+    const folded = this.state.towerCollapsed;
+    this.towerBox.setSize(152, folded ? 28 : 355);
+    this.towerRows.forEach((r) => r.setVisible(!folded));
+    this.towerPoints.forEach((r) => r.setVisible(!folded));
+    this.towerFold.setLabel(folded ? '▾' : '▴');
     this.towerBtn.setLabel(this.towerMode === 'race' ? 'RACE ▸ SEASON' : 'SEASON ▸ RACE');
     const lap = Math.min(RACE_LAPS, Math.floor(order[0].progress) + 1);
     this.lapText.setText(this.race.finished ? 'FINISHED' : `${this.track.name} · Lap ${lap}/${RACE_LAPS}`);
