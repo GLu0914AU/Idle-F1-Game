@@ -26,7 +26,7 @@ export const RESEARCH_DEFS: ResearchDef[] = [
   stat('topSpeed', 'Top Speed', 3, `+${levels} levels: faster on straights`),
   stat('cornering', 'Cornering', 3, `+${levels} levels: faster in corners`),
   stat('tapPower', 'Tap Power', 2, `+${levels} levels: bigger taps, faster pits`),
-  stat('tyreScience', 'Tyre Science', 3, `+${levels} levels: ${levels * 4}% less tyre wear`),
+  stat('tyreScience', 'Tyre Science', 3, `+${levels} levels: ~${Math.round((1 - 1 / (1 + 0.04 * levels)) * 100)}% less tyre wear`),
   stat('energyRecovery', 'Energy Recovery', 3, `+${levels} levels: boost lasts longer`),
   { key: 'funding', name: 'Funding', baseCost: 3, blurb: `+${FUNDING_BONUS * 100}% income and prize money`, stat: false },
   { key: 'seed', name: 'Seed Money', baseCost: 2, blurb: `Start each run with $${SEED_MONEY} per level`, stat: false },
