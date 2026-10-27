@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { developmentCost, developmentOdds, DEV_PACKAGES, teamQuality } from './development';
 import { sponsorMultiplier } from './economy';
-import { MAX_FACILITY_LEVEL, buyFacility, facilityCost, facilityEffects, newFacilities } from './facilities';
+import { buyFacility, facilityCost, facilityEffects, newFacilities } from './facilities';
 import { loadGame, newGame } from './save';
 import { prestige } from './prestige';
 
@@ -21,18 +21,36 @@ describe('facilities', () => {
     expect(s.gems).toBeGreaterThanOrEqual(0);
   });
 
-  it('never goes past the level cap', () => {
+  it('has no level cap', () => {
     const s = newGame();
     s.gems = 1e12;
-    expect(buyFacility(s, 'simulator', 500)).toBe(MAX_FACILITY_LEVEL);
-    expect(buyFacility(s, 'simulator', 1)).toBe(0);
+    expect(buyFacility(s, 'simulator', 500)).toBeGreaterThan(100);
   });
 
-  it('has no effect at level 0 and full effect at the cap', () => {
+  it('has no effect at level 0, the old level-100 values at 100, and keeps growing', () => {
     expect(facilityEffects(newFacilities())).toEqual({ moneyBonus: 0, windQuality: 0, flopCut: 0, devCostCut: 0 });
-    const max = facilityEffects({ factory: 100, windTunnel: 100, simulator: 100 });
-    expect(max.moneyBonus).toBeCloseTo(0.5);
-    expect(max.flopCut).toBeCloseTo(0.5);
+    const at100 = facilityEffects({ factory: 100, windTunnel: 100, simulator: 100 });
+    expect(at100.moneyBonus).toBeCloseTo(0.5);
+    expect(at100.windQuality).toBeCloseTo(0.3);
+    expect(at100.flopCut).toBeCloseTo(0.5);
+    expect(at100.devCostCut).toBeCloseTo(0.25);
+    const at300 = facilityEffects({ factory: 300, windTunnel: 300, simulator: 300 });
+    expect(at300.moneyBonus).toBeCloseTo(1.5);
+    expect(at300.flopCut).toBeCloseTo(0.75);
+    expect(at300.flopCut).toBeLessThan(1);
+  });
+
+  it('team quality above 1 keeps helping but the odds stay valid', () => {
+    const def = DEV_PACKAGES[2];
+    const a = developmentOdds(1, def);
+    const b = developmentOdds(3, def);
+    const c = developmentOdds(1000, def);
+    expect(b.big).toBeGreaterThan(a.big);
+    expect(c.big).toBeGreaterThan(b.big);
+    for (const o of [a, b, c]) {
+      expect(o.big + o.solid + o.flop).toBeCloseTo(1);
+      expect(o.solid).toBeGreaterThanOrEqual(0);
+    }
   });
 
   it('the Factory boosts the money multiplier', () => {

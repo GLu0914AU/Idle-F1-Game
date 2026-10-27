@@ -65,17 +65,22 @@ export function developmentCost(state: DevState, def: DevPackage): number {
   return Math.ceil(income * def.costSeconds * (1 - facilityEffects(state.facilities).devCostCut));
 }
 
-// 0..1: how good the drivers (technical feedback), the engineer and the wind tunnel engineer are.
+// Team quality has no upper bound (extra facility levels keep helping), but the odds only ever see a version that
+// matches it up to 1 and then flattens towards 2, so the probabilities stay valid.
+export const effectiveQuality = (q: number) => (q <= 1 ? Math.max(0, q) : 2 - 1 / q);
+
+// How good the drivers (technical feedback), the engineer and the wind tunnel engineer and facility are. Usually 0..1, but can exceed 1.
 export function teamQuality(state: Pick<GameState, 'drivers' | 'engineer'> & Partial<Pick<GameState, 'staff' | 'facilities'>>): number {
   const driverPart = (state.drivers[0].skill + state.drivers[1].skill) / 2 / MAX_SKILL;
   const engineerPart = state.engineer ? engineerRating(state.engineer) / 100 : 0;
   const extra = staffEffects(state.staff).windQuality + facilityEffects(state.facilities).windQuality;
-  return Math.min(1, 0.5 * driverPart + 0.5 * engineerPart + extra);
+  return 0.5 * driverPart + 0.5 * engineerPart + extra;
 }
 
 export function developmentOdds(quality: number, def: DevPackage, flopCut = 0): { big: number; solid: number; flop: number } {
-  const big = BASE_BIG + 0.3 * quality;
-  const flop = Math.max(0.02, (BASE_FLOP - 0.2 * quality) * def.risk * (1 - flopCut));
+  const q = effectiveQuality(quality);
+  const big = BASE_BIG + 0.3 * q;
+  const flop = Math.max(0.02, (BASE_FLOP - 0.2 * q) * def.risk * (1 - flopCut));
   return { big, flop, solid: Math.max(0, 1 - big - flop) };
 }
 

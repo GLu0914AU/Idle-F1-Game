@@ -3,14 +3,14 @@ import type { GameState } from './save';
 // Permanent buildings bought with gems. They survive prestige and each level adds a small, linear bonus.
 export type FacilityKey = 'factory' | 'windTunnel' | 'simulator';
 export const FACILITY_KEYS: FacilityKey[] = ['factory', 'windTunnel', 'simulator'];
-export const MAX_FACILITY_LEVEL = 100;
 export const FACILITY_COST_GROWTH = 1.07;
 
-// What each building does at the maximum level; every level adds 1/MAX_FACILITY_LEVEL of this.
-export const FACTORY_MONEY_MAX = 0.5;
-export const WIND_TUNNEL_QUALITY_MAX = 0.3;
-export const SIMULATOR_FLOP_CUT_MAX = 0.5;
-export const SIMULATOR_DEV_COST_CUT_MAX = 0.25;
+// Factory and Wind Tunnel grow linearly forever. The Simulator's cuts are percentages, so they follow 1 - 1/(1 + level/k):
+// they keep improving with every level and never reach 100%. At level 100 they give 50% fewer flops and 25% cheaper packages.
+export const FACTORY_MONEY_PER_LEVEL = 0.005;
+export const WIND_TUNNEL_QUALITY_PER_LEVEL = 0.003;
+export const SIMULATOR_FLOP_K = 100;
+export const SIMULATOR_DEV_COST_K = 300;
 
 export interface FacilityDef {
   key: FacilityKey;
@@ -21,7 +21,8 @@ export interface FacilityDef {
 }
 
 const pct = (x: number) => `${+(x * 100).toFixed(1)}%`;
-const share = (level: number) => Math.min(Math.max(level, 0), MAX_FACILITY_LEVEL) / MAX_FACILITY_LEVEL;
+const lv = (level: number) => Math.max(level, 0);
+const saturating = (level: number, k: number) => 1 - 1 / (1 + lv(level) / k);
 
 export const FACILITY_DEFS: Record<FacilityKey, FacilityDef> = {
   factory: {
@@ -29,21 +30,21 @@ export const FACILITY_DEFS: Record<FacilityKey, FacilityDef> = {
     name: 'Factory',
     blurb: 'More income per second and more prize money.',
     baseCost: 1,
-    effect: (l) => `+${pct(FACTORY_MONEY_MAX * share(l))} income and prize money`,
+    effect: (l) => `+${pct(FACTORY_MONEY_PER_LEVEL * lv(l))} income and prize money`,
   },
   windTunnel: {
     key: 'windTunnel',
     name: 'Wind Tunnel',
     blurb: 'Makes car development packages likelier to be breakthroughs.',
     baseCost: 1,
-    effect: (l) => `+${pct(WIND_TUNNEL_QUALITY_MAX * share(l))} development team quality`,
+    effect: (l) => `+${pct(WIND_TUNNEL_QUALITY_PER_LEVEL * lv(l))} development team quality`,
   },
   simulator: {
     key: 'simulator',
     name: 'Simulator',
     blurb: 'Tests packages virtually: fewer flops and cheaper development.',
     baseCost: 1,
-    effect: (l) => `${pct(SIMULATOR_FLOP_CUT_MAX * share(l))} fewer flops, ${pct(SIMULATOR_DEV_COST_CUT_MAX * share(l))} cheaper packages`,
+    effect: (l) => `${pct(saturating(l, SIMULATOR_FLOP_K))} fewer flops, ${pct(saturating(l, SIMULATOR_DEV_COST_K))} cheaper packages`,
   },
 };
 
@@ -56,13 +57,13 @@ export function facilityCost(key: FacilityKey, level: number): number {
   return Math.ceil(FACILITY_DEFS[key].baseCost * FACILITY_COST_GROWTH ** level);
 }
 
-// Buys up to `count` levels, stopping at the cap or when the gems run out. Returns how many were bought.
+// Buys up to `count` levels, stopping when the gems run out. Returns how many were bought.
 export function buyFacility(state: Pick<GameState, 'gems' | 'facilities'>, key: FacilityKey, count = 1): number {
   let bought = 0;
   while (bought < count) {
     const level = facilityLevel(state, key);
     const cost = facilityCost(key, level);
-    if (level >= MAX_FACILITY_LEVEL || state.gems < cost) break;
+    if (state.gems < cost) break;
     state.gems -= cost;
     state.facilities[key] = level + 1;
     bought += 1;
@@ -82,9 +83,9 @@ export interface FacilityEffects {
 
 export function facilityEffects(facilities: Partial<Record<FacilityKey, number>> | undefined): FacilityEffects {
   return {
-    moneyBonus: FACTORY_MONEY_MAX * share(facilities?.factory ?? 0),
-    windQuality: WIND_TUNNEL_QUALITY_MAX * share(facilities?.windTunnel ?? 0),
-    flopCut: SIMULATOR_FLOP_CUT_MAX * share(facilities?.simulator ?? 0),
-    devCostCut: SIMULATOR_DEV_COST_CUT_MAX * share(facilities?.simulator ?? 0),
+    moneyBonus: FACTORY_MONEY_PER_LEVEL * lv(facilities?.factory ?? 0),
+    windQuality: WIND_TUNNEL_QUALITY_PER_LEVEL * lv(facilities?.windTunnel ?? 0),
+    flopCut: saturating(facilities?.simulator ?? 0, SIMULATOR_FLOP_K),
+    devCostCut: saturating(facilities?.simulator ?? 0, SIMULATOR_DEV_COST_K),
   };
 }

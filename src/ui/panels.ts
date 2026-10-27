@@ -42,7 +42,7 @@ import {
 } from '../game/staff';
 import { DEV_PACKAGES, DevPackage, DevOutcome, developmentCost, developmentOdds, fitsSeason, packageDef, startDevelopment, teamQuality } from '../game/development';
 import { RACES_PER_SEASON } from '../game/season';
-import { FACILITY_DEFS, FACILITY_KEYS, FacilityKey, MAX_FACILITY_LEVEL, buyFacility, facilityCost, facilityEffects, facilityLevel } from '../game/facilities';
+import { FACILITY_DEFS, FACILITY_KEYS, FacilityKey, buyFacility, facilityCost, facilityEffects, facilityLevel } from '../game/facilities';
 import {
   ACHIEVEMENTS,
   AchievementDef,
@@ -962,7 +962,7 @@ export class PanelHost {
     c.add(addBox(this.scene, 0, 70, W, 810, COLORS.bg).setInteractive());
     c.add(this.scene.add.rectangle(W / 2, 84, 120, 3, COLORS.red));
     c.add(addText(this.scene, W / 2, 90, 'FACILITIES', 24).setOrigin(0.5, 0));
-    addText(this.scene, W / 2, 124, `Permanent buildings bought with gems, up to level ${MAX_FACILITY_LEVEL}. They survive prestige.`, 13, '#9aa7d0', c)
+    addText(this.scene, W / 2, 124, `Permanent buildings bought with gems. They have no level limit and survive prestige.`, 13, '#9aa7d0', c)
       .setOrigin(0.5, 0)
       .setWordWrapWidth(W - 60)
       .setAlign('center');
@@ -998,19 +998,16 @@ export class PanelHost {
     for (const { key, level, effect, next, buy1, buy10 } of u.rows) {
       const def = FACILITY_DEFS[key];
       const lv = facilityLevel(s, key);
-      const maxed = lv >= MAX_FACILITY_LEVEL;
-      level.setText(`LEVEL ${lv}/${MAX_FACILITY_LEVEL}`);
+      level.setText(`LEVEL ${lv}`);
       effect.setText(`Now: ${def.effect(lv)}`);
-      next.setText(maxed ? 'Fully built' : `Next level: ${def.effect(lv + 1)}`);
-      // Price the ×10 button as the gems needed for the levels it can actually buy.
+      next.setText(`Next level: ${def.effect(lv + 1)}`);
       let total = 0;
-      let n = 0;
-      while (n < 10 && lv + n < MAX_FACILITY_LEVEL) total += facilityCost(key, lv + n++);
-      const one = maxed ? 0 : facilityCost(key, lv);
-      buy1.setLabel(maxed ? 'MAX' : `BUY ×1: ${formatNumber(one)} GEMS`);
-      buy10.setLabel(maxed ? 'MAX' : `BUY ×${n}: ${formatNumber(total)} GEMS`);
-      buy1.setState(!maxed && s.gems >= one, COLORS.green);
-      buy10.setState(!maxed && s.gems >= total, COLORS.green);
+      for (let n = 0; n < 10; n++) total += facilityCost(key, lv + n);
+      const one = facilityCost(key, lv);
+      buy1.setLabel(`BUY ×1: ${formatNumber(one)} GEMS`);
+      buy10.setLabel(`BUY ×10: ${formatNumber(total)} GEMS`);
+      buy1.setState(s.gems >= one, COLORS.green);
+      buy10.setState(s.gems >= total, COLORS.green);
     }
   }
 
