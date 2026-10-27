@@ -1,5 +1,7 @@
 import {
   COMPOUNDS,
+  Compound,
+  DRY_COMPOUNDS,
   PIT_HALF_LENGTH,
   Strategy,
   newStrategy,
@@ -12,6 +14,7 @@ import {
 import { PLAYER_COLOR, PLAYER_DRIVERS, RIVAL_TEAMS, rivalRating } from './teams';
 import { Handling, handlingFactor } from './economy';
 import { DriverStats, consistencyFactor, driverRating, raceCraftBonus } from './drivers';
+import { DRY, RIVAL_WET_CRAFT, TyreClass, Weather, idealClass, tyreClass, weatherFactor, wetnessAt } from './weather';
 import { Track, cornerness } from './track';
 
 export interface Car {
@@ -39,6 +42,8 @@ export interface Car {
   // The driver's Race Craft trait (player cars only).
   raceCraft?: number;
   lastPitId?: number;
+  // Game time at which a rival decides its tyres are wrong for the weather and boxes.
+  reactAt?: number;
 }
 
 export interface RaceConfig {
@@ -57,6 +62,8 @@ export interface RaceConfig {
   seed: number;
   // Seconds a rating-0 car takes for one lap.
   baseLapTime?: number;
+  // The forecast; the race is dry if omitted.
+  weather?: Weather;
 }
 
 export interface Race {
@@ -65,6 +72,9 @@ export interface Race {
   time: number;
   finished: boolean;
   rng: () => number;
+  weather: Weather;
+  // Current track wetness, set from the leader's lap each step.
+  wetness: number;
 }
 
 // Small deterministic PRNG so races are reproducible in tests.
@@ -138,8 +148,13 @@ export function createRace(config: RaceConfig): Race {
       car.fault = { at: config.laps * (0.15 + 0.7 * frng()), dnf: frng() < DNF_SHARE, remaining: BREAKDOWN_SECONDS, started: false };
     }
   }
-  return { config, cars, time: 0, finished: false, rng };
+  return { config, cars, time: 0, finished: false, rng, weather: config.weather ?? DRY, wetness: 0 };
 }
+
+// Share of rival tyre choices in the wet that are wrong, and how long (game-seconds) they take to react to a change.
+export const RIVAL_MISTAKE_CHANCE = 0.15;
+export const RIVAL_REACT_MIN = 4;
+export const RIVAL_REACT_SPREAD = 30;
 
 // Chance a player car breaks down during a race: about 1 in 3 with no Reliability, falling with diminishing returns but never to zero.
 export const breakdownChance = (reliability: number) => 0.04 + 0.29 / (1 + Math.max(0, reliability) / 12);
@@ -151,20 +166,34 @@ export const BREAKDOWN_SECONDS = 25;
 export const BREAKDOWN_PACE = 0.2;
 
 function randomCompound(rng: () => number) {
-  return COMPOUNDS[Math.floor(rng() * COMPOUNDS.length) % COMPOUNDS.length];
+  return DRY_COMPOUNDS[Math.floor(rng() * DRY_COMPOUNDS.length) % DRY_COMPOUNDS.length];
+}
+
+// Tyres a rival fits for the conditions. In the wet they sometimes get it wrong; on a dry track the draw is the plain random one.
+function chooseCompound(want: TyreClass, rng: () => number): Compound {
+  if (want === 'dry') return randomCompound(rng);
+  if (rng() < RIVAL_MISTAKE_CHANCE) return COMPOUNDS[Math.floor(rng() * COMPOUNDS.length) % COMPOUNDS.length];
+  return want === 'inter' ? 'intermediate' : 'wet';
 }
 
 const NO_UPGRADES = { tapPower: 0, pitCrew: 0, tyres: 0 };
 
-// NPC tyre logic: call the car in when worn, with a random fresh compound.
+// NPC tyre logic: call the car in when worn, or when the weather has made its tyres wrong, with a fresh compound.
 function stepNpcTyres(race: Race, car: Car, dt: number): number {
   const s = car.tyres;
   if (!s) return 1;
-  stepStrategy(s, dt, NO_UPGRADES);
-  if (!s.pitRequested && !car.pit && s.wear >= (car.pitWear ?? 0.7) && race.config.laps - car.progress > 1) {
+  stepStrategy(s, dt, { ...NO_UPGRADES, wetness: race.wetness });
+  const canPit = !s.pitRequested && !car.pit && race.config.laps - car.progress > 1;
+  const want = idealClass(race.wetness);
+  const wrong = tyreClass(s.compound) !== want;
+  if (!wrong) car.reactAt = undefined;
+  else if (canPit && car.reactAt === undefined) car.reactAt = race.time + RIVAL_REACT_MIN + race.rng() * RIVAL_REACT_SPREAD;
+  const weatherCall = canPit && wrong && car.reactAt !== undefined && race.time >= car.reactAt;
+  if (canPit && (weatherCall || s.wear >= (car.pitWear ?? 0.7))) {
     s.pitRequested = true;
     s.pitRequestId += 1;
-    s.nextCompound = randomCompound(race.rng);
+    s.nextCompound = chooseCompound(want, race.rng);
+    car.reactAt = undefined;
   }
   return paceFactor(s);
 }
@@ -190,6 +219,7 @@ export function pitProgress(pit: NonNullable<Car['pit']>): number {
 export function stepRace(race: Race, dt: number, playerBoost = 1, player?: PlayerTeam): void {
   if (race.finished) return;
   const { laps, baseLapTime = 90 } = race.config;
+  race.wetness = wetnessAt(race.weather, Math.max(...race.cars.map((c) => c.progress)));
 
   // Taps made during a stop shorten it for the car in the lane.
   for (const car of race.cars) {
@@ -233,7 +263,8 @@ export function stepRace(race: Race, dt: number, playerBoost = 1, player?: Playe
     if (crawling) f.remaining -= dt;
 
     const handling = car.isPlayer && player?.handling ? handlingFactor(player.handling, cornerness(race.config.track, car.progress)) : 1;
-    const lapsPerSecond = (paceMultiplier(car.rating) * car.form * boost * handling * raceCraftBonus(car.raceCraft ?? 0, car.progress) * (crawling ? BREAKDOWN_PACE : 1)) / baseLapTime;
+    const grip = weatherFactor(s?.compound ?? 'medium', race.wetness, car.raceCraft ?? RIVAL_WET_CRAFT);
+    const lapsPerSecond = (paceMultiplier(car.rating) * car.form * boost * handling * grip * raceCraftBonus(car.raceCraft ?? 0, car.progress) * (crawling ? BREAKDOWN_PACE : 1)) / baseLapTime;
     car.progress += lapsPerSecond * dt;
     if (Math.floor(car.progress) > Math.floor(before)) car.form = rollForm(race.rng);
 

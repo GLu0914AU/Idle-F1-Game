@@ -1,8 +1,11 @@
+import { dryWearFactor } from './weather';
+
 export type Mode = 'push' | 'normal' | 'conserve';
-export type Compound = 'soft' | 'medium' | 'hard';
+export type Compound = 'soft' | 'medium' | 'hard' | 'intermediate' | 'wet';
 
 export const MODES: Mode[] = ['push', 'normal', 'conserve'];
-export const COMPOUNDS: Compound[] = ['soft', 'medium', 'hard'];
+export const COMPOUNDS: Compound[] = ['soft', 'medium', 'hard', 'intermediate', 'wet'];
+export const DRY_COMPOUNDS: Compound[] = ['soft', 'medium', 'hard'];
 
 // pace multiplies speed, wear multiplies tyre wear rate.
 export const MODE_FX: Record<Mode, { pace: number; wear: number }> = {
@@ -11,10 +14,13 @@ export const MODE_FX: Record<Mode, { pace: number; wear: number }> = {
   conserve: { pace: 0.98, wear: 0.6 },
 };
 
+// Intermediates and wets are only compared on grip in the rain (see weather.ts), so they have no dry-pace edge.
 export const COMPOUND_FX: Record<Compound, { pace: number; wear: number }> = {
   soft: { pace: 1.015, wear: 1.5 },
   medium: { pace: 1, wear: 1 },
   hard: { pace: 0.99, wear: 0.6 },
+  intermediate: { pace: 1, wear: 1 },
+  wet: { pace: 1, wear: 0.9 },
 };
 
 export const BASE_WEAR_PER_SEC = 0.004;
@@ -61,6 +67,8 @@ export interface StrategyLevels {
   energyRecovery?: number;
   // The driver's Tyre Management trait.
   driverTyre?: number;
+  // Current track wetness; intermediates and wets wear fast on a dry track.
+  wetness?: number;
 }
 
 export function newStrategy(prev?: Pick<Strategy, 'mode' | 'compound' | 'nextCompound' | 'compoundChosen'>): Strategy {
@@ -138,7 +146,7 @@ export function stepStrategy(s: Strategy, dt: number, levels: StrategyLevels): v
   // Tyres don't wear while the car is crawling through the pit lane.
   if (isPitting(s)) return;
   const rate =
-    (BASE_WEAR_PER_SEC * MODE_FX[s.mode].wear * COMPOUND_FX[s.compound].wear) /
+    (BASE_WEAR_PER_SEC * MODE_FX[s.mode].wear * COMPOUND_FX[s.compound].wear * dryWearFactor(s.compound, levels.wetness ?? 0)) /
     ((1 + 0.05 * levels.tyres) * (1 + 0.04 * (levels.tyreScience ?? 0)) * (1 + 0.04 * (levels.driverTyre ?? 0)));
   s.wear = Math.min(1, s.wear + rate * dt);
 }

@@ -16,6 +16,7 @@ import { Race, createRace, standings, stepRace } from '../game/race';
 import { FREE_LEVELS_PER_RESEARCH, buyResearch, canPrestige, effectiveUpgrades, pickAutoResearch, prestige, researchPointsFor } from '../game/prestige';
 import { sponsorIncome } from '../game/sponsors';
 import { driverRating, payDrivers } from '../game/drivers';
+import { describeWeather, idealClass, isDry, rollWeather } from '../game/weather';
 import { GameState, loadGame, saveGame } from '../game/save';
 import { RACES_PER_SEASON, advanceSeason, awardPoints, driversTable } from '../game/season';
 import {
@@ -55,8 +56,9 @@ const CAR_SCALE = 1.7;
 
 // Sideways offset of the pit route at t (0 entrance .. 1 exit): ramps out, runs parallel, ramps back.
 const pitOffset = (t: number) => PIT_OFFSET * Math.max(0, Math.min(1, t / 0.15, (1 - t) / 0.15));
-const COMPOUND_COLORS: Record<Compound, number> = { soft: 0xe03b2c, medium: 0xe0b02c, hard: 0xd8dcea };
-const COMPOUND_LETTERS: Record<Compound, string> = { soft: 'S', medium: 'M', hard: 'H' };
+const COMPOUND_COLORS: Record<Compound, number> = { soft: 0xe03b2c, medium: 0xe0b02c, hard: 0xd8dcea, intermediate: 0x2fbf5a, wet: 0x3b8bff };
+const COMPOUND_LETTERS: Record<Compound, string> = { soft: 'S', medium: 'M', hard: 'H', intermediate: 'I', wet: 'W' };
+const COMPOUND_SHORT: Record<Compound, string> = { soft: 'SOFT', medium: 'MEDIUM', hard: 'HARD', intermediate: 'INTER', wet: 'WET' };
 
 export class GameScene extends Phaser.Scene {
   private state!: GameState;
@@ -85,6 +87,9 @@ export class GameScene extends Phaser.Scene {
   private carGfx!: Phaser.GameObjects.Graphics;
   private barGfx!: Phaser.GameObjects.Graphics;
   private compoundText!: Phaser.GameObjects.Text;
+  private weatherText!: Phaser.GameObjects.Text;
+  private wetShade!: Phaser.GameObjects.Rectangle;
+  private rainGfx!: Phaser.GameObjects.Graphics;
   private towerRows: Phaser.GameObjects.Text[] = [];
   private towerPoints: Phaser.GameObjects.Text[] = [];
   private towerBtn!: Button;
@@ -215,7 +220,10 @@ export class GameScene extends Phaser.Scene {
     addBox(this, 0, VIEW.y, W, VIEW.h, 0x0c1f15).setStrokeStyle(0);
     this.sceneryGfx = this.add.graphics();
     this.trackGfx = this.add.graphics();
+    // Darkens the circuit as it gets wet; cars and the interface sit above it.
+    this.wetShade = this.add.rectangle(0, VIEW.y, W, VIEW.h, 0x0a1428, 0).setOrigin(0);
     this.carGfx = this.add.graphics();
+    this.rainGfx = this.add.graphics();
     this.barGfx = this.add.graphics();
     // The whole track view is a tap target; buttons added later sit on top of it.
     this.add
@@ -234,6 +242,7 @@ export class GameScene extends Phaser.Scene {
     addText(this, W - 140, VIEW.y + 30, 'TYRES', 10, '#9aa7d0');
     addText(this, W - 140, VIEW.y + 66, 'BOOST', 10, '#9aa7d0');
     this.compoundText = addText(this, W - 12, VIEW.y + 30, '', 10, '#9aa7d0').setOrigin(1, 0);
+    this.weatherText = addText(this, W - 12, VIEW.y + 96, '', 12, '#9aa7d0').setOrigin(1, 0).setStroke('#050914', 3);
   }
 
   // View position at a distance along the lap, optionally shifted sideways (used for the pit lane).
@@ -309,12 +318,12 @@ export class GameScene extends Phaser.Scene {
       addText(this, 21, y + (STRIP_H - 2) / 2, String(i + 1), 14, '#0b1020').setOrigin(0.5);
       this.modeBtns[i] = addButton(this, 36, y, 112, STRIP_H - 2, '', () => cycleMode(s()), { fill: 0x1d2745, size: 12 });
       COMPOUNDS.forEach((c, k) => {
-        this.tyreBtns[i][c] = addButton(this, 152 + k * 42, y, 38, STRIP_H - 2, COMPOUND_LETTERS[c], () => selectCompound(s(), c), {
+        this.tyreBtns[i][c] = addButton(this, 152 + k * 33, y, 30, STRIP_H - 2, COMPOUND_LETTERS[c], () => selectCompound(s(), c), {
           fill: COMPOUND_COLORS[c],
-          size: 15,
+          size: 14,
         });
       });
-      this.pitBtns[i] = addButton(this, 282, y, 248, STRIP_H - 2, 'PIT', () => togglePitRequest(s()), { fill: 0xb8321f, size: 12 });
+      this.pitBtns[i] = addButton(this, 318, y, 212, STRIP_H - 2, 'PIT', () => togglePitRequest(s()), { fill: 0xb8321f, size: 12 });
     }
   }
 
@@ -331,6 +340,7 @@ export class GameScene extends Phaser.Scene {
       playerColor: this.state.teamColor,
       playerReliability: this.eff().reliability ?? 0,
       playerDriverStats: this.state.drivers,
+      weather: rollWeather(Math.random, RACE_LAPS),
       seed: Date.now() & 0x7fffffff,
     });
     this.strategies = [newStrategy(this.strategies[0]), newStrategy(this.strategies[1])];
@@ -403,6 +413,26 @@ export class GameScene extends Phaser.Scene {
     this.lapText.setText(this.race.finished ? 'FINISHED' : `${this.track.name} · Lap ${lap}/${RACE_LAPS}`);
   }
 
+  // Forecast badge, a darker track and falling rain that scale with how wet it is.
+  private renderWeather() {
+    const w = this.race.wetness;
+    const lap = Math.max(...this.race.cars.map((c) => c.progress));
+    const want = idealClass(w);
+    this.weatherText.setText(describeWeather(this.race.weather, lap));
+    this.weatherText.setColor(isDry(this.race.weather) ? '#ffd86b' : want === 'dry' ? '#9ec5ff' : '#4dc3ff');
+    this.wetShade.setAlpha(0.3 * w);
+    this.rainGfx.clear();
+    if (w <= 0.02) return;
+    const drops = Math.round(90 * w);
+    const t = this.time.now / 1000;
+    this.rainGfx.lineStyle(1, 0xaec8ff, 0.55);
+    for (let i = 0; i < drops; i++) {
+      const x = (i * 97.3 + t * 40) % W;
+      const y = VIEW.y + ((i * 61.7 + t * 520) % VIEW.h);
+      this.rainGfx.lineBetween(x, y, x - 3, y + 11);
+    }
+  }
+
   private renderStrategy() {
     const bar = (y: number, h: number, value: number, color: number) => {
       this.barGfx.fillStyle(0x1d2745).fillRect(W - 140, y, 128, h);
@@ -412,6 +442,7 @@ export class GameScene extends Phaser.Scene {
     this.strategies.forEach((s, i) => bar(VIEW.y + 44 + i * 9, 6, 1 - s.wear, s.wear > 0.7 ? 0xe03b2c : s.wear > 0.4 ? 0xe0b02c : 0x2cc07a));
     bar(VIEW.y + 78, 8, Math.max(...this.strategies.map((s) => s.boost)), 0x2f6bff);
     this.compoundText.setText(this.strategies.map((s) => s.compound[0].toUpperCase()).join(' '));
+    this.renderWeather();
 
     this.strategies.forEach((s, i) => {
       this.modeBtns[i].setLabel(`${s.mode.toUpperCase()}${s.modeCooldown > 0 ? ` (${Math.ceil(s.modeCooldown / RACE_SPEED)}s)` : ''}`);
@@ -428,7 +459,7 @@ export class GameScene extends Phaser.Scene {
         const t = (s.pitRemaining / RACE_SPEED).toFixed(1);
         pit.setLabel(issue ? `${issue}! TAP! ${t}s` : `IN PITS: TAP! ${t}s`);
       } else if (s.pitRequested) {
-        pit.setLabel(`BOX THIS LAP: ${s.nextCompound.toUpperCase()} (cancel)`);
+        pit.setLabel(`BOX THIS LAP: ${COMPOUND_SHORT[s.nextCompound]} (cancel)`);
       } else {
         pit.setLabel('PIT NEXT LAP');
       }
@@ -720,9 +751,9 @@ export class GameScene extends Phaser.Scene {
     if (s.autoStrategy && !this.race.finished) {
       this.strategies.forEach((st, i) => {
         const car = this.race.cars.find((c) => c.id === `player-${i}`)!;
-        if (shouldAutoPit(st, car.progress, RACE_LAPS)) {
+        if (shouldAutoPit(st, car.progress, RACE_LAPS, this.race.wetness)) {
           // The player's own tyre choice always wins over Auto's.
-          autoSelectCompound(st, car.progress, RACE_LAPS);
+          autoSelectCompound(st, car.progress, RACE_LAPS, this.race.wetness);
           togglePitRequest(st);
         }
         if (st.wear < 0.35 && st.mode !== 'push') setMode(st, 'push');
@@ -750,6 +781,7 @@ export class GameScene extends Phaser.Scene {
       tyres: eff.tyres ?? 0,
       tyreScience: eff.tyreScience ?? 0,
       energyRecovery: eff.energyRecovery ?? 0,
+      wetness: this.race.wetness,
     };
     this.strategies.forEach((st, i) => stepStrategy(st, gameDt, { ...levels, driverTyre: this.state.drivers[i].tyreMgmt }));
     stepRace(this.race, gameDt, 1, {
