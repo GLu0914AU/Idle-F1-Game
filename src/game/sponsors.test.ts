@@ -129,13 +129,19 @@ describe('sponsors', () => {
     expect(loaded.sponsorList).toHaveLength(1);
   });
 
-  it('is capped at 15 sponsors', () => {
+  it('keeps at most 15 sponsors, dropping the lowest payer for a new signing', () => {
     const s = rich();
     for (let i = 0; i < MAX_SPONSORS; i++) {
       expect(requestMeeting(s, mulberry32(i))).not.toBeNull();
       pitch(s, 1);
     }
     expect(s.sponsorList).toHaveLength(MAX_SPONSORS);
-    expect(requestMeeting(s, mulberry32(99))).toBeNull();
+    s.sponsorList[4].amount = 0.5;
+    const lowest = s.sponsorList[4].name;
+    expect(requestMeeting(s, mulberry32(99))).not.toBeNull();
+    const result = pitch(s, 1);
+    expect(s.sponsorList).toHaveLength(MAX_SPONSORS);
+    expect(result.outcome === 'signed' && result.replaced?.name).toBe(lowest);
+    expect(s.sponsorList.some((x) => x.name === lowest && x.amount === 0.5)).toBe(false);
   });
 });

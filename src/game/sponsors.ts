@@ -61,7 +61,7 @@ export const openingPitch = (m: Meeting) => Math.round(Math.sqrt(m.lo * m.hi));
 // Pays for a meeting with gems and rolls a sponsor with a hidden budget. Returns null if one is already open or gems are short.
 export function requestMeeting(state: SponsorState, rng: () => number = Math.random): Meeting | null {
   const cost = meetingCost(state.sponsorList.length);
-  if (state.meeting || state.sponsorList.length >= MAX_SPONSORS || state.gems < cost) return null;
+  if (state.meeting || state.gems < cost) return null;
   state.gems -= cost;
   const taken = new Set(state.sponsorList.map((s) => s.name));
   const free = NAMES.filter((n) => !taken.has(n));
@@ -79,17 +79,28 @@ export function requestMeeting(state: SponsorState, rng: () => number = Math.ran
   return meeting;
 }
 
-export type PitchResult = { outcome: 'signed'; sponsor: Sponsor } | { outcome: 'failed'; name: string } | { outcome: 'none' };
+export type PitchResult = { outcome: 'signed'; sponsor: Sponsor; replaced?: Sponsor } | { outcome: 'failed'; name: string } | { outcome: 'none' };
+
+// The sponsor that makes room when the slots are full: the lowest payer.
+export function lowestSponsor(state: Pick<GameState, 'sponsorList'>): Sponsor | null {
+  return state.sponsorList.reduce<Sponsor | null>((low, s) => (!low || s.amount < low.amount ? s : low), null);
+}
 
 // A pitch at or under the secret budget signs the sponsor at the pitched amount; over it, talks collapse. Either way the meeting ends.
+// With every slot taken, a signing drops the lowest-paying sponsor.
 export function pitch(state: SponsorState, amount: number): PitchResult {
   const m = state.meeting;
   if (!m || !Number.isFinite(amount) || amount <= 0) return { outcome: 'none' };
   state.meeting = null;
   if (amount > m.secret) return { outcome: 'failed', name: m.name };
   const sponsor = { name: m.name, amount: Math.floor(amount) };
+  let replaced: Sponsor | undefined;
+  if (state.sponsorList.length >= MAX_SPONSORS) {
+    replaced = lowestSponsor(state)!;
+    state.sponsorList.splice(state.sponsorList.indexOf(replaced), 1);
+  }
   state.sponsorList.push(sponsor);
-  return { outcome: 'signed', sponsor };
+  return { outcome: 'signed', sponsor, replaced };
 }
 
 // Ends the meeting without a deal. The gems are not refunded.

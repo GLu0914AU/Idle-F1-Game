@@ -6,7 +6,7 @@ const CURRENCY_SHORT: Record<Currency, string> = { gems: 'Gems', rp: 'RP', clout
 const AD_NAMES: Record<AdKind, string> = { money: 'Free cash', gems: 'Free gems', rp: 'Free RP', clout: 'Free clout' };
 import { GameState } from '../game/save';
 import { MIN_PRESTIGE_SEASON, RESEARCH_DEFS, ResearchDef, buyResearch, researchCost, researchPointsFor } from '../game/prestige';
-import { MAX_SPONSORS, openingPitch, meetingCost, pitch, requestMeeting, sponsorIncome, walkAway } from '../game/sponsors';
+import { MAX_SPONSORS, lowestSponsor, openingPitch, meetingCost, pitch, requestMeeting, sponsorIncome, walkAway } from '../game/sponsors';
 import {
   DRIVER_MEETING_CLOUT,
   DriverStats,
@@ -430,7 +430,7 @@ export class PanelHost {
         const result = pitch(s, this.pitchAmount);
         this.sponsorMessage =
           result.outcome === 'signed'
-            ? `Deal! ${result.sponsor.name} will pay $${formatNumber(result.sponsor.amount)} every season.`
+            ? `Deal! ${result.sponsor.name} will pay $${formatNumber(result.sponsor.amount)} every season.${result.replaced ? ` ${result.replaced.name} was dropped.` : ''}`
             : `${m.name} walked out. Negotiations fell apart.`;
         this.sponsorMessageGood = result.outcome === 'signed';
         this.hooks.save();
@@ -473,8 +473,8 @@ export class PanelHost {
     const cost = meetingCost(s.sponsorList.length);
     const full = s.sponsorList.length >= MAX_SPONSORS;
     p.info.setText(`Gems: ${s.gems} · Sponsors ${s.sponsorList.length}/${MAX_SPONSORS} pay you at the start of each season and stay through prestige. Pitch too high and they walk away.`);
-    p.meet.setLabel(s.meeting ? 'MEETING IN PROGRESS' : full ? 'SPONSOR SLOTS FULL' : `MEET A SPONSOR: ${cost} GEMS`);
-    p.meet.setState(!s.meeting && !full && s.gems >= cost, COLORS.green);
+    p.meet.setLabel(s.meeting ? 'MEETING IN PROGRESS' : `MEET A SPONSOR: ${cost} GEMS`);
+    p.meet.setState(!s.meeting && s.gems >= cost, COLORS.green);
 
     const m = s.meeting;
     if (m !== this.pitchFor) {
@@ -489,7 +489,8 @@ export class PanelHost {
       p.name.setText(m.name);
       p.estimate.setText(`They seem to have $${formatNumber(m.lo)} to $${formatNumber(m.hi)} to spend`);
       p.amount.setText(`$${formatNumber(this.pitchAmount)}`);
-      p.pitchBtn.setLabel(`PITCH $${formatNumber(this.pitchAmount)}`);
+      const low = full ? lowestSponsor(s) : null;
+      p.pitchBtn.setLabel(low ? `PITCH $${formatNumber(this.pitchAmount)}\nDrops ${low.name}` : `PITCH $${formatNumber(this.pitchAmount)}`);
     } else {
       p.idle.setText(this.sponsorMessage || 'Spend gems to book a meeting with a sponsor. Each one has a hidden budget: pitch under it and they sign, over it and talks collapse. Each sponsor you sign makes the next meeting cost more.');
       p.idle.setColor(this.sponsorMessage ? (this.sponsorMessageGood ? '#14b87a' : '#e08a1f') : '#9aa7d0');

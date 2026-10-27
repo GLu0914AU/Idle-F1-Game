@@ -18,7 +18,7 @@ import { GameState, newGame } from './save';
 import { settleRace } from './settle';
 import { RACES_PER_SEASON } from './season';
 import { STAFF_MEETING_CLOUT, STAFF_ROLES, autoPayWages, endStaffMeeting, offerStaffContract, payrollReserve, requestStaffMeeting, staffEffects } from './staff';
-import { meetingCost, pitch, requestMeeting } from './sponsors';
+import { MAX_SPONSORS, meetingCost, pitch, requestMeeting } from './sponsors';
 import { newStrategy, stepStrategy, tap, Strategy } from './strategy';
 import { pickTrack } from './tracks';
 import { rollWeather } from './weather';
@@ -288,7 +288,7 @@ export function simulate(opts: SimOptions): SimResult {
         }
       }
       if (p.sponsors) {
-        while (!state.meeting && state.gems >= meetingCost(state.sponsorList.length)) {
+        while (!state.meeting && state.sponsorList.length < MAX_SPONSORS && state.gems >= meetingCost(state.sponsorList.length)) {
           const m = requestMeeting(state, rng);
           if (!m) break;
           pitch(state, m.lo);
