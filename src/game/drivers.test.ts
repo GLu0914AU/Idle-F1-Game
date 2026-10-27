@@ -56,6 +56,14 @@ describe('driver negotiations', () => {
     expect(s.drivers[0]).toEqual(rookie());
   });
 
+  it('recruits keep getting better as seasons pass, with no ceiling', () => {
+    const early = requestDriverMeeting(state(), seq(0.5, 1, 1, 1, 1, 1, 1))!;
+    const late = requestDriverMeeting({ ...state(), season: 101 }, seq(0.5, 1, 1, 1, 1, 1, 1))!;
+    expect(early.stats.skill).toBe(25);
+    expect(late.stats.skill).toBe(150);
+    expect(late.stats.tyreMgmt).toBeGreaterThan(10 * early.stats.tyreMgmt);
+  });
+
   it('shows an estimate that brackets the minimum, and better drivers ask for more', () => {
     const lowQ = requestDriverMeeting(state(), seq(0.5, 0, 0.5, 0.5, 0.5, 0.5, 0.5))!;
     const highQ = requestDriverMeeting(state(), seq(0.5, 1, 0.5, 0.5, 0.5, 0.5, 0.5))!;

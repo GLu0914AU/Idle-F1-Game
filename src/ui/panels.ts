@@ -10,7 +10,6 @@ import { MAX_SPONSORS, fanMultiplier, lowestSponsor, openingPitch, meetingCost, 
 import {
   DRIVER_MEETING_CLOUT,
   DriverStats,
-  MAX_TRAIT,
   Driver,
   Contract,
   careerLabel,
@@ -75,9 +74,9 @@ type AudioToggle = 'sound' | 'engine' | 'music' | 'haptics';
 
 const driverLines = (d: DriverStats, career?: number) => [
   `Skill: +${d.skill}% car rating`,
-  `Tyre management: ${d.tyreMgmt}/${MAX_TRAIT}`,
-  `Consistency: ${d.consistency}/${MAX_TRAIT}`,
-  `Race craft: ${d.raceCraft}/${MAX_TRAIT}`,
+  `Tyre management: ${d.tyreMgmt}`,
+  `Consistency: ${d.consistency}`,
+  `Race craft: ${d.raceCraft}`,
   careerLabel(career),
 ];
 

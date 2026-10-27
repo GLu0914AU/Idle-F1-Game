@@ -13,7 +13,7 @@ export const DRY: Weather = { rainStart: 0, rainEnd: null, peak: 0 };
 export const RAIN_CHANCE = 0.3;
 // Laps the track takes to get wet or to dry out.
 export const RAMP_LAPS = 0.3;
-export const WET_CRAFT_RELIEF = 0.05;
+export const WET_CRAFT_RELIEF = 0.1;
 // Wetness where each tyre class becomes the quickest (see gripPenalty).
 export const INTER_FROM = 0.3;
 export const WET_FROM = 0.7;
@@ -60,9 +60,9 @@ export function gripPenalty(compound: Compound, wetness: number): number {
   }
 }
 
-// Pace multiplier from the conditions; Race Craft cuts the loss by up to half.
+// Pace multiplier from the conditions; Race Craft keeps cutting the loss (half at 10, never quite all of it).
 export function weatherFactor(compound: Compound, wetness: number, craft: number): number {
-  const relief = 1 - Math.min(10, Math.max(0, craft)) * WET_CRAFT_RELIEF;
+  const relief = 1 / (1 + Math.max(0, craft) * WET_CRAFT_RELIEF);
   return 1 - gripPenalty(compound, wetness) * relief;
 }
 

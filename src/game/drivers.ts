@@ -3,7 +3,7 @@ import { RACES_PER_SEASON } from './season';
 import type { GameState } from './save';
 import { PLAYER_DRIVERS } from './teams';
 
-// Traits are levels from 0 to MAX_TRAIT. `skill` is a percentage boost to the car's rating.
+// Traits are open-ended levels. `skill` is a percentage boost to the car's rating.
 export interface DriverStats {
   skill: number;
   // Less tyre wear.
@@ -32,8 +32,11 @@ export interface Candidate {
 
 export type DriverState = Pick<GameState, 'clout' | 'season' | 'bestSeason' | 'drivers' | 'driverNames' | 'driverMeeting' | 'money'>;
 
-export const MAX_TRAIT = 10;
-export const MAX_SKILL = 25;
+// What a perfect recruit looks like in season 1. Later seasons scale these up with no limit.
+export const BASE_TRAIT = 10;
+export const BASE_SKILL = 25;
+export const SKILL_SEASON_GROWTH = 1 / 20;
+export const TRAIT_SEASON_GROWTH = 1 / 10;
 export const DRIVER_MEETING_CLOUT = 2;
 // A season's salary comes to this many winner's prizes. A season has ten races, so this is cheaper than the old per-race wage overall.
 const SALARY_SHARE = 18;
@@ -233,8 +236,10 @@ export function requestDriverMeeting(state: DriverState, rng: () => number = Mat
   const pool = free.length > 0 ? free : NAMES;
   const name = pool[Math.floor(rng() * pool.length) % pool.length];
   const q = rng();
-  const trait = () => Math.max(0, Math.min(MAX_TRAIT, Math.round(q * MAX_TRAIT * (0.4 + rng() * 1.2))));
-  const stats: DriverStats = { skill: Math.round(MAX_SKILL * q), tyreMgmt: trait(), consistency: trait(), raceCraft: trait() };
+  const traitScale = BASE_TRAIT * (1 + (Math.max(1, state.season) - 1) * TRAIT_SEASON_GROWTH);
+  const skillScale = BASE_SKILL * (1 + (Math.max(1, state.season) - 1) * SKILL_SEASON_GROWTH);
+  const trait = () => Math.max(0, Math.round(q * traitScale * (0.4 + rng() * 1.2)));
+  const stats: DriverStats = { skill: Math.round(skillScale * q), tyreMgmt: trait(), consistency: trait(), raceCraft: trait() };
   const meeting: Candidate = { name, stats, ...rollAsk(state.season, q, rng), career: rollCareer(rng) };
   state.driverMeeting = meeting;
   return meeting;

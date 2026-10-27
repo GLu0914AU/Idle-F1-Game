@@ -82,6 +82,11 @@ describe('tyres in the weather', () => {
     expect(weatherFactor('hard', 1, 10)).toBeGreaterThan(weatherFactor('hard', 1, 0));
     expect(weatherFactor('wet', 1, 10)).toBe(1);
   });
+
+  it('Race Craft keeps helping beyond 10 without removing the loss', () => {
+    expect(weatherFactor('hard', 1, 30)).toBeGreaterThan(weatherFactor('hard', 1, 10));
+    expect(weatherFactor('hard', 1, 1000)).toBeLessThan(1);
+  });
 });
 
 describe('Auto strategy', () => {

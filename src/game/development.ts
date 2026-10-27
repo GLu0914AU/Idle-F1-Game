@@ -1,5 +1,5 @@
 import { carRating, incomePerSecond, sponsorMultiplier } from './economy';
-import { MAX_SKILL } from './drivers';
+import { BASE_SKILL } from './drivers';
 import { engineerRating } from './engineers';
 import { staffEffects } from './staff';
 import { facilityEffects } from './facilities';
@@ -71,7 +71,7 @@ export const effectiveQuality = (q: number) => (q <= 1 ? Math.max(0, q) : 2 - 1 
 
 // How good the drivers (technical feedback), the engineer and the wind tunnel engineer and facility are. Usually 0..1, but can exceed 1.
 export function teamQuality(state: Pick<GameState, 'drivers' | 'engineer'> & Partial<Pick<GameState, 'staff' | 'facilities'>>): number {
-  const driverPart = (state.drivers[0].skill + state.drivers[1].skill) / 2 / MAX_SKILL;
+  const driverPart = (state.drivers[0].skill + state.drivers[1].skill) / 2 / BASE_SKILL;
   const engineerPart = state.engineer ? engineerRating(state.engineer) / 100 : 0;
   const extra = staffEffects(state.staff).windQuality + facilityEffects(state.facilities).windQuality;
   return 0.5 * driverPart + 0.5 * engineerPart + extra;
