@@ -37,6 +37,7 @@ import {
   togglePitRequest,
 } from '../game/strategy';
 import { offlineEarnings } from '../game/offline';
+import { OfflineReport, applyOffline, simulateOffline } from '../game/offlineRaces';
 import { Point, Track, pointAt } from '../game/track';
 import { pickTrack } from '../game/tracks';
 import { PanelHost, BOOST_SECONDS, TABS } from '../ui/panels';
@@ -94,6 +95,7 @@ export class GameScene extends Phaser.Scene {
   private goalsDot!: Phaser.GameObjects.Arc;
   private seenReady = new Set<string>();
   private seenReadyArmed = false;
+  private awayPending: OfflineReport | null = null;
   private countedPits = new WeakSet<object>();
   private safetyCarText!: Phaser.GameObjects.Text;
   private gridText?: Phaser.GameObjects.Text;
@@ -137,7 +139,7 @@ export class GameScene extends Phaser.Scene {
       recolour: () => this.applyIdentity(),
       incomePerSecond: () => incomePerSecond(carRating(this.eff()), sponsorMultiplier(this.state)),
       prestige: () => this.doPrestige(),
-      save: () => saveGame(this.state),
+      save: () => this.persist(),
       onResearch: () => this.applyRating(),
       onDriversChanged: () => {
         this.applyIdentity();
@@ -149,16 +151,62 @@ export class GameScene extends Phaser.Scene {
     this.buildInfoPopup();
     this.startRace();
 
-    const away = offlineEarnings(this.state, Date.now());
-    if (away.earned > 0) {
-      this.state.money += away.earned;
-      this.banner.setText(`Welcome back!\nEarned $${formatNumber(away.earned)}\nwhile away ${Math.round(away.seconds / 60)} min`).setVisible(true);
-      this.time.delayedCall(4000, () => this.banner.setVisible(false));
+    const report = simulateOffline(this.state, Date.now());
+    if (report && report.races > 0) {
+      this.showAway(report);
+    } else {
+      const away = offlineEarnings(this.state, Date.now());
+      if (away.earned > 0) {
+        this.state.money += away.earned;
+        this.banner.setText(`Welcome back!\nEarned $${formatNumber(away.earned)}\nwhile away ${Math.round(away.seconds / 60)} min`).setVisible(true);
+        this.time.delayedCall(4000, () => this.banner.setVisible(false));
+      }
     }
 
-    this.time.addEvent({ delay: 5000, loop: true, callback: () => saveGame(this.state) });
-    window.addEventListener('beforeunload', () => saveGame(this.state));
+    this.time.addEvent({ delay: 5000, loop: true, callback: () => this.persist() });
+    window.addEventListener('beforeunload', () => this.persist());
     if (!this.state.teamNamed) void this.rename(false);
+  }
+
+  // Saves are held back while away results are waiting, so a refresh can't lose them.
+  private persist() {
+    if (!this.awayPending) saveGame(this.state);
+  }
+
+  private showAway(report: OfflineReport) {
+    this.awayPending = report;
+    const c = this.add.container(0, 0).setDepth(2000);
+    addBox(this, 0, 0, W, GAME_H, COLORS.bg, c).setStrokeStyle(0).setInteractive();
+    c.add(this.add.rectangle(W / 2, 114, 120, 3, COLORS.red));
+    c.add(addText(this, W / 2, 120, 'WHILE YOU WERE AWAY', 26).setOrigin(0.5, 0));
+    const mins = Math.round(report.seconds / 60);
+    const time = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins} min`;
+    c.add(addText(this, W / 2, 160, `Your team raced on for ${time}`, 14, '#9aa7d0').setOrigin(0.5, 0));
+    const net = report.income + report.prizes - report.wages;
+    const lines = [
+      `${report.races} races played`,
+      report.bestFinish === null ? '' : `Best finish: P${report.bestFinish}   ·   ${report.wins} wins, ${report.podiums} podiums`,
+      report.endSeason > report.startSeason ? `Season ${report.startSeason} → Season ${report.endSeason}` : `Still in Season ${report.endSeason}`,
+      '',
+      `Income  +$${formatNumber(report.income)}`,
+      `Prize money  +$${formatNumber(report.prizes)}`,
+      `Wages  -$${formatNumber(report.wages)}`,
+      `Net  ${net >= 0 ? '+' : '-'}$${formatNumber(Math.abs(net))}`,
+    ];
+    const { flop, solid, big } = report.devResults;
+    if (flop + solid + big > 0) lines.push('', `Development: ${big} breakthrough, ${solid} solid, ${flop} flop`);
+    if (report.quits.length > 0) lines.push('', `${report.quits.join(' & ')} quit: unpaid wages`);
+    c.add(addText(this, W / 2, 210, lines.join('\n'), 18, '#ffffff').setOrigin(0.5, 0).setAlign('center').setLineSpacing(10));
+    c.add(addText(this, W / 2, 590, 'Offline races use your race engineer only, and prize money is 15% lower than live play.', 12, '#9aa7d0').setOrigin(0.5, 0).setWordWrapWidth(W - 80).setAlign('center'));
+    addButton(this, 70, 650, W - 140, 56, 'COLLECT', () => {
+      applyOffline(this.state, report);
+      this.awayPending = null;
+      c.destroy();
+      this.startRace();
+      this.applyIdentity();
+      this.applyRating();
+      this.persist();
+    }, { fill: COLORS.green, size: 22, parent: c });
   }
 
   // Pushes the player's driver names and colour into the live race and strategy strip.
@@ -177,7 +225,7 @@ export class GameScene extends Phaser.Scene {
     this.state.teamName = name;
     this.state.teamNamed = true;
     this.teamText.setText(name.toUpperCase());
-    saveGame(this.state);
+    this.persist();
   }
 
   private drawHud() {
@@ -797,6 +845,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number) {
+    if (this.awayPending) return;
     // Clamp so a backgrounded tab doesn't teleport the cars or the money.
     const dt = Math.min(delta, 100) / 1000;
     const s = this.state;
