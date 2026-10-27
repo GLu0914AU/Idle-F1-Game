@@ -449,7 +449,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   // One row of controls per car: mode, next tyre compound, and the pit call.
+  private speedText!: Phaser.GameObjects.Text;
+
   private drawStrategyStrip() {
+    this.speedText = addText(this, 528, VIEW.y + VIEW.h - 2 * STRIP_H - 28, '1x', 13, '#9aa7d0').setOrigin(1, 0).setDepth(5);
     for (let i = 0; i < 2; i++) {
       const y = VIEW.y + VIEW.h - 2 * STRIP_H - 10 + i * (STRIP_H + 2);
       const s = () => this.strategies[i];
@@ -967,6 +970,7 @@ export class GameScene extends Phaser.Scene {
     const s = this.state;
     const scale = speedScale(s, this.race.cars.filter((c) => c.isPlayer).every((c) => c.dnf || c.finishTime !== null));
     s.boostSeconds = Math.max(0, s.boostSeconds - dt);
+    this.speedText.setText(`${scale}x`).setColor(scale > 1 ? '#ffd400' : '#9aa7d0');
 
     const eff = this.eff();
     const rating = carRating(eff);
