@@ -103,28 +103,41 @@ describe('race', () => {
     for (const c of race.cars.filter((x) => !x.isPlayer)) expect(c.pit).toBeUndefined();
   });
 
-  it('both player cars make one stop per call, entering independently', () => {
+  it('each player car follows its own strategy', () => {
     const race = createRace(config({ laps: 6 }));
-    const s = newStrategy();
-    s.wear = 0.8;
-    s.nextCompound = 'hard';
-    togglePitRequest(s);
-    const team = { strategy: s, pitCrew: 0 };
-    const players = race.cars.filter((c) => c.isPlayer);
-    expect(players.length).toBe(2);
-    let entries = 0;
+    const a = newStrategy();
+    const b = newStrategy();
+    a.wear = 0.8;
+    a.nextCompound = 'hard';
+    togglePitRequest(a);
+    const team = { strategies: [a, b] as [typeof a, typeof b], pitCrew: 0 };
+    const [c0, c1] = race.cars.filter((c) => c.isPlayer);
+    let entries = [0, 0];
     let was = [false, false];
     for (let i = 0; i < 100000 && !race.finished; i++) {
       stepRace(race, 0.5, 1, team);
-      players.forEach((c, k) => {
-        if (c.pit && !was[k]) entries++;
+      [c0, c1].forEach((c, k) => {
+        if (c.pit && !was[k]) entries[k]++;
         was[k] = !!c.pit;
       });
     }
-    expect(entries).toBe(2);
-    expect(s.pitRequested).toBe(false);
-    expect(s.compound).toBe('hard');
-    expect(s.wear).toBeLessThan(0.8);
+    expect(entries).toEqual([1, 0]);
+    expect(a.pitRequested).toBe(false);
+    expect(a.compound).toBe('hard');
+    expect(a.wear).toBeLessThan(0.8);
+    expect(b.compound).toBe('medium');
+  });
+
+  it('a push-mode car outpaces a conserve-mode car', () => {
+    const race = createRace(config({ laps: 3, playerRating: 50 }));
+    const push = newStrategy();
+    const save = newStrategy();
+    push.mode = 'push';
+    save.mode = 'conserve';
+    const team = { strategies: [push, save] as [typeof push, typeof save], pitCrew: 0 };
+    while (!race.finished) stepRace(race, 0.5, 1, team);
+    const t = (id: string) => race.cars.find((c) => c.id === id)!.finishTime!;
+    expect(t('player-0')).toBeLessThan(t('player-1'));
   });
 
   it('rivals get stronger in later seasons', () => {

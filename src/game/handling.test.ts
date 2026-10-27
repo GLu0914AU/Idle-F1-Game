@@ -45,7 +45,7 @@ describe('handling', () => {
     const run = (handling?: { topSpeed: number; cornering: number }) => {
       const race = createRace({ track: CALENDAR[0], laps: 3, season: 1, playerRating: 50, playerTeamName: 'T', seed: 7 });
       const s = newStrategy();
-      while (!race.finished) stepRace(race, 1, 1, { strategy: s, pitCrew: 0, handling });
+      while (!race.finished) stepRace(race, 1, 1, { strategies: [s, newStrategy()], pitCrew: 0, handling });
       return race.cars.find((c) => c.id === 'player-0')!.finishTime!;
     };
     expect(run({ topSpeed: 20, cornering: 20 })).toBeLessThan(run());

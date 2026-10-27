@@ -136,9 +136,15 @@ function stepNpcTyres(race: Race, car: Car, dt: number): number {
 }
 
 export interface PlayerTeam {
-  strategy: Strategy;
+  // One strategy per player car, in the same order as PLAYER_DRIVERS.
+  strategies: [Strategy, Strategy];
   pitCrew: number;
   handling?: Handling;
+}
+
+function strategyOf(car: Car, player?: PlayerTeam): Strategy | undefined {
+  if (!car.isPlayer) return car.tyres;
+  return player?.strategies[car.id === 'player-0' ? 0 : 1];
 }
 
 // Where a car in the pit lane is, as laps of progress along the route (entrance to exit).
@@ -146,22 +152,23 @@ export function pitProgress(pit: NonNullable<Car['pit']>): number {
   return pit.start + 2 * PIT_HALF_LENGTH * (1 - pit.remaining / pit.total);
 }
 
-// Advance the race by dt seconds. playerBoost multiplies the player cars' pace; player carries their pit crew.
+// Advance the race by dt seconds. playerBoost is an extra multiplier on the player cars' pace; player carries their strategies and pit crew.
 export function stepRace(race: Race, dt: number, playerBoost = 1, player?: PlayerTeam): void {
   if (race.finished) return;
   const { laps, baseLapTime = 90 } = race.config;
 
-  // Taps made during a stop shorten it for every player car in the lane.
-  if (player && player.strategy.pitTapCredit > 0) {
-    for (const car of race.cars) if (car.isPlayer && car.pit) car.pit.remaining -= player.strategy.pitTapCredit;
-    player.strategy.pitTapCredit = 0;
+  // Taps made during a stop shorten it for the car in the lane.
+  for (const car of race.cars) {
+    const s = car.isPlayer ? strategyOf(car, player) : undefined;
+    if (s && s.pitTapCredit > 0 && car.pit) car.pit.remaining -= s.pitTapCredit;
   }
+  player?.strategies.forEach((s) => (s.pitTapCredit = 0));
 
   for (const car of race.cars) {
     if (car.finishTime !== null) continue;
-    const s = car.isPlayer ? player?.strategy : car.tyres;
+    const s = strategyOf(car, player);
     const crew = car.isPlayer ? (player?.pitCrew ?? 0) : 0;
-    const boost = car.isPlayer ? playerBoost : stepNpcTyres(race, car, dt);
+    const boost = car.isPlayer ? playerBoost * (s ? paceFactor(s) : 1) : stepNpcTyres(race, car, dt);
     const before = car.progress;
 
     if (car.pit) {
@@ -209,7 +216,7 @@ export function stepRace(race: Race, dt: number, playerBoost = 1, player?: Playe
   // Team-level pit state: the call is done once every car has made its stop.
   const teams = new Map<Strategy, Car[]>();
   for (const car of race.cars) {
-    const s = car.isPlayer ? player?.strategy : car.tyres;
+    const s = strategyOf(car, player);
     if (s) teams.set(s, [...(teams.get(s) ?? []), car]);
   }
   for (const [s, cars] of teams) {

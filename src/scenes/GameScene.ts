@@ -25,7 +25,6 @@ import {
   cycleMode,
   isPitting,
   newStrategy,
-  paceFactor,
   selectCompound,
   setMode,
   stepStrategy,
@@ -33,13 +32,15 @@ import {
   togglePitRequest,
 } from '../game/strategy';
 import { offlineEarnings } from '../game/offline';
+import { PLAYER_COLOR } from '../game/teams';
 import { Point, Track, pointAt } from '../game/track';
 import { pickTrack } from '../game/tracks';
 import { PanelHost, BOOST_SECONDS, TABS } from '../ui/panels';
 import { askTeamName } from '../ui/teamName';
 import { Button, COLORS, W, addBox, addButton, addText } from '../ui/widgets';
 
-const VIEW = { y: 70, h: 580, padX: 90, padTop: 30, padBottom: 56 };
+const VIEW = { y: 70, h: 580, padX: 90, padTop: 30, padBottom: 80 };
+const STRIP_H = 30;
 const RACE_LAPS = 5;
 // Game seconds per real second; ~90s laps would be too slow to watch.
 const RACE_SPEED = 6;
@@ -57,7 +58,7 @@ const COMPOUND_LETTERS: Record<Compound, string> = { soft: 'S', medium: 'M', har
 export class GameScene extends Phaser.Scene {
   private state!: GameState;
   private race!: Race;
-  private strategy: Strategy = newStrategy();
+  private strategies: [Strategy, Strategy] = [newStrategy(), newStrategy()];
   private track: Track = pickTrack();
   private panels!: PanelHost;
 
@@ -81,9 +82,9 @@ export class GameScene extends Phaser.Scene {
   private towerRows: Phaser.GameObjects.Text[] = [];
   private tabHighlight!: Phaser.GameObjects.Rectangle;
   private cards: { def: UpgradeDef; level: Phaser.GameObjects.Text; button: Button }[] = [];
-  private modeBtn!: Button;
-  private tyreBtns: Partial<Record<Compound, Button>> = {};
-  private pitBtn!: Button;
+  private modeBtns: Button[] = [];
+  private tyreBtns: Partial<Record<Compound, Button>>[] = [{}, {}];
+  private pitBtns: Button[] = [];
   private speedBtn!: Button;
   private autoBtn!: Button;
 
@@ -163,7 +164,7 @@ export class GameScene extends Phaser.Scene {
     this.lapText = addText(this, W - 12, VIEW.y + 8, '', 14, '#9aa7d0').setOrigin(1, 0);
     this.towerRows = Array.from({ length: 20 }, (_, i) => addText(this, 8, VIEW.y + 6 + i * 17, '', 11));
     addText(this, W - 140, VIEW.y + 30, 'TYRES', 10, '#9aa7d0');
-    addText(this, W - 140, VIEW.y + 58, 'BOOST', 10, '#9aa7d0');
+    addText(this, W - 140, VIEW.y + 66, 'BOOST', 10, '#9aa7d0');
     this.compoundText = addText(this, W - 12, VIEW.y + 30, '', 10, '#9aa7d0').setOrigin(1, 0);
 
     // The whole track view is a tap target; buttons added later sit on top of it.
@@ -212,21 +213,33 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onTap(x: number, y: number) {
-    tap(this.strategy, this.eff().tapPower ?? 0);
+    this.tapBoth();
     const ring = this.add.circle(x, y, 8, 0xffffff, 0.35);
     this.tweens.add({ targets: ring, scale: 3, alpha: 0, duration: 300, onComplete: () => ring.destroy() });
   }
 
+  // A tap charges both cars' boost, or speeds up whichever of them is in the pits.
+  private tapBoth() {
+    const power = this.eff().tapPower ?? 0;
+    for (const s of this.strategies) tap(s, power);
+  }
+
+  // One row of controls per car: mode, next tyre compound, and the pit call.
   private drawStrategyStrip() {
-    const y = VIEW.y + VIEW.h - 40;
-    this.modeBtn = addButton(this, 10, y, 150, 34, '', () => cycleMode(this.strategy), { fill: 0x1d2745 });
-    COMPOUNDS.forEach((c, i) => {
-      this.tyreBtns[c] = addButton(this, 170 + i * 52, y, 48, 34, COMPOUND_LETTERS[c], () => selectCompound(this.strategy, c), {
-        fill: COMPOUND_COLORS[c],
-        size: 18,
+    for (let i = 0; i < 2; i++) {
+      const y = VIEW.y + VIEW.h - 2 * STRIP_H - 10 + i * (STRIP_H + 2);
+      const s = () => this.strategies[i];
+      addBox(this, 10, y, 22, STRIP_H - 2, PLAYER_COLOR);
+      addText(this, 21, y + (STRIP_H - 2) / 2, String(i + 1), 14, '#0b1020').setOrigin(0.5);
+      this.modeBtns[i] = addButton(this, 36, y, 112, STRIP_H - 2, '', () => cycleMode(s()), { fill: 0x1d2745, size: 12 });
+      COMPOUNDS.forEach((c, k) => {
+        this.tyreBtns[i][c] = addButton(this, 152 + k * 42, y, 38, STRIP_H - 2, COMPOUND_LETTERS[c], () => selectCompound(s(), c), {
+          fill: COMPOUND_COLORS[c],
+          size: 15,
+        });
       });
-    });
-    this.pitBtn = addButton(this, 330, y, 200, 34, 'PIT', () => togglePitRequest(this.strategy), { fill: 0xb8321f });
+      this.pitBtns[i] = addButton(this, 282, y, 248, STRIP_H - 2, 'PIT', () => togglePitRequest(s()), { fill: 0xb8321f, size: 12 });
+    }
   }
 
   private startRace() {
@@ -240,7 +253,7 @@ export class GameScene extends Phaser.Scene {
       playerTeamName: this.state.teamName,
       seed: Date.now() & 0x7fffffff,
     });
-    this.strategy = newStrategy(this.strategy);
+    this.strategies = [newStrategy(this.strategies[0]), newStrategy(this.strategies[1])];
     this.restartAt = 0;
     this.paid = false;
     this.banner?.setVisible(false);
@@ -284,7 +297,7 @@ export class GameScene extends Phaser.Scene {
     }
     order.forEach((car, i) => {
       const row = this.towerRows[i];
-      const compound = car.isPlayer ? this.strategy.compound : car.tyres?.compound;
+      const compound = car.isPlayer ? this.strategies[car.id === 'player-0' ? 0 : 1].compound : car.tyres?.compound;
       const tyre = compound ? COMPOUND_LETTERS[compound] : ' ';
       row.setText(`${String(i + 1).padStart(2)} ${tyre} ${car.isPlayer ? car.driver : car.driver.split(' ').pop()?.slice(0, 10)}`);
       row.setColor(car.isPlayer ? '#ffd400' : '#cfd6ee');
@@ -294,32 +307,34 @@ export class GameScene extends Phaser.Scene {
   }
 
   private renderStrategy() {
-    const s = this.strategy;
-    const bar = (y: number, value: number, color: number) => {
-      this.barGfx.fillStyle(0x1d2745).fillRect(W - 140, y, 128, 8);
-      this.barGfx.fillStyle(color).fillRect(W - 140, y, 128 * value, 8);
+    const bar = (y: number, h: number, value: number, color: number) => {
+      this.barGfx.fillStyle(0x1d2745).fillRect(W - 140, y, 128, h);
+      this.barGfx.fillStyle(color).fillRect(W - 140, y, 128 * value, h);
     };
     this.barGfx.clear();
-    bar(VIEW.y + 44, 1 - s.wear, s.wear > 0.7 ? 0xe03b2c : s.wear > 0.4 ? 0xe0b02c : 0x2cc07a);
-    bar(VIEW.y + 72, s.boost, 0x2f6bff);
-    this.compoundText.setText(s.compound.toUpperCase());
+    this.strategies.forEach((s, i) => bar(VIEW.y + 44 + i * 9, 6, 1 - s.wear, s.wear > 0.7 ? 0xe03b2c : s.wear > 0.4 ? 0xe0b02c : 0x2cc07a));
+    bar(VIEW.y + 78, 8, Math.max(...this.strategies.map((s) => s.boost)), 0x2f6bff);
+    this.compoundText.setText(this.strategies.map((s) => s.compound[0].toUpperCase()).join(' '));
 
-    this.modeBtn.setLabel(`MODE: ${s.mode.toUpperCase()}${s.modeCooldown > 0 ? ` (${Math.ceil(s.modeCooldown / RACE_SPEED)}s)` : ''}`);
-    this.modeBtn.setState(s.modeCooldown <= 0, 0x1d2745);
-    COMPOUNDS.forEach((c) => {
-      const btn = this.tyreBtns[c];
-      if (!btn) return;
-      btn.rect.setStrokeStyle(c === s.nextCompound ? 4 : 2, c === s.nextCompound ? 0xffffff : COLORS.border);
-      btn.label.setColor('#0b1020');
+    this.strategies.forEach((s, i) => {
+      this.modeBtns[i].setLabel(`${s.mode.toUpperCase()}${s.modeCooldown > 0 ? ` (${Math.ceil(s.modeCooldown / RACE_SPEED)}s)` : ''}`);
+      this.modeBtns[i].setState(s.modeCooldown <= 0, 0x1d2745);
+      COMPOUNDS.forEach((c) => {
+        const btn = this.tyreBtns[i][c];
+        if (!btn) return;
+        btn.rect.setStrokeStyle(c === s.nextCompound ? 4 : 2, c === s.nextCompound ? 0xffffff : COLORS.border);
+        btn.label.setColor('#0b1020');
+      });
+      const pit = this.pitBtns[i];
+      if (isPitting(s)) {
+        pit.setLabel(`IN PITS: TAP! ${(s.pitRemaining / RACE_SPEED).toFixed(1)}s`);
+      } else if (s.pitRequested) {
+        pit.setLabel(`BOX THIS LAP: ${s.nextCompound.toUpperCase()} (cancel)`);
+      } else {
+        pit.setLabel('PIT NEXT LAP');
+      }
+      pit.setState(!isPitting(s) && !this.race.finished, s.pitRequested ? 0xe08a1f : 0xb8321f);
     });
-    if (isPitting(s)) {
-      this.pitBtn.setLabel(`IN PITS: TAP! ${(s.pitRemaining / RACE_SPEED).toFixed(1)}s`);
-    } else if (s.pitRequested) {
-      this.pitBtn.setLabel(`BOX THIS LAP: ${s.nextCompound.toUpperCase()} (cancel)`);
-    } else {
-      this.pitBtn.setLabel('PIT NEXT LAP');
-    }
-    this.pitBtn.setState(!isPitting(s) && !this.race.finished, s.pitRequested ? 0xe08a1f : 0xb8321f);
   }
 
   private drawStats() {
@@ -471,17 +486,19 @@ export class GameScene extends Phaser.Scene {
       this.autoTapTimer += dt;
       while (this.autoTapTimer >= 0.4) {
         this.autoTapTimer -= 0.4;
-        tap(this.strategy, this.eff().tapPower ?? 0);
+        this.tapBoth();
       }
     }
     if (s.autoStrategy && !this.race.finished) {
-      const lead = Math.max(...this.race.cars.filter((c) => c.isPlayer).map((c) => c.progress));
-      if (shouldAutoPit(this.strategy, lead, RACE_LAPS)) {
-        selectCompound(this.strategy, autoCompound(lead, RACE_LAPS));
-        togglePitRequest(this.strategy);
-      }
-      if (this.strategy.wear < 0.35 && this.strategy.mode !== 'push') setMode(this.strategy, 'push');
-      else if (this.strategy.wear > 0.6 && this.strategy.mode === 'push') setMode(this.strategy, 'normal');
+      this.strategies.forEach((st, i) => {
+        const car = this.race.cars.find((c) => c.id === `player-${i}`)!;
+        if (shouldAutoPit(st, car.progress, RACE_LAPS)) {
+          selectCompound(st, autoCompound(car.progress, RACE_LAPS));
+          togglePitRequest(st);
+        }
+        if (st.wear < 0.35 && st.mode !== 'push') setMode(st, 'push');
+        else if (st.wear > 0.6 && st.mode === 'push') setMode(st, 'normal');
+      });
     }
   }
 
@@ -498,15 +515,16 @@ export class GameScene extends Phaser.Scene {
 
     this.runAutos(dt);
     const gameDt = dt * RACE_SPEED * scale;
-    stepStrategy(this.strategy, gameDt, {
+    const levels = {
       tapPower: eff.tapPower ?? 0,
       pitCrew: eff.pitCrew ?? 0,
       tyres: eff.tyres ?? 0,
       tyreScience: eff.tyreScience ?? 0,
       energyRecovery: eff.energyRecovery ?? 0,
-    });
-    stepRace(this.race, gameDt, paceFactor(this.strategy), {
-      strategy: this.strategy,
+    };
+    for (const st of this.strategies) stepStrategy(st, gameDt, levels);
+    stepRace(this.race, gameDt, 1, {
+      strategies: this.strategies,
       pitCrew: eff.pitCrew ?? 0,
       handling: { topSpeed: eff.topSpeed ?? 0, cornering: eff.cornering ?? 0 },
     });
