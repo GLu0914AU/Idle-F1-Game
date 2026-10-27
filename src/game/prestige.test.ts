@@ -7,7 +7,9 @@ import {
   buyResearch,
   canPrestige,
   effectiveUpgrades,
+  pickAutoResearch,
   prestige,
+  researchCost,
   researchPointsFor,
 } from './prestige';
 import { newGame } from './save';
@@ -67,6 +69,17 @@ describe('prestige', () => {
     expect(effectiveUpgrades(s).engine).toBe(FREE_LEVELS_PER_RESEARCH);
     expect(carRating(effectiveUpgrades(s))).toBeGreaterThan(base);
     expect(s.upgrades.engine).toBe(0);
+  });
+
+  it('auto research picks the cheapest affordable upgrade', () => {
+    const s = newGame();
+    expect(pickAutoResearch(s)).toBeNull();
+    s.researchPoints = 1000;
+    const def = pickAutoResearch(s)!;
+    const cheapest = Math.min(...RESEARCH_DEFS.map((d) => researchCost(d, 0)));
+    expect(researchCost(def, 0)).toBe(cheapest);
+    s.researchPoints = cheapest - 1;
+    expect(pickAutoResearch(s)).toBeNull();
   });
 
   it('R&D stats come only from research points, never from money-bought levels', () => {

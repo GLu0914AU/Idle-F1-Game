@@ -68,6 +68,7 @@ export class PanelHost {
     info: Phaser.GameObjects.Text;
     button: Button;
     rows: { def: ResearchDef; level: Phaser.GameObjects.Text; button: Button }[];
+    auto: Button;
   };
   private prestigeArmedUntil = 0;
   private shop!: {
@@ -346,7 +347,20 @@ export class PanelHost {
       },
       { fill: COLORS.green, size: 16, parent: c },
     );
-    addText(this.scene, 30, 214, 'R&D: permanent, bought with research points', 14, '#ffffff', c);
+    addText(this.scene, 30, 214, 'R&D: bought with research points', 14, '#ffffff', c);
+    const auto = addButton(
+      this.scene,
+      W - 150,
+      211,
+      120,
+      24,
+      '',
+      () => {
+        const s = this.state();
+        if (s.autoUnlocked) s.autoResearch = !s.autoResearch;
+      },
+      { size: 12, parent: c },
+    );
     const rows = RESEARCH_DEFS.map((def, i) => {
       const y = 238 + i * 47;
       addBox(this.scene, 20, y, W - 40, 43, COLORS.panel, c);
@@ -366,7 +380,7 @@ export class PanelHost {
       );
       return { def, level, button };
     });
-    this.prestige = { info, button, rows };
+    this.prestige = { info, button, rows, auto };
   }
 
   private buildShop() {
@@ -454,6 +468,8 @@ export class PanelHost {
       const armed = this.scene.time.now < this.prestigeArmedUntil;
       p.button.setLabel(armed ? 'TAP AGAIN TO CONFIRM' : rp > 0 ? `PRESTIGE: +${rp} RP` : 'PRESTIGE LOCKED');
       p.button.setState(rp > 0, armed ? COLORS.accent : COLORS.green);
+      p.auto.setLabel(s.autoUnlocked ? `AUTO BUY ${s.autoResearch ? 'ON' : 'OFF'}` : 'AUTO BUY');
+      p.auto.setState(s.autoUnlocked, s.autoUnlocked && s.autoResearch ? COLORS.green : COLORS.bg);
       for (const { def, level, button } of p.rows) {
         const lv = s.research[def.key] ?? 0;
         const cost = researchCost(def, lv);

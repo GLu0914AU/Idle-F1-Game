@@ -13,7 +13,7 @@ import {
 } from '../game/economy';
 import { showRewardedAd } from '../game/monetization';
 import { Race, createRace, standings, stepRace } from '../game/race';
-import { canPrestige, effectiveUpgrades, prestige, researchPointsFor } from '../game/prestige';
+import { buyResearch, canPrestige, effectiveUpgrades, pickAutoResearch, prestige, researchPointsFor } from '../game/prestige';
 import { sponsorIncome } from '../game/sponsors';
 import { GameState, loadGame, saveGame } from '../game/save';
 import { RACES_PER_SEASON, advanceSeason, awardPoints, driversTable } from '../game/season';
@@ -635,6 +635,10 @@ export class GameScene extends Phaser.Scene {
         const def = pickAutoBuy(s.money, s.upgrades);
         if (def && buyUpgrade(s, def)) this.applyRating();
       }
+    }
+    if (s.autoResearch) {
+      const def = pickAutoResearch(s);
+      if (def && buyResearch(s, def)) this.applyRating();
     }
     if (s.autoTap) {
       this.autoTapTimer += dt;

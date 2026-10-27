@@ -55,6 +55,20 @@ export function buyResearch(state: Pick<GameState, 'researchPoints' | 'research'
   return true;
 }
 
+// The cheapest R&D upgrade the player can currently afford, if any.
+export function pickAutoResearch(state: Pick<GameState, 'researchPoints' | 'research'>): ResearchDef | null {
+  let best: ResearchDef | null = null;
+  let bestCost = Infinity;
+  for (const def of RESEARCH_DEFS) {
+    const cost = researchCost(def, state.research[def.key] ?? 0);
+    if (cost <= state.researchPoints && cost < bestCost) {
+      best = def;
+      bestCost = cost;
+    }
+  }
+  return best;
+}
+
 const CAR_KEYS = new Set(UPGRADE_DEFS.map((d) => d.key));
 
 // Money-bought car levels plus levels from research. Use this for everything the levels affect.

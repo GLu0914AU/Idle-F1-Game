@@ -18,6 +18,8 @@ export interface GameState {
   autoBuy: boolean;
   autoStrategy: boolean;
   autoTap: boolean;
+  // Auto Buy for R&D (research points); part of the Auto unlock.
+  autoResearch: boolean;
   // Real seconds of 2x speed remaining.
   boostSeconds: number;
   // Multiplies all income and prizes.
@@ -66,6 +68,7 @@ export function newGame(now = Date.now()): GameState {
     autoBuy: false,
     autoStrategy: false,
     autoTap: false,
+    autoResearch: false,
     boostSeconds: 0,
     sponsors: 1,
     lastSavedAt: now,
