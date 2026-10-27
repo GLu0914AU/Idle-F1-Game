@@ -1,7 +1,13 @@
 import Phaser from 'phaser';
+import { Race, createRace, ratingFromUpgrades, standings, stepRace } from '../game/race';
 import { GameState, loadGame, saveGame } from '../game/save';
+import { DEFAULT_TRACK, Point, pointAt } from '../game/track';
 
 const W = 540;
+const VIEW = { y: 70, h: 400, padX: 90, padY: 30 };
+const RACE_LAPS = 5;
+// Game seconds per real second; ~90s laps would be too slow to watch.
+const RACE_SPEED = 6;
 const COLORS = { bg: 0x0b1020, panel: 0x151c33, border: 0x2a3558, accent: 0x2f6bff };
 const UPGRADES: [string, string][] = [
   ['engine', 'Engine'],
@@ -16,6 +22,11 @@ const TABS = ['Race', 'Team', 'Standings', 'R&D', 'Shop'];
 export class RaceScene extends Phaser.Scene {
   private state!: GameState;
   private moneyText!: Phaser.GameObjects.Text;
+  private race!: Race;
+  private carGfx!: Phaser.GameObjects.Graphics;
+  private towerRows: Phaser.GameObjects.Text[] = [];
+  private lapText!: Phaser.GameObjects.Text;
+  private restartAt = 0;
 
   constructor() {
     super('Race');
@@ -50,13 +61,52 @@ export class RaceScene extends Phaser.Scene {
   }
 
   private drawTrack() {
-    this.box(0, 70, W, 400, 0x070a14);
+    this.box(0, VIEW.y, W, VIEW.h, 0x070a14);
     const g = this.add.graphics();
-    g.lineStyle(14, 0x3a4468);
-    g.strokeEllipse(W / 2, 270, 380, 260);
-    g.lineStyle(2, 0xffffff);
-    g.strokeEllipse(W / 2, 270, 380, 260);
-    this.text(W / 2, 270, 'Track view', 20, '#5b6894').setOrigin(0.5);
+    const pts = DEFAULT_TRACK.points.map((p) => new Phaser.Math.Vector2(this.toView(p).x, this.toView(p).y));
+    g.lineStyle(16, 0x3a4468).strokePoints(pts, true, true);
+    g.lineStyle(2, 0x6b78a8).strokePoints(pts, true, true);
+
+    this.carGfx = this.add.graphics();
+    this.towerRows = [];
+    for (let i = 0; i < 20; i++) {
+      this.towerRows.push(this.text(8, VIEW.y + 6 + i * 17, '', 11));
+    }
+    this.lapText = this.text(W - 12, VIEW.y + 8, '', 14, '#9aa7d0').setOrigin(1, 0);
+    this.startRace();
+  }
+
+  private toView(p: Point): Point {
+    return { x: VIEW.padX + p.x * (W - VIEW.padX * 2), y: VIEW.y + VIEW.padY + p.y * (VIEW.h - VIEW.padY * 2) };
+  }
+
+  private startRace() {
+    this.race = createRace({
+      track: DEFAULT_TRACK,
+      laps: RACE_LAPS,
+      season: this.state.season,
+      playerRating: ratingFromUpgrades(this.state.upgrades),
+      playerTeamName: this.state.teamName,
+      seed: Date.now() & 0x7fffffff,
+    });
+    this.restartAt = 0;
+  }
+
+  private renderRace() {
+    const order = standings(this.race);
+    this.carGfx.clear();
+    for (const car of [...this.race.cars].reverse()) {
+      const p = this.toView(pointAt(DEFAULT_TRACK, car.progress * DEFAULT_TRACK.length));
+      this.carGfx.fillStyle(car.color).fillCircle(p.x, p.y, car.isPlayer ? 7 : 5);
+      if (car.isPlayer) this.carGfx.lineStyle(2, 0xffffff).strokeCircle(p.x, p.y, 8);
+    }
+    order.forEach((car, i) => {
+      const row = this.towerRows[i];
+      row.setText(`${String(i + 1).padStart(2)} ${car.isPlayer ? car.driver : car.driver.split(' ').pop()?.slice(0, 10)}`);
+      row.setColor(car.isPlayer ? '#ffd400' : '#cfd6ee');
+    });
+    const lap = Math.min(RACE_LAPS, Math.floor(order[0].progress) + 1);
+    this.lapText.setText(this.race.finished ? 'FINISHED' : `Lap ${lap}/${RACE_LAPS}`);
   }
 
   private drawStats() {
@@ -89,7 +139,14 @@ export class RaceScene extends Phaser.Scene {
     });
   }
 
-  update() {
+  update(_time: number, delta: number) {
     this.moneyText.setText(`$ ${Math.floor(this.state.money)}`);
+    // Clamp so a backgrounded tab doesn't teleport the cars.
+    stepRace(this.race, Math.min(delta, 100) / 1000 * RACE_SPEED);
+    this.renderRace();
+    if (this.race.finished) {
+      this.restartAt += delta;
+      if (this.restartAt > 3000) this.startRace();
+    }
   }
 }
