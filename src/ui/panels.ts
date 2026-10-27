@@ -685,7 +685,7 @@ export class PanelHost {
     addButton(this.scene, W - 160, 138, 128, 38, 'RENAME', () => this.hooks.rename(), { size: 14, parent: c });
 
     addText(this.scene, 30, 202, 'CAREER', 13, '#9aa7d0', c);
-    const labels = ['Season', 'Best season', 'Prestiges', 'Races won', "Drivers' titles", "Constructors' titles", 'Fans', 'Daily streak'];
+    const labels = ['Season', 'Best season', 'Prestiges', 'Races won', "Drivers' titles", "Constructors' titles", 'Fans', 'Achievements', 'Daily streak'];
     const cell = (W - 68) / 3;
     const stats = labels.map((label, i) => {
       const x = 30 + (i % 3) * (cell + 4);
@@ -763,6 +763,7 @@ export class PanelHost {
     const u = this.profileUi;
     u.name.setText(s.teamName);
     u.chip.setFillStyle(s.teamColor);
+    const claimed = ACHIEVEMENTS.filter((a) => achievementClaimed(s, a)).length;
     const values = [
       s.season,
       Math.max(s.season, s.bestSeason),
@@ -771,6 +772,7 @@ export class PanelHost {
       s.stats.wdc,
       s.stats.wcc,
       formatNumber(fansFor(s.stats)),
+      claimed,
       streakCount(s),
     ];
     u.stats.forEach((st, i) => st.value.setText(String(values[i])));
