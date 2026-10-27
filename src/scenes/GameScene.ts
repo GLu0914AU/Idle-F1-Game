@@ -37,7 +37,7 @@ import { PanelHost, BOOST_SECONDS, TABS } from '../ui/panels';
 import { askTeamName } from '../ui/teamName';
 import { Button, COLORS, W, addBox, addButton, addText } from '../ui/widgets';
 
-const VIEW = { y: 70, h: 400, padX: 90, padY: 30 };
+const VIEW = { y: 70, h: 580, padX: 90, padTop: 30, padBottom: 56 };
 const RACE_LAPS = 5;
 // Game seconds per real second; ~90s laps would be too slow to watch.
 const RACE_SPEED = 6;
@@ -134,7 +134,7 @@ export class GameScene extends Phaser.Scene {
 
   private toView(p: Point): Point {
     const areaW = W - VIEW.padX * 2;
-    const areaH = VIEW.h - VIEW.padY * 2;
+    const areaH = VIEW.h - VIEW.padTop - VIEW.padBottom;
     const aspect = this.track.aspect;
     let w = areaW;
     let h = areaH;
@@ -142,7 +142,7 @@ export class GameScene extends Phaser.Scene {
       w = Math.min(areaW, areaH * aspect);
       h = w / aspect;
     }
-    return { x: VIEW.padX + (areaW - w) / 2 + p.x * w, y: VIEW.y + VIEW.padY + (areaH - h) / 2 + p.y * h };
+    return { x: VIEW.padX + (areaW - w) / 2 + p.x * w, y: VIEW.y + VIEW.padTop + (areaH - h) / 2 + p.y * h };
   }
 
   private drawTrack() {
@@ -294,13 +294,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawStats() {
-    this.incomeText = addText(this, 16, 486, '', 18);
+    const y = VIEW.y + VIEW.h + 6;
+    this.incomeText = addText(this, 16, y + 8, '', 16);
     this.speedBtn = addButton(
       this,
       300,
-      478,
+      y,
       110,
-      44,
+      34,
       '',
       async () => {
         if (this.state.boostSeconds <= 0 && (await showRewardedAd())) this.state.boostSeconds += BOOST_SECONDS;
@@ -310,9 +311,9 @@ export class GameScene extends Phaser.Scene {
     this.autoBtn = addButton(
       this,
       420,
-      478,
+      y,
       110,
-      44,
+      34,
       '',
       () => {
         if (this.state.autoUnlocked) this.state.autoBuy = !this.state.autoBuy;
@@ -323,15 +324,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawUpgrades() {
+    const top = VIEW.y + VIEW.h + 48;
     this.cards = UPGRADE_DEFS.map((def, i) => {
-      const x = 12 + (i % 2) * 264;
-      const y = 540 + Math.floor(i / 2) * 106;
-      addBox(this, x, y, 252, 96);
-      addText(this, x + 12, y + 10, def.name, 18);
-      const level = addText(this, x + 12, y + 38, '', 14, '#9aa7d0');
-      const button = addButton(this, x + 12, y + 62, 228, 26, '', () => {
+      const x = 12 + (i % 3) * 176;
+      const y = top + Math.floor(i / 3) * 80;
+      addBox(this, x, y, 168, 74);
+      addText(this, x + 10, y + 6, def.name, 16);
+      const level = addText(this, x + 10, y + 27, '', 12, '#9aa7d0');
+      const button = addButton(this, x + 10, y + 46, 148, 22, '', () => {
         if (buyUpgrade(this.state, def)) this.applyRating();
-      });
+      }, { size: 12 });
       return { def, level, button };
     });
   }
@@ -352,7 +354,7 @@ export class GameScene extends Phaser.Scene {
       const lv = s.upgrades[def.key] ?? 0;
       const price = upgradeCost(def, lv);
       level.setText(`Lv ${lv} · +${def.ratingPerLevel} rating`);
-      button.setLabel(`UPGRADE  $${formatNumber(price)}`);
+      button.setLabel(`$${formatNumber(price)}`);
       button.setState(s.money >= price);
     }
     this.speedBtn.setLabel(s.boostSeconds > 0 ? `2X  ${Math.ceil(s.boostSeconds)}s` : '2X SPEED');
