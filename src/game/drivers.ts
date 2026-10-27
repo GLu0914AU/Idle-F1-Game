@@ -32,7 +32,8 @@ export type DriverState = Pick<GameState, 'clout' | 'season' | 'drivers' | 'driv
 export const MAX_TRAIT = 10;
 export const MAX_SKILL = 25;
 export const DRIVER_MEETING_CLOUT = 2;
-const SALARY_SHARE = 6;
+// A season's salary comes to this many winner's prizes. A season has ten races, so this is cheaper than the old per-race wage overall.
+const SALARY_SHARE = 18;
 const SECRET_MIN = 0.3;
 const SECRET_MAX = 1.7;
 const HINT_SPREAD = 0.5;
@@ -149,7 +150,7 @@ export const NAMES = [
   'Jerome d\'Ambrosio-Ambrosia',
 ];
 
-// What a typical driver asks per race: a slice of a winner's prize, so it grows with the season.
+// What a typical driver asks per season: a slice of a winner's prize, so it grows with the season.
 export const salaryMarket = (season: number) => Math.max(1, Math.round(prize(1, season) * SALARY_SHARE));
 
 export const payroll = (state: Pick<GameState, 'drivers'>) => state.drivers.reduce((sum, d) => sum + d.salary, 0);
@@ -202,7 +203,7 @@ export function endDriverMeeting(state: Pick<GameState, 'driverMeeting'>): void 
   state.driverMeeting = null;
 }
 
-// Takes every salary after a race. A driver the team can't pay walks out and is replaced by a free rookie.
+// Takes every salary at the end of a season. A driver the team can't pay walks out and is replaced by a free rookie.
 export function payDrivers(state: DriverState): { paid: number; quit: string[] } {
   let paid = 0;
   const quit: string[] = [];

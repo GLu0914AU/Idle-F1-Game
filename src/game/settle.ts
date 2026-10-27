@@ -28,9 +28,6 @@ export function settleRace(state: GameState, order: Car[], rng: () => number = M
   const positions = order.flatMap((c, i) => (c.isPlayer ? [i + 1] : []));
   const payout = racePayout(positions, state.season, sponsorMultiplier(state));
   state.money += payout;
-  const wages = payDrivers(state);
-  const engineerWage = payEngineer(state);
-  const staffWage = payStaff(state);
   awardPoints(state, order);
   recordRace(state, order[0].isPlayer);
   const development = tickDevelopment(state, rng);
@@ -43,5 +40,11 @@ export function settleRace(state: GameState, order: Car[], rng: () => number = M
     sponsorCash = sponsorIncome(state);
     state.money += sponsorCash;
   }
+  // Salaries are due once a season, after its final race.
+  const none = { paid: 0, quit: [] as string[] };
+  const seasonOver = outcome.type !== 'next-race';
+  const wages = seasonOver ? payDrivers(state) : none;
+  const engineerWage = seasonOver ? payEngineer(state) : none;
+  const staffWage = seasonOver ? payStaff(state) : none;
   return { positions, payout, wagesPaid: wages.paid + engineerWage.paid + staffWage.paid, quit: [...wages.quit, ...engineerWage.quit, ...staffWage.quit], outcome, sponsorCash, development };
 }

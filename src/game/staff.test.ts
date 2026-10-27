@@ -3,7 +3,7 @@ import { developmentOdds, packageDef, teamQuality } from './development';
 import { createRace, mulberry32, stepRace } from './race';
 import { newGame, loadGame, saveGame } from './save';
 import { settleRace } from './settle';
-import { MAX_STAFF_STAT, STAFF_MEETING_CLOUT, STAFF_ROLES, StaffRole, endStaffMeeting, offerStaffContract, payStaff, requestStaffMeeting, staffEffects } from './staff';
+import { MAX_STAFF_STAT, STAFF_MEETING_CLOUT, STAFF_ROLES, StaffRole, endStaffMeeting, offerStaffContract, payStaff, payrollReserve, requestStaffMeeting, staffEffects } from './staff';
 import { newStrategy, stepStrategy } from './strategy';
 
 const hire = (state: ReturnType<typeof newGame>, role: StaffRole, stats: Record<string, number>, salary = 100) => {
@@ -77,14 +77,29 @@ describe('staff wages', () => {
     expect(r.quit).toEqual(['Test']);
   });
 
-  it('is taken in settleRace', () => {
+  it('is taken in settleRace only after the final race of a season', () => {
+    const run = (race: number) => {
+      const s = newGame();
+      hire(s, 'wind', { insight: 50 }, 10);
+      s.money = 1000;
+      s.race = race;
+      const r = createRace({ season: 1, seed: 5, laps: 1 } as never);
+      stepRace(r, 100000, 1);
+      return settleRace(s, r.cars.slice().sort((a, b) => b.progress - a.progress), mulberry32(1));
+    };
+    expect(run(3).wagesPaid).toBe(0);
+    expect(run(10).wagesPaid).toBeGreaterThanOrEqual(10);
+  });
+
+  it('builds the Auto Buy reserve up across the season', () => {
     const s = newGame();
-    hire(s, 'wind', { insight: 50 }, 10);
-    s.money = 1000;
-    const race = createRace({ season: 1, seed: 5, laps: 1 } as never);
-    stepRace(race, 100000, 1);
-    const result = settleRace(s, race.cars.slice().sort((a, b) => b.progress - a.progress), mulberry32(1));
-    expect(result.wagesPaid).toBeGreaterThanOrEqual(10);
+    hire(s, 'wind', { insight: 50 }, 1000);
+    s.race = 1;
+    expect(payrollReserve(s)).toBe(100);
+    s.race = 5;
+    expect(payrollReserve(s)).toBe(500);
+    s.race = 10;
+    expect(payrollReserve(s)).toBe(1000);
   });
 });
 

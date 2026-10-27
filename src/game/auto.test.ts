@@ -4,7 +4,7 @@ import { upgradeCost, UPGRADE_DEFS, buyUpgrade } from './economy';
 import { payDrivers, rookie } from './drivers';
 import { payEngineer } from './engineers';
 import { newGame } from './save';
-import { payStaff, totalPayroll } from './staff';
+import { payStaff, payrollReserve, totalPayroll } from './staff';
 import { newStrategy, selectCompound } from './strategy';
 
 describe('auto', () => {
@@ -60,8 +60,9 @@ describe('auto', () => {
     s.staff.pit = { name: 'P', stats: { speed: 50, precision: 50 }, salary: 200 };
     expect(totalPayroll(s)).toBe(2300);
     s.money = 1e7;
+    s.race = 10;
     for (let i = 0; i < 500; i++) {
-      const def = pickAutoBuy(s.money, s.upgrades, totalPayroll(s));
+      const def = pickAutoBuy(s.money, s.upgrades, payrollReserve(s));
       if (!def || !buyUpgrade(s, def)) break;
     }
     expect(s.money).toBeGreaterThanOrEqual(2300);

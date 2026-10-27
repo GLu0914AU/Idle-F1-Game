@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { pickAutoBuy } from '../game/auto';
 import { ENGINEER_REVIEW_SECONDS, reviewStrategy } from '../game/engineers';
-import { staffEffects, totalPayroll } from '../game/staff';
+import { payrollReserve, staffEffects, totalPayroll } from '../game/staff';
 import {
   UPGRADE_DEFS,
   UpgradeDef,
@@ -641,7 +641,7 @@ export class GameScene extends Phaser.Scene {
     const rating = carRating(this.eff());
     this.moneyText.setText(`$ ${formatNumber(s.money)}`);
     const wages = totalPayroll(s);
-    this.wageText.setText(wages > 0 ? `WAGES\n-$${formatNumber(wages)}/race` : '');
+    this.wageText.setText(wages > 0 ? `WAGES\n-$${formatNumber(wages)}/season` : '');
     this.gemText.setText(String(s.gems));
     this.rpText.setText(`${s.researchPoints} RP`);
     this.cloutText.setText(String(s.clout));
@@ -803,7 +803,7 @@ export class GameScene extends Phaser.Scene {
       this.autoBuyTimer += dt;
       if (this.autoBuyTimer >= 0.5) {
         this.autoBuyTimer = 0;
-        const def = pickAutoBuy(s.money, s.upgrades, totalPayroll(s));
+        const def = pickAutoBuy(s.money, s.upgrades, payrollReserve(s));
         if (def && buyUpgrade(s, def)) this.applyRating();
       }
     }

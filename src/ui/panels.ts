@@ -77,13 +77,13 @@ const engineerLines = (e: EngineerStats) => [
 ];
 
 const describeDriver = (d: Driver) =>
-  `Skill +${d.skill}% · Tyres ${d.tyreMgmt} · Consistency ${d.consistency} · Race craft ${d.raceCraft} · ${d.salary > 0 ? `$${formatNumber(d.salary)}/race` : 'no wage'}`;
+  `Skill +${d.skill}% · Tyres ${d.tyreMgmt} · Consistency ${d.consistency} · Race craft ${d.raceCraft} · ${d.salary > 0 ? `$${formatNumber(d.salary)}/season` : 'no wage'}`;
 
 const DEV_OUTCOME_LABEL: Record<DevOutcome, string> = { big: 'a breakthrough!', solid: 'a solid gain', flop: 'a flop' };
 const oddsHint = (p: number) => (p < 0.1 ? 'rare' : p < 0.2 ? 'unlikely' : p < 0.35 ? 'possible' : p < 0.55 ? 'likely' : 'very likely');
 
 const describeEngineer = (e: Engineer | null) =>
-  e ? `Pit ${e.pit}% · Tyres ${e.tyre}% · Mode ${e.mode}% · $${formatNumber(e.salary)}/race` : 'No engineer: you call strategy by hand';
+  e ? `Pit ${e.pit}% · Tyres ${e.tyre}% · Mode ${e.mode}% · $${formatNumber(e.salary)}/season` : 'No engineer: you call strategy by hand';
 
 export const GEM_BOOST_COST = 10;
 export const BOOST_SECONDS = 60;
@@ -522,7 +522,7 @@ export class PanelHost {
         const estimate = addText(this.scene, W / 2, 304, '', 14, '#9aa7d0', c).setOrigin(0.5, 0);
         const traits = addText(this.scene, W / 2, 334, '', 14, '#cfd6ee', c).setOrigin(0.5, 0).setAlign('center').setLineSpacing(4).setWordWrapWidth(W - 70);
         const amount = addText(this.scene, W / 2, 414, '', 30, '#ffffff', c).setOrigin(0.5, 0);
-        const caption = addText(this.scene, W / 2, 452, 'per race, paid after every race', 12, '#9aa7d0', c).setOrigin(0.5, 0);
+        const caption = addText(this.scene, W / 2, 452, 'per season, paid after its final race', 12, '#9aa7d0', c).setOrigin(0.5, 0);
         const steps: [string, number][] = [['-25%', 0.75], ['-5%', 0.95], ['+5%', 1.05], ['+25%', 1.25]];
         const stepBtns = steps.map(([label, mult], i) =>
           addButton(this.scene, 34 + i * 118, 478, 108, 36, label, () => {
@@ -537,7 +537,7 @@ export class PanelHost {
           const result = offerStaffContract(s, role, this.staffOffer);
           this.staffMessage =
             result.outcome === 'signed'
-              ? `${result.name} signed for $${formatNumber(this.staffOffer)} a race${result.replaced ? `, replacing ${result.replaced}` : ''}.`
+              ? `${result.name} signed for $${formatNumber(this.staffOffer)} a season${result.replaced ? `, replacing ${result.replaced}` : ''}.`
               : `${m.name} turned the offer down and left.`;
           this.staffMessageGood = result.outcome === 'signed';
           this.hooks.save();
@@ -564,7 +564,7 @@ export class PanelHost {
         const role = this.staffRole;
         const def = STAFF_DEFS[role];
         r.tabs.forEach((b, i) => b.setState(true, STAFF_ROLES[i] === role ? COLORS.green : COLORS.panel));
-        r.info.setText(`Clout: ${s.clout} · ${def.blurb} Paid every race; unpaid staff quit.`);
+        r.info.setText(`Clout: ${s.clout} · ${def.blurb} Paid once a season; unpaid staff quit.`);
         const m = s.staffMeetings[role];
         r.meet.setLabel(m ? 'NEGOTIATION IN PROGRESS' : `MEET A ${def.title.toUpperCase()}: ${STAFF_MEETING_CLOUT} CLOUT`);
         r.meet.setState(!m && s.clout >= STAFF_MEETING_CLOUT, COLORS.green);
@@ -579,7 +579,7 @@ export class PanelHost {
         const holder = s.staff[role];
         if (m) {
           r.name.setText(m.name);
-          r.estimate.setText(`They want roughly $${formatNumber(m.lo)} to $${formatNumber(m.hi)} a race`);
+          r.estimate.setText(`They want roughly $${formatNumber(m.lo)} to $${formatNumber(m.hi)}           a season`);
           r.traits.setText(def.lines(m.stats).join('\n'));
           r.amount.setText(`$${formatNumber(this.staffOffer)}`);
           r.sign.setLabel(holder ? `SIGN, REPLACING ${holder.name.toUpperCase()}` : `SIGN AS ${def.title.toUpperCase()}`);
@@ -588,7 +588,7 @@ export class PanelHost {
           r.idle.setColor(this.staffMessage ? (this.staffMessageGood ? '#14b87a' : '#e08a1f') : '#9aa7d0');
         }
         r.currentTitle.setText(`Current ${def.title.toLowerCase()}`);
-        r.current.setText(holder ? `${holder.name}\n${def.lines(holder.stats).join('\n')}\n$${formatNumber(holder.salary)}/race` : `No ${def.title.toLowerCase()} hired`);
+        r.current.setText(holder ? `${holder.name}\n${def.lines(holder.stats).join('\n')}\n$${formatNumber(holder.salary)}/season` : `No ${def.title.toLowerCase()} hired`);
       }
 
   openGoals(open: boolean) {
@@ -825,7 +825,7 @@ export class PanelHost {
     const estimate = addText(this.scene, W / 2, 272, '', 14, '#9aa7d0', c).setOrigin(0.5, 0);
     const traits = addText(this.scene, W / 2, 304, '', 15, '#cfd6ee', c).setOrigin(0.5, 0).setAlign('center').setLineSpacing(4);
     const amount = addText(this.scene, W / 2, 398, '', 30, '#ffffff', c).setOrigin(0.5, 0);
-    const caption = addText(this.scene, W / 2, 438, 'per race, paid after every race', 12, '#9aa7d0', c).setOrigin(0.5, 0);
+    const caption = addText(this.scene, W / 2, 438, 'per season, paid after its final race', 12, '#9aa7d0', c).setOrigin(0.5, 0);
     const steps: [string, number][] = [['-25%', 0.75], ['-5%', 0.95], ['+5%', 1.05], ['+25%', 1.25]];
     const stepBtns = steps.map(([label, mult], i) =>
       addButton(this.scene, 34 + i * 118, 466, 108, 38, label, () => {
@@ -839,7 +839,7 @@ export class PanelHost {
       const result = offerEngineerContract(s, this.engineerOffer);
       this.engineerMessage =
         result.outcome === 'signed'
-          ? `${result.name} signed for $${formatNumber(this.engineerOffer)} a race${result.replaced ? `, replacing ${result.replaced}` : ''}.`
+          ? `${result.name} signed for $${formatNumber(this.engineerOffer)} a season${result.replaced ? `, replacing ${result.replaced}` : ''}.`
           : `${m.name} turned the offer down and left.`;
       this.engineerMessageGood = result.outcome === 'signed';
       this.hooks.save();
@@ -877,7 +877,7 @@ export class PanelHost {
     r.idle.setVisible(!m);
     if (m) {
       r.name.setText(m.name);
-      r.estimate.setText(`They want roughly $${formatNumber(m.lo)} to $${formatNumber(m.hi)} a race`);
+      r.estimate.setText(`They want roughly $${formatNumber(m.lo)} to $${formatNumber(m.hi)}       a season`);
       r.traits.setText(engineerLines(m.stats).join('\n'));
       r.amount.setText(`$${formatNumber(this.engineerOffer)}`);
       r.sign.setLabel(s.engineer ? `SIGN, REPLACING ${s.engineer.name.toUpperCase()}` : 'SIGN AS RACE ENGINEER');
@@ -906,7 +906,7 @@ export class PanelHost {
     const estimate = addText(this.scene, W / 2, 272, '', 14, '#9aa7d0', c).setOrigin(0.5, 0);
     const traits = addText(this.scene, W / 2, 300, '', 15, '#cfd6ee', c).setOrigin(0.5, 0).setAlign('center').setLineSpacing(4);
     const amount = addText(this.scene, W / 2, 398, '', 30, '#ffffff', c).setOrigin(0.5, 0);
-    const caption = addText(this.scene, W / 2, 438, 'per race, paid after every race', 12, '#9aa7d0', c).setOrigin(0.5, 0);
+    const caption = addText(this.scene, W / 2, 438, 'per season, paid after its final race', 12, '#9aa7d0', c).setOrigin(0.5, 0);
     const steps: [string, number][] = [['-25%', 0.75], ['-5%', 0.95], ['+5%', 1.05], ['+25%', 1.25]];
     const stepBtns = steps.map(([label, mult], i) =>
       addButton(this.scene, 34 + i * 118, 466, 108, 38, label, () => {
@@ -921,7 +921,7 @@ export class PanelHost {
         const result = offerContract(s, slot, this.driverOffer);
         this.driverMessage =
           result.outcome === 'signed'
-            ? `${result.name} signed for $${formatNumber(this.driverOffer)} a race, replacing ${result.replaced}.`
+            ? `${result.name} signed for $${formatNumber(this.driverOffer)} a season, replacing ${result.replaced}.`
             : `${m.name} turned the offer down and left.`;
         this.driverMessageGood = result.outcome === 'signed';
         if (result.outcome === 'signed') this.hooks.onDriversChanged();
@@ -946,7 +946,7 @@ export class PanelHost {
 
   private renderRecruit(s: GameState) {
     const r = this.recruit;
-    r.info.setText(`Clout: ${s.clout} · Win races, then run a Fan Event to earn clout. Drivers stay until you replace them, and are paid after every race: if you can't pay, they quit.`);
+    r.info.setText(`Clout: ${s.clout} · Win races, then run a Fan Event to earn clout. Drivers stay until you replace them, and are paid once a season: if you can't pay, they quit.`);
     r.meet.setLabel(s.driverMeeting ? 'NEGOTIATION IN PROGRESS' : `MEET A DRIVER: ${DRIVER_MEETING_CLOUT} CLOUT`);
     r.meet.setState(!s.driverMeeting && s.clout >= DRIVER_MEETING_CLOUT, COLORS.green);
 
@@ -961,7 +961,7 @@ export class PanelHost {
     r.idle.setVisible(!m);
     if (m) {
       r.name.setText(m.name);
-      r.estimate.setText(`They want roughly $${formatNumber(m.lo)} to $${formatNumber(m.hi)} a race`);
+      r.estimate.setText(`They want roughly $${formatNumber(m.lo)} to $${formatNumber(m.hi)}       a season`);
       r.traits.setText(driverLines(m.stats).join('\n'));
       r.amount.setText(`$${formatNumber(this.driverOffer)}`);
       r.sign.forEach((b, i) => b.setLabel(`SIGN AS DRIVER ${i + 1}`));

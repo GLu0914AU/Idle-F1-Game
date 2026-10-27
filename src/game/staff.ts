@@ -1,8 +1,9 @@
 import { openingOffer, payroll, rollAsk } from './drivers';
+import { RACES_PER_SEASON } from './season';
 import type { GameState } from './save';
 
-// Specialist staff beyond the race engineer. Each role is hired with clout and the same hidden-minimum-wage haggling, is paid after every
-// race, quits if unpaid, and survives a prestige. Their effects are deliberately modest next to upgrades and drivers.
+// Specialist staff beyond the race engineer. Each role is hired with clout and the same hidden-minimum-wage haggling, is paid once per
+// season, quits if unpaid, and survives a prestige. Their effects are deliberately modest next to upgrades and drivers.
 export type StaffRole = 'tyre' | 'pit' | 'wind';
 export const STAFF_ROLES: StaffRole[] = ['tyre', 'pit', 'wind'];
 
@@ -119,7 +120,7 @@ export function endStaffMeeting(state: Pick<StaffState, 'staffMeetings'>, role: 
   state.staffMeetings[role] = null;
 }
 
-// Takes every salary after a race. Staff the team can't pay walk out.
+// Takes every salary at the end of a season. Staff the team can't pay walk out.
 export function payStaff(state: StaffState): { paid: number; quit: string[] } {
   let paid = 0;
   const quit: string[] = [];
@@ -137,10 +138,15 @@ export function payStaff(state: StaffState): { paid: number; quit: string[] } {
   return { paid, quit };
 }
 
-// Everything the team pays out after a race: both drivers, the race engineer and the specialist staff.
+// Everything the team owes at the end of a season: both drivers, the race engineer and the specialist staff.
 export function totalPayroll(state: Pick<GameState, 'drivers' | 'engineer' | 'staff'>): number {
   const staff = STAFF_ROLES.reduce((sum, role) => sum + (state.staff?.[role]?.salary ?? 0), 0);
   return payroll(state) + (state.engineer?.salary ?? 0) + staff;
+}
+
+// How much of the season's wage bill Auto Buy should have set aside by now: it builds up race by race.
+export function payrollReserve(state: Pick<GameState, 'drivers' | 'engineer' | 'staff' | 'race'>): number {
+  return Math.ceil(totalPayroll(state) * Math.min(1, state.race / RACES_PER_SEASON));
 }
 
 export interface StaffEffects {
