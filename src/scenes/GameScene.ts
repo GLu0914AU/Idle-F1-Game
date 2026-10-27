@@ -752,9 +752,9 @@ export class GameScene extends Phaser.Scene {
     if (owedInstalments(s) > 0) this.payBtn.setLabel(`PAY $${formatNumber(nextInstalment(s))}`);
     else this.payBtn.setLabel(wages > 0 ? 'WAGES PAID' : 'NO WAGES');
     this.payBtn.setState(owedInstalments(s) > 0 && s.money >= nextInstalment(s), COLORS.green);
-    this.gemText.setText(String(s.gems));
-    this.rpText.setText(`${s.researchPoints} RP`);
-    this.cloutText.setText(String(s.clout));
+    this.gemText.setText(formatNumber(s.gems));
+    this.rpText.setText(`${formatNumber(s.researchPoints)} RP`);
+    this.cloutText.setText(formatNumber(s.clout));
     this.seasonText.setText(`Season ${s.season} · Race ${s.race}/${RACES_PER_SEASON}`);
     this.incomeText.setText(`${formatNumber(incomePerSecond(rating, sponsorMultiplier(s)))} $/s · Rating ${Math.round(rating)}`);
     for (const { def, level, button } of this.cards) {

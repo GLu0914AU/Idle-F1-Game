@@ -29,6 +29,8 @@ export interface GameState {
   autoBuy: boolean;
   // Which car upgrades Auto Buy may buy; a missing key counts as ticked.
   autoItems: Record<string, boolean>;
+  // Currency packs already bought once (keyed currency:price); the first purchase of each pays double.
+  packsBought: Record<string, boolean>;
   // Salary instalments paid so far this season; the rest is settled when it ends.
   wageInstalments: number;
   autoTap: boolean;
@@ -107,6 +109,7 @@ export function newGame(now = Date.now()): GameState {
     teamNamed: false,
     autoBuy: false,
     autoItems: {},
+    packsBought: {},
     wageInstalments: 0,
     autoTap: false,
     autoResearch: false,
@@ -158,6 +161,7 @@ export function loadGame(store: Store = localStorage, now = Date.now()): GameSta
       upgrades: { ...fresh.upgrades, ...(data.upgrades ?? {}) },
       points: { ...(data.points ?? {}) },
       autoItems: { ...(data.autoItems ?? {}) },
+      packsBought: { ...(data.packsBought ?? {}) },
       driverPoints: { ...(data.driverPoints ?? {}) },
       research: { ...(data.research ?? {}) },
       sponsorList: [...(data.sponsorList ?? [])],

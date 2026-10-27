@@ -92,7 +92,7 @@ export function addButton(
   const { fill = COLORS.accent, size = 14, parent } = opts;
   let enabled = true;
   const rect = addBox(scene, x, y, w, h, fill, parent).setInteractive({ useHandCursor: true });
-  const text = addText(scene, x + w / 2, y + h / 2, label, size, '#ffffff', parent).setOrigin(0.5);
+  const text = addText(scene, x + w / 2, y + h / 2, label, size, '#ffffff', parent).setOrigin(0.5).setAlign('center');
   rect.on('pointerdown', () => {
     if (!enabled) return;
     scene.tweens.add({ targets: text, scale: 0.88, duration: 70, yoyo: true });

@@ -13,4 +13,9 @@ export async function purchaseFastRaces(): Promise<boolean> {
   return true;
 }
 
+// Stub: a real build would run the store checkout for this price point.
+export async function purchasePack(_price: number): Promise<boolean> {
+  return true;
+}
+
 export const FAST_RACES_PRICE_LABEL = '$2.50';

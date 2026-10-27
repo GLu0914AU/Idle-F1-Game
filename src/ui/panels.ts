@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
-import { AUTO_PRICE_LABEL, FAST_RACES_PRICE_LABEL, purchaseAutoUnlock, purchaseFastRaces, showRewardedAd } from '../game/monetization';
+import { AUTO_PRICE_LABEL, FAST_RACES_PRICE_LABEL, purchaseAutoUnlock, purchaseFastRaces, purchasePack, showRewardedAd } from '../game/monetization';
+import { CURRENCIES, CURRENCY_NAMES, Currency, PRICES, grantPack, isFirstBuy, packAmount, priceLabel } from '../game/store';
+
+const CURRENCY_SHORT: Record<Currency, string> = { gems: 'Gems', rp: 'RP', clout: 'Clout' };
 import { GameState } from '../game/save';
 import { MIN_PRESTIGE_SEASON, RESEARCH_DEFS, ResearchDef, buyResearch, researchCost, researchPointsFor } from '../game/prestige';
 import { openingPitch, meetingCost, pitch, requestMeeting, sponsorIncome, walkAway } from '../game/sponsors';
@@ -286,8 +289,19 @@ export class PanelHost {
     checklist: Button;
     gemBoost: Button;
     fast: Button;
+    store: Button;
   };
   private autoOpen = false;
+  private storeOpen = false;
+  private storeCurrency: Currency = 'gems';
+  private storeMessage = '';
+  private storeUi!: {
+    box: Phaser.GameObjects.Container;
+    wallet: Phaser.GameObjects.Text;
+    tabs: Button[];
+    packs: { price: number; button: Button }[];
+    message: Phaser.GameObjects.Text;
+  };
   private autoUi!: { box: Phaser.GameObjects.Container; items: { key: string; name: string; button: Button }[]; power: Button };
 
   constructor(
@@ -302,6 +316,7 @@ export class PanelHost {
     this.buildGoals();
     this.buildProfile();
     this.buildAuto();
+    this.buildStore();
     this.show('Race');
   }
 
@@ -317,7 +332,9 @@ export class PanelHost {
       this.profileOpen = false;
       this.goalsOpen = false;
       this.autoOpen = false;
+      this.storeOpen = false;
     }
+    this.storeUi?.box.setVisible(this.storeOpen);
     this.autoUi?.box.setVisible(this.autoOpen);
     this.goalsUi?.box.setVisible(this.goalsOpen && tab === 'Race');
     this.profileUi?.box.setVisible(this.profileOpen);
@@ -1401,8 +1418,69 @@ export class PanelHost {
       .setOrigin(0.5, 0)
       .setWordWrapWidth(W - 60)
       .setAlign('center');
-    addText(this.scene, W / 2, 700, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
-    this.shop = { gems, unlock, toggles, checklist, gemBoost, fast };
+    const store = addButton(this.scene, 30, 660, W - 60, 48, 'BUY GEMS, RP & CLOUT', () => this.openStore(true), { fill: COLORS.gold, size: 17, parent: c });
+    addText(this.scene, W / 2, 716, 'Purchases and ads are stubbed in this build.', 13, '#5b6894', c).setOrigin(0.5, 0);
+    this.shop = { gems, unlock, toggles, checklist, gemBoost, fast, store };
+  }
+
+  openStore(open: boolean) {
+    this.storeOpen = open && this.current === 'Shop';
+    this.storeUi.box.setVisible(this.storeOpen);
+  }
+
+  // The store page: pick a currency, then one of six price points. The first purchase of each pack pays double.
+  private buildStore() {
+    const c = this.scene.add.container(0, 0).setDepth(100).setVisible(false);
+    c.add(addBox(this.scene, 0, 70, W, 810, COLORS.bg).setInteractive());
+    c.add(this.scene.add.rectangle(W / 2, 84, 120, 3, COLORS.red));
+    c.add(addText(this.scene, W / 2, 90, 'STORE', 24).setOrigin(0.5, 0));
+    const wallet = addText(this.scene, W / 2, 130, '', 15, '#9aa7d0', c).setOrigin(0.5, 0);
+    const tabW = (W - 60 - 16) / 3;
+    const tabs = CURRENCIES.map((cur, i) =>
+      addButton(this.scene, 30 + i * (tabW + 8), 166, tabW, 44, CURRENCY_SHORT[cur], () => (this.storeCurrency = cur), { size: 15, parent: c }),
+    );
+    const cardW = (W - 60 - 12) / 2;
+    const packs = PRICES.map((price, i) => ({
+      price,
+      button: addButton(
+        this.scene,
+        30 + (i % 2) * (cardW + 12),
+        232 + Math.floor(i / 2) * 124,
+        cardW,
+        110,
+        '',
+        async () => {
+          const s = this.state();
+          const cur = this.storeCurrency;
+          if (!(await purchasePack(price))) return;
+          const got = grantPack(s, cur, price);
+          this.storeMessage = `+${got.toLocaleString('en-US')} ${CURRENCY_NAMES[cur]}`;
+          this.hooks.save();
+        },
+        { size: 16, parent: c },
+      ),
+    }));
+    const message = addText(this.scene, W / 2, 616, '', 16, '#14b87a', c).setOrigin(0.5, 0);
+    addText(this.scene, W / 2, 660, 'The first time you buy each pack it pays double. Bigger packs give a better rate. Purchases are stubbed in this build.', 13, '#9aa7d0', c)
+      .setOrigin(0.5, 0)
+      .setWordWrapWidth(W - 60)
+      .setAlign('center');
+    addButton(this.scene, 30, 812, W - 60, 44, 'DONE', () => this.openStore(false), { size: 16, parent: c });
+    this.storeUi = { box: c, wallet, tabs, packs, message };
+  }
+
+  private renderStore(s: GameState) {
+    const ui = this.storeUi;
+    const cur = this.storeCurrency;
+    ui.wallet.setText(`Gems ${formatNumber(s.gems)}   ·   RP ${formatNumber(s.researchPoints)}   ·   Clout ${formatNumber(s.clout)}`);
+    CURRENCIES.forEach((k, i) => ui.tabs[i].setState(true, k === cur ? COLORS.green : COLORS.accent));
+    for (const { price, button } of ui.packs) {
+      const first = isFirstBuy(s, cur, price);
+      const amount = packAmount(s, cur, price);
+      button.setLabel(`${priceLabel(price)}\n${amount.toLocaleString('en-US')} ${CURRENCY_SHORT[cur]}${first ? '\nFIRST BUY: 2x' : ''}`);
+      button.setState(true, first ? 0x7a4bd6 : COLORS.accent);
+    }
+    ui.message.setText(this.storeMessage);
   }
 
   // The Auto Buy page: opens when Auto Buy is switched on, and lists what it may spend money on.
@@ -1468,6 +1546,7 @@ export class PanelHost {
     const s = this.state();
     if (this.profileOpen) this.renderProfile(s);
     if (this.autoOpen) this.renderAuto(s);
+    if (this.storeOpen) this.renderStore(s);
     if (this.goalsOpen && this.current === 'Race') this.renderGoals(s);
     if (this.current === 'Sponsors') {
       this.renderSponsors(s);
