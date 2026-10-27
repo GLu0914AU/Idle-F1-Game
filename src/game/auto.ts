@@ -1,4 +1,5 @@
 import { UPGRADE_DEFS, UpgradeDef, upgradeCost } from './economy';
+import { DEV_PACKAGES, DevPackage, developmentCost, fitsSeason } from './development';
 import { Compound, Strategy, isPitting } from './strategy';
 import { idealClass, tyreClass } from './weather';
 
@@ -17,6 +18,28 @@ export function pickAutoBuy(money: number, upgrades: Record<string, number>, res
     }
   }
   return best && bestCost <= spendable ? best : null;
+}
+
+// Starts the best package that is ticked, fits before the season ends and is affordable once the owed wages are set aside.
+// "Best" is the most expensive one, since pricier packages carry bigger gains.
+export function pickAutoDevelopment(
+  state: Parameters<typeof developmentCost>[0],
+  racesPerSeason: number,
+  reserve = 0,
+  enabled: Record<string, boolean> = {},
+): DevPackage | null {
+  if (enabled.development === false || state.development.active) return null;
+  let best: DevPackage | null = null;
+  let bestCost = -1;
+  for (const def of DEV_PACKAGES) {
+    if (!fitsSeason(state, def, racesPerSeason)) continue;
+    const cost = developmentCost(state, def);
+    if (cost <= state.money - reserve && cost > bestCost) {
+      best = def;
+      bestCost = cost;
+    }
+  }
+  return best;
 }
 
 // Call the car in once tyres are worn, or when the rain has made them wrong, unless the race is nearly over.

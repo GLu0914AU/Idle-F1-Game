@@ -1526,7 +1526,7 @@ export class PanelHost {
     c.add(addText(this.scene, W / 2, 90, 'AUTO BUY', 24).setOrigin(0.5, 0));
     addText(this.scene, 30, 136, 'Tick what Auto Buy may do. It buys the cheapest ticked upgrade first, and always keeps the owed wages aside.', 13, '#9aa7d0', c).setWordWrapWidth(W - 60);
     const cardW = (W - 60 - 12) / 2;
-    const items = [...UPGRADE_DEFS.map((d) => ({ key: d.key, name: d.name })), { key: 'wages', name: 'Pay Wages' }].map((def, i) => ({
+    const items = [...UPGRADE_DEFS.map((d) => ({ key: d.key, name: d.name })), { key: 'development', name: 'Car Development' }, { key: 'wages', name: 'Pay Wages' }].map((def, i) => ({
       key: def.key,
       name: def.name,
       button: addButton(

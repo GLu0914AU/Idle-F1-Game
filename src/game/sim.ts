@@ -1,4 +1,4 @@
-import { pickAutoBuy } from './auto';
+import { pickAutoBuy, pickAutoDevelopment } from './auto';
 import { canRunFanEvent, runFanEvent } from './career';
 import { DEV_PACKAGES, developmentCost, startDevelopment } from './development';
 import { DRIVER_MEETING_CLOUT, driverRating, endDriverMeeting, offerContract, requestDriverMeeting } from './drivers';
@@ -200,6 +200,8 @@ export function simulate(opts: SimOptions): SimResult {
         cur.wages += autoPayWages(state);
         const def = pickAutoBuy(state.money, state.upgrades, payrollReserve(state), state.autoItems);
         if (def && buyUpgrade(state, def)) applyRating();
+        const pkg = pickAutoDevelopment(state, RACES_PER_SEASON, payrollReserve(state), state.autoItems);
+        if (pkg) startDevelopment(state, pkg.key, RACES_PER_SEASON);
       }
     }
     if (state.autoResearch) {

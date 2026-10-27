@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { pickAutoBuy } from '../game/auto';
+import { pickAutoBuy, pickAutoDevelopment } from '../game/auto';
 import { ENGINEER_REVIEW_SECONDS, reviewStrategy } from '../game/engineers';
 import { autoPayWages, nextInstalment, owedInstalments, payInstalment, payrollReserve, staffEffects, totalPayroll, wagesOwed } from '../game/staff';
 import {
@@ -21,7 +21,7 @@ import { TITLE_GEMS, settleRace } from '../game/settle';
 import { describeWeather, idealClass, isDry, rollWeather } from '../game/weather';
 import { GameState, loadGame, resetGame, saveGame } from '../game/save';
 import { RACES_PER_SEASON, driversTable } from '../game/season';
-import { packageDef } from '../game/development';
+import { packageDef, startDevelopment } from '../game/development';
 import { achievementDef, claimableCount, readyAchievements, recordEvent, recordRaceResult } from '../game/goals';
 import { playSound, setEngine, syncAudio, unlockAudio } from '../game/audio';
 import { GAME_H, GAME_W, RES } from '../resolution';
@@ -927,6 +927,8 @@ export class GameScene extends Phaser.Scene {
         if (paid > 0) this.floatText(W - 90, 96, `-$${formatNumber(paid)} wages`, '#ff8a80');
         const def = pickAutoBuy(s.money, s.upgrades, payrollReserve(s), s.autoItems);
         if (def && buyUpgrade(s, def)) this.applyRating();
+        const pkg = pickAutoDevelopment(s, RACES_PER_SEASON, payrollReserve(s), s.autoItems);
+        if (pkg) startDevelopment(s, pkg.key, RACES_PER_SEASON);
       }
     }
     if (s.autoResearch) {

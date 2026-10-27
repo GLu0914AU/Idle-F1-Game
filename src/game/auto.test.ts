@@ -1,11 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { autoCompound, autoSelectCompound, pickAutoBuy, shouldAutoPit } from './auto';
+import { autoCompound, autoSelectCompound, pickAutoBuy, pickAutoDevelopment, shouldAutoPit } from './auto';
+import { startDevelopment } from './development';
 import { upgradeCost, UPGRADE_DEFS, buyUpgrade } from './economy';
 import { payDrivers, rookie } from './drivers';
 import { payEngineer } from './engineers';
 import { newGame } from './save';
 import { payStaff, payrollReserve, totalPayroll } from './staff';
 import { newStrategy, selectCompound } from './strategy';
+
+describe('auto development', () => {
+  const rich = () => ({ ...newGame(), money: 1e12, race: 1 });
+
+  it('picks an affordable package that fits, and nothing when ticked off, busy or unaffordable', () => {
+    const s = rich();
+    expect(pickAutoDevelopment(s, 10)).not.toBeNull();
+    expect(pickAutoDevelopment(s, 10, 0, { development: false })).toBeNull();
+    expect(pickAutoDevelopment({ ...s, money: 0 }, 10)).toBeNull();
+    expect(pickAutoDevelopment(s, 10, 1e12)).toBeNull();
+    expect(startDevelopment(s, pickAutoDevelopment(s, 10)!.key, 10)).toBe(true);
+    expect(pickAutoDevelopment(s, 10)).toBeNull();
+  });
+
+  it('skips packages that would not finish before the season ends', () => {
+    const s = { ...rich(), race: 9 };
+    expect(pickAutoDevelopment(s, 10)).toBeNull();
+    expect(pickAutoDevelopment({ ...s, race: 8 }, 10)?.races).toBe(2);
+  });
+});
 
 describe('auto', () => {
   it("never overrides the player's chosen compound, at any later stop", () => {
